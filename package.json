@@ -12,5 +12,8 @@
   "license": "ISC",
   "devDependencies": {
     "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
   }
 }

@@ -20,10 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. Category Filtering
     setupCategoryFilter();
 
-    // 6. Interactive Dashboard Preview Tabs
-    setupDashboardTabs();
-
-    // 7. Modals
+    // 6. Modals
     setupModals();
 });
 
@@ -31,7 +28,7 @@ function setupScrollAnimations() {
     const observerOptions = {
         root: null,
         rootMargin: '0px',
-        threshold: 0.1
+        threshold: 0.05
     };
 
     const observer = new IntersectionObserver((entries, observer) => {
@@ -45,6 +42,14 @@ function setupScrollAnimations() {
 
     const elementsToAnimate = document.querySelectorAll('.fade-in-scroll');
     elementsToAnimate.forEach(el => observer.observe(el));
+
+    // FAILSAFE: Eğer IntersectionObserver tetiklenmezse veya elemanlar gizli kalırsa,
+    // 1.5 saniye sonra otomatik olarak tüm elemanları görünür yap.
+    setTimeout(() => {
+        document.querySelectorAll('.fade-in-scroll:not(.visible)').forEach(el => {
+            el.classList.add('visible');
+        });
+    }, 1500);
 }
 
 function setupForm() {
@@ -96,24 +101,6 @@ function setupCategoryFilter() {
     });
 }
 
-function setupDashboardTabs() {
-    const tabs = document.querySelectorAll('.dash-tab');
-    const contents = document.querySelectorAll('.dash-content');
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-
-            tab.classList.add('active');
-            const targetId = tab.getAttribute('data-tab');
-            const targetContent = document.getElementById(targetId);
-            if (targetContent) {
-                targetContent.classList.add('active');
-            }
-        });
-    });
-}
 
 // Modal Data Dictionary
 const featureDetailsData = {
