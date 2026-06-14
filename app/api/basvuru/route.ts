@@ -1,7 +1,32 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireSuperAdmin } from '@/lib/admin-auth'
+import { getServiceClient } from '@/lib/supabase/service'
+
+const PLAN_LABELS: Record<string, string> = {
+  deneme: '30 Gün Deneme',
+  stok_satis: 'Stok & Satış',
+  teknik_servis: 'Teknik Servis',
+  finans: 'Finans & Analitik',
+  starter: 'Stok & Satış',
+  pro: 'Teknik Servis',
+  enterprise: 'Finans & Analitik',
+}
+
+function getSupabaseForInsert() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (url && serviceKey) {
+    return createClient(url, serviceKey)
+  }
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (url && anonKey) {
+    return createClient(url, anonKey)
+  }
+  return null
+}
 
 // Public API — auth gerektirmez
 export async function POST(request: Request) {
@@ -22,29 +47,32 @@ export async function POST(request: Request) {
     } = body
 
     if (!firma_adi || !yetkili_adi || !email || !telefon || !kvkk) {
-      return NextResponse.json({ error: 'Zorunlu alanlar eksik' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Zorunlu alanlar eksik' }, { status: 400 })
     }
 
-    // Service role (bypass RLS) veya anon key (RLS public_insert_basvuru politikası)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = getSupabaseForInsert()
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Sunucu yapılandırması eksik' }, { status: 503 })
+    }
 
-    // bayi_basvurulari tablosuna yaz (SQL şemasındaki alan adlarıyla eşleşir)
+    const planLabel = paket ? (PLAN_LABELS[String(paket)] ?? String(paket)) : null
+    const monthlyLabel = aylik_servis ? String(aylik_servis) : null
+    const extraNote = monthlyLabel ? `Aylık servis hacmi: ${monthlyLabel}` : ''
+    const fullMessage = [mesaj, extraNote].filter(Boolean).join('\n').trim() || null
+
     const { data, error } = await supabase
       .from('bayi_basvurulari')
       .insert({
-        company_name:          firma_adi,
-        contact_name:          yetkili_adi,
-        email,
-        phone:                 telefon,
-        city:                  sehir || null,
-        device_types:          servis_turleri || [],
-        monthly_service_count: aylik_servis || null,
-        plan_interest:         paket || null,
-        message:               mesaj || null,
-        status:                'beklemede',
+        company_name: firma_adi.trim(),
+        contact_name: yetkili_adi.trim(),
+        email: email.trim().toLowerCase(),
+        phone: telefon.trim(),
+        city: sehir?.trim() || null,
+        device_types: Array.isArray(servis_turleri) ? servis_turleri : [],
+        monthly_service_count: monthlyLabel,
+        plan_interest: planLabel,
+        message: fullMessage,
+        status: 'beklemede',
       })
       .select('id')
       .single()

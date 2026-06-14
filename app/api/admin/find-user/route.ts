@@ -2,21 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-
-async function requireSuperAdmin(request: NextRequest) {
-  try {
-    const sb = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return null
-    const { data: profile } = await sb.from('user_profiles').select('role').eq('id', user.id).single()
-    return (profile as any)?.role === 'super_admin' ? user : null
-  } catch { return null }
-}
+import { requireSuperAdmin } from '@/lib/admin-auth'
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -26,10 +12,8 @@ function getAdminClient() {
 }
 
 export async function GET(request: NextRequest) {
-  const admin = await requireSuperAdmin(request)
-  if (!admin) {
-    return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 })
-  }
+  const auth = await requireSuperAdmin(request)
+  if (!auth.authorized) return auth.error
 
   const email = request.nextUrl.searchParams.get('email')?.trim().toLowerCase()
   if (!email) {
@@ -50,19 +34,21 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
-      .select('full_name, role, tenant_id, is_active')
+      .select('id, full_name, role, tenant_id, is_active')
       .eq('id', found.id)
-      .single()
+      .maybeSingle()
 
     return NextResponse.json({
-      id:        found.id,
-      email:     found.email,
-      full_name: (profile as any)?.full_name || found.email?.split('@')[0] || '—',
-      role:      (profile as any)?.role || 'staff',
-      tenant_id: (profile as any)?.tenant_id || null,
-      is_active: (profile as any)?.is_active ?? true,
+      user: {
+        id: found.id,
+        email: found.email,
+        created_at: found.created_at,
+        last_sign_in_at: found.last_sign_in_at,
+        profile,
+      },
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Sunucu hatası' }, { status: 500 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Arama hatası'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

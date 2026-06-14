@@ -6,35 +6,9 @@ import {
   X, Edit3, Trash2, FileText, Phone, Tag, Hash, CreditCard, Truck,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle
 } from 'lucide-react'
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface Purchase {
-  id: string
-  supplier_name: string
-  supplier_phone?: string
-  device_brand?: string
-  device_model?: string
-  imei?: string
-  category: 'telefon' | 'aksesuar' | 'yedek_parca' | 'ikinci_el'
-  quality: 'sifir' | 'ikinci_el' | 'yenilenmis' | 'yurtdisi' | 'tamirli'
-  quantity: number
-  buy_price: number
-  total_cost: number
-  payment_method: string
-  invoice_no?: string
-  notes?: string
-  created_at: string
-}
-
-interface StoreData {
-  purchases: Purchase[]
-  [key: string]: unknown
-}
+import { getPurchases, setPurchases, recordPurchase, onStoreChange, type Purchase } from '@/lib/store'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const STORAGE_KEY = 'servissoft_store'
 
 const CATEGORY_OPTIONS = [
   { value: 'telefon', label: 'Telefon' },
@@ -74,25 +48,6 @@ function uid(): string {
     return crypto.randomUUID()
   }
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
-}
-
-function loadStore(): StoreData {
-  if (typeof window === 'undefined') return { purchases: [] }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as StoreData
-      if (!parsed.purchases) parsed.purchases = []
-      return parsed
-    }
-  } catch { /* ignore */ }
-  return { purchases: [] }
-}
-
-function saveStore(store: StoreData): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-  window.dispatchEvent(new CustomEvent('servissoft-store-change', { detail: { module: 'purchases' } }))
 }
 
 function formatCurrency(amount: number): string {
@@ -188,20 +143,13 @@ export default function AlisPage() {
   // ─── Data Load ──────────────────────────────────────────────────────────
 
   const refresh = useCallback(() => {
-    const store = loadStore()
-    setPurchases(store.purchases || [])
+    setPurchases(getPurchases())
   }, [])
 
   useEffect(() => {
     setMounted(true)
     refresh()
-
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail?.module === 'purchases') refresh()
-    }
-    window.addEventListener('servissoft-store-change', handler)
-    return () => window.removeEventListener('servissoft-store-change', handler)
+    return onStoreChange(m => { if (!m || m === 'purchases' || m === 'all') refresh() })
   }, [refresh])
 
   // ─── Filtering ──────────────────────────────────────────────────────────
@@ -286,12 +234,11 @@ export default function AlisPage() {
   const handleSave = () => {
     if (!validateForm()) return
 
-    const store = loadStore()
+    const list = getPurchases()
     const totalCost = form.quantity * form.buy_price
 
     if (editingId) {
-      // Update
-      store.purchases = (store.purchases || []).map(p =>
+      const next = list.map(p =>
         p.id === editingId
           ? {
               ...p,
@@ -311,10 +258,9 @@ export default function AlisPage() {
             }
           : p
       )
+      setPurchases(next)
     } else {
-      // Create
-      const newPurchase: Purchase = {
-        id: uid(),
+      recordPurchase({
         supplier_name: form.supplier_name.trim(),
         supplier_phone: form.supplier_phone.trim() || undefined,
         category: form.category,
@@ -324,25 +270,18 @@ export default function AlisPage() {
         imei: form.category === 'telefon' ? form.imei.trim() || undefined : undefined,
         quantity: form.quantity,
         buy_price: form.buy_price,
-        total_cost: totalCost,
         payment_method: form.payment_method,
         invoice_no: form.invoice_no.trim() || undefined,
         notes: form.notes.trim() || undefined,
-        created_at: new Date().toISOString(),
-      }
-      if (!store.purchases) store.purchases = []
-      store.purchases.push(newPurchase)
+      })
     }
 
-    saveStore(store)
     refresh()
     closeModal()
   }
 
   const handleDelete = (id: string) => {
-    const store = loadStore()
-    store.purchases = (store.purchases || []).filter(p => p.id !== id)
-    saveStore(store)
+    setPurchases(getPurchases().filter(p => p.id !== id))
     refresh()
     setDeleteId(null)
   }

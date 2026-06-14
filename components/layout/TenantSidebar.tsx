@@ -19,7 +19,7 @@ import { isNavAllowed, getSidebarGroupsForRole, isOwnerRole } from '@/lib/role-a
 import Logo from '@/components/Logo'
 import ColorModeToggle from '@/components/ColorModeToggle'
 import { getBusinessBranding } from '@/lib/business-branding'
-import { onStoreChange } from '@/lib/store'
+import { onStoreChange, getStore } from '@/lib/store'
 
 interface NavItem {
   href: string; icon: typeof LayoutDashboard; label: string
@@ -33,8 +33,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/alis',        icon: ShoppingBag,     label: 'Alış',            group: 'HIZLI İŞLEMLER' },
   { href: '/dashboard/satis',       icon: ShoppingCart,     label: 'Satış & POS',     group: 'HIZLI İŞLEMLER' },
   { href: '/dashboard/kasa',        icon: Wallet,          label: 'Kasa Vardiyası',  group: 'HIZLI İŞLEMLER' },
-  { href: '/dashboard/stok',        icon: Package,         label: 'Stok',            group: 'MODÜLLER', badge: 2 },
-  { href: '/dashboard/atolye',      icon: Wrench,          label: 'Teknik Servis',   group: 'MODÜLLER', badge: 3 },
+  { href: '/dashboard/stok',        icon: Package,         label: 'Stok',            group: 'MODÜLLER' },
+  { href: '/dashboard/atolye',      icon: Wrench,          label: 'Teknik Servis',   group: 'MODÜLLER' },
   { href: '/dashboard/tedarik',     icon: Truck,           label: 'Tedarik',         group: 'MODÜLLER' },
   { href: '/dashboard/finans',      icon: DollarSign,      label: 'Gelir/Gider',     group: 'MODÜLLER' },
   { href: '/dashboard/musteriler',  icon: Users,           label: 'Müşteriler',      group: 'MODÜLLER' },
@@ -122,12 +122,22 @@ export default function TenantSidebar({ tenant, user }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [brand, setBrand] = useState({ shopName: '', shopLogo: null as string | null })
+  const [badges, setBadges] = useState({ stok: 0, atolye: 0 })
   const supabase = createClient()
 
   useEffect(() => {
+    const updateBadges = () => {
+      const store = getStore()
+      setBadges({
+        stok: store.stock.filter(s => s.stock_qty <= s.min_stock).length,
+        atolye: store.serviceOrders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
+      })
+    }
     setBrand(getBusinessBranding())
+    updateBadges()
     return onStoreChange(mod => {
       if (mod === 'settings' || mod === 'seed') setBrand(getBusinessBranding())
+      if (['stock', 'service', 'seed'].includes(mod)) updateBadges()
     })
   }, [])
 
@@ -162,9 +172,16 @@ export default function TenantSidebar({ tenant, user }: Props) {
     return pathname.startsWith(href)
   }
 
+  function getLiveBadge(href: string): number {
+    if (href === '/dashboard/stok') return badges.stok
+    if (href === '/dashboard/atolye') return badges.atolye
+    return 0
+  }
+
   function NavLink({ item }: { item: NavItem }) {
     const active = isActive(item.href)
     const Icon = item.icon
+    const liveBadge = getLiveBadge(item.href)
     return (
       <Link href={item.href} onClick={() => setMobileOpen(false)}
         className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
@@ -179,14 +196,14 @@ export default function TenantSidebar({ tenant, user }: Props) {
         {!collapsed && (
           <>
             <span className="truncate flex-1">{item.label}</span>
-            {item.badge && item.badge > 0 && (
-              <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white px-1">
-                {item.badge}
+            {liveBadge > 0 && (
+              <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white px-1 animate-pulse">
+                {liveBadge}
               </span>
             )}
           </>
         )}
-        {collapsed && item.badge && item.badge > 0 && (
+        {collapsed && liveBadge > 0 && (
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
         )}
       </Link>

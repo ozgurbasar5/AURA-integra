@@ -2,18 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Tag, Plus, Edit3, Trash2, Search, X, Clock, TrendingUp, Package, Zap } from 'lucide-react'
-
-interface Deal {
-  id: string; title: string; product_name: string; original_price: number; deal_price: number
-  stock_count: number; sold_count: number; category: string; is_active: boolean
-  end_date: string; description?: string; created_at: string
-}
+import { getDeals, setDeals as setDealsStore, onStoreChange, type Deal } from '@/lib/store'
 
 function uid(){return typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
 function fmt(n:number){return new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY'}).format(n)}
-function load():Deal[]{if(typeof window==='undefined')return[];try{const s=JSON.parse(localStorage.getItem('servissoft_store')||'{}');return s.deals||[]}catch{return[]}}
-function saveFn(d:Deal[]){const s=JSON.parse(localStorage.getItem('servissoft_store')||'{}');s.deals=d;localStorage.setItem('servissoft_store',JSON.stringify(s))}
-
 function daysLeft(end:string){const d=Math.ceil((new Date(end).getTime()-Date.now())/(86400000));return d}
 
 export default function FirsatlarPage(){
@@ -23,8 +15,8 @@ export default function FirsatlarPage(){
   const [editId,setEditId]=useState<string|null>(null)
   const [form,setForm]=useState({title:'',product_name:'',original_price:0,deal_price:0,stock_count:10,category:'Telefon',end_date:'',description:''})
 
-  const reload=useCallback(()=>setDeals(load()),[])
-  useEffect(()=>{reload()},[reload])
+  const reload=useCallback(()=>setDeals(getDeals()),[])
+  useEffect(()=>{reload();return onStoreChange(m=>{if(m==='deals'||m==='seed')reload()})},[reload])
 
   const filtered=deals.filter(d=>{if(!search)return true;const s=search.toLowerCase();return d.title.toLowerCase().includes(s)||d.product_name.toLowerCase().includes(s)})
   const stats={
@@ -42,10 +34,10 @@ export default function FirsatlarPage(){
     let u=[...deals]
     if(editId){u=u.map(d=>d.id===editId?{...d,...form}:d)}
     else{u.unshift({id:uid(),...form,sold_count:0,is_active:true,created_at:new Date().toISOString()})}
-    saveFn(u);setDeals(u);setShowModal(false)
+    setDealsStore(u);setDeals(u);setShowModal(false)
   }
-  const del=(id:string)=>{if(!confirm('Fırsatı silmek istediğinize emin misiniz?'))return;const u=deals.filter(d=>d.id!==id);saveFn(u);setDeals(u)}
-  const toggle=(id:string)=>{const u=deals.map(d=>d.id===id?{...d,is_active:!d.is_active}:d);saveFn(u);setDeals(u)}
+  const del=(id:string)=>{if(!confirm('Fırsatı silmek istediğinize emin misiniz?'))return;const u=deals.filter(d=>d.id!==id);setDealsStore(u);setDeals(u)}
+  const toggle=(id:string)=>{const u=deals.map(d=>d.id===id?{...d,is_active:!d.is_active}:d);setDealsStore(u);setDeals(u)}
 
   return(
     <div className="p-6 space-y-6">

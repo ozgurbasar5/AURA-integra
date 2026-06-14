@@ -9,10 +9,10 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'AURA İntegra — Teknik Servis ERP',
-  description: 'Teknik servis dükkanları için profesyonel ERP yönetim sistemi. Servis takibi, stok yönetimi, finans ve müşteri yönetimini tek platformda birleştirin.',
-  keywords: 'teknik servis, ERP, servis takip, stok yönetimi, POS, fatura',
-  authors: [{ name: 'AURA Bilişim' }],
+  title: 'AURA İntegra — Entegrasyon Platformu',
+  description: 'AURA Bilişim Teknoloji Üssü güvencesiyle bayi ve servis ağları için bulut entegrasyon platformu. Stok, atölye, finans ve müşteri portalı tek panelde.',
+  keywords: 'AURA İntegra, AURA Bilişim, teknik servis, bayi ERP, stok, POS, entegrasyon',
+  authors: [{ name: 'AURA Bilişim', url: 'https://aurabilisim.net' }],
 }
 
 export default function RootLayout({

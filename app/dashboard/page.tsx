@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -11,17 +10,20 @@ import {
 import {
   getServiceOrders, onStoreChange, getFinanceSummary, getSales, getSecondHandDevices,
 } from '@/lib/store'
+import { loadServiceOrdersFromApi } from '@/lib/service-order-bridge'
 import { findRepeatRepairs } from '@/lib/erp-features'
 import { usePlanLevel } from '@/lib/plan-context'
 import { useUserRole } from '@/lib/role-context'
 import {
   TodayActivityWidget, CashSummaryWidget, TechnicianWorkloadWidget,
-  PartUsageWidget, QuickNotesWidget,
+  PartUsageWidget, QuickNotesWidget, LastShiftSummaryWidget,
 } from './DashboardExtraWidgets'
 import {
   DashboardHero, QuickActionGrid, ServicePipeline, StatCard,
   CriticalStockBanner, VitrinSnapshot,
 } from '@/components/dashboard/DashboardWidgets'
+import { DashboardDayHeader } from '@/components/dashboard/DashboardDayHeader'
+import { DashboardMiniChart } from '@/components/dashboard/DashboardMiniChart'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { toast } from 'sonner'
 
@@ -70,7 +72,6 @@ export default function DashboardPage() {
   const hasService = planLevel >= 2
   const hasFinance = planLevel >= 3 && !isTechnician
   const router = useRouter()
-  const supabase = createClient()
 
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -81,6 +82,7 @@ export default function DashboardPage() {
   const [listFilter, setListFilter] = useState<'active' | 'today' | 'all'>(isTechnician ? 'active' : 'today')
   const [pipelineFilter, setPipelineFilter] = useState<string | null>(null)
   const [shopName, setShopName] = useState('')
+  const [remoteStats, setRemoteStats] = useState<{ active_orders?: number; low_stock?: number; today_sales?: number } | null>(null)
 
   const refresh = useCallback(() => {
     setSummary(getFinanceSummary())
@@ -89,35 +91,20 @@ export default function DashboardPage() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
-    try {
-      const { data } = await supabase.from('service_orders').select('*').order('created_at', { ascending: false }).limit(50)
-      if (data?.length) {
-        setOrders(data.map((r: Record<string, unknown>) => mapOrder({
-          id: String(r.id),
-          job_no: String(r.job_no || `SRV-${String(r.id).slice(0, 6)}`),
-          customer_name: String(r.customer_name || '—'),
-          customer_phone: String(r.customer_phone || ''),
-          device_brand: String(r.device_brand || ''),
-          device_model: String(r.device_model || ''),
-          imei: r.imei ? String(r.imei) : undefined,
-          status: String(r.status || 'waiting_diagnosis'),
-          estimated_cost: Number(r.estimated_cost) || 0,
-          created_at: String(r.created_at),
-        })))
-      } else {
-        setOrders(getServiceOrders().slice(0, 50).map(mapOrder))
-      }
-    } catch {
-      setOrders(getServiceOrders().slice(0, 50).map(mapOrder))
-    }
+    const list = await loadServiceOrdersFromApi(50)
+    setOrders(list.map(mapOrder))
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     setMounted(true)
     setShopName(getBusinessBranding().shopName)
     refresh()
     fetchOrders()
+    fetch('/api/tenant/stats', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => { if (json.stats) setRemoteStats(json.stats) })
+      .catch(() => {})
     return onStoreChange(m => {
       refresh()
       if (!m || m === 'service' || m === 'settings') {
@@ -143,6 +130,8 @@ export default function DashboardPage() {
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const activeStatuses = ['waiting_diagnosis', 'in_repair', 'customer_approval_pending', 'ready_for_pickup', 'parts_waiting']
+  const activeServiceCount = remoteStats?.active_orders ?? orders.filter(o => activeStatuses.includes(o.status)).length
+  const lowStockCount = remoteStats?.low_stock ?? summary.criticalStockCount
 
   const todaySales = useMemo(() => sales.filter(s => s.date?.slice(0, 10) === todayStr), [sales, todayStr])
   const todaySalesTotal = todaySales.reduce((s, x) => s + (x.total_with_vat || x.subtotal || 0), 0)
@@ -188,6 +177,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
+      <DashboardDayHeader shopName={shopName || 'Mağaza'} />
       <DashboardHero homeLabel={homeLabel} subtitle={subtitle} shopName={shopName !== 'AURA İntegra' ? shopName : undefined}>
         {isTechnician ? (
           <>
@@ -212,8 +202,10 @@ export default function DashboardPage() {
       <QuickActionGrid role={role} isOwner={isOwner} planLevel={planLevel} />
 
       {summary.criticalStockCount > 0 && !isTechnician && (
-        <CriticalStockBanner count={summary.criticalStockCount} />
+        <CriticalStockBanner count={lowStockCount} />
       )}
+
+      {hasFinance && !isTechnician && <DashboardMiniChart />}
 
       {/* Metrikler */}
       <div className={`grid gap-3 ${isTechnician ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'}`}>
@@ -233,14 +225,14 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <StatCard label="Bugün Satış" value={fmt(todaySalesTotal)} sub={`${todaySales.length} işlem`} icon={ShoppingCart} color="sky" href="/dashboard/satis" />
+            <StatCard label="Bugün Satış" value={fmt(remoteStats?.today_sales ?? todaySalesTotal)} sub={`${todaySales.length} işlem`} icon={ShoppingCart} color="sky" href="/dashboard/satis" />
             {hasFinance && (
               <StatCard label="Bugün Kâr" value={fmt(todayProfit)} icon={TrendingUp} color="emerald" href="/dashboard/raporlar" />
             )}
             {hasService && (
               <StatCard
                 label="Aktif Servis"
-                value={String(orders.filter(o => activeStatuses.includes(o.status)).length)}
+                value={String(activeServiceCount)}
                 sub={`${ready.length} teslime hazır`}
                 icon={Wrench}
                 color="violet"
@@ -254,8 +246,8 @@ export default function DashboardPage() {
               color="amber"
               href={hasFinance ? '/dashboard/kasa' : '/dashboard/stok'}
             />
-            {summary.criticalStockCount > 0 && (
-              <StatCard label="Kritik Stok" value={String(summary.criticalStockCount)} icon={AlertTriangle} color="red" href="/dashboard/stok" alert />
+            {lowStockCount > 0 && (
+              <StatCard label="Kritik Stok" value={String(lowStockCount)} icon={AlertTriangle} color="red" href="/dashboard/stok" alert />
             )}
           </>
         )}
@@ -376,7 +368,10 @@ export default function DashboardPage() {
           )}
 
           {hasFinance && !isTechnician && (
-            <CashSummaryWidget />
+            <>
+              <CashSummaryWidget />
+              <LastShiftSummaryWidget />
+            </>
           )}
 
           {isOwner && hasService && (

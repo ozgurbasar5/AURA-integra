@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
+import { createServiceOrderRemote } from '@/lib/service-order-bridge'
 import {
-  addServiceOrder, generateNextJobNo, onStoreChange,
+  generateNextJobNo, onStoreChange,
 } from '@/lib/store'
 import { buildTrackingUrl as trackUrl } from '@/lib/erp-features'
 import { getPortalSlug } from '@/lib/business-branding'
@@ -58,25 +59,27 @@ export default function KabulPage() {
     }
     setSaving(true)
     const jobNo = generateNextJobNo()
-    const created = addServiceOrder({
-      job_no: jobNo,
+    const created = await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
       device_brand: form.device_brand,
       device_model: form.device_model || '—',
-      imei: form.imei || '-',
+      imei: form.imei || undefined,
+      description: [form.description, ...form.pre_checks].filter(Boolean).join('; '),
       status: 'waiting_diagnosis',
-      technician: null,
-      estimated_cost: 0,
-      description: form.description,
-      pre_checks: form.pre_checks,
-      created_at: new Date().toISOString(),
-      eta: null,
     })
-    setLastJob(jobNo)
+    const slug = getPortalSlug()
+    const track = trackUrl(created.job_no, slug)
+    const smsMsg = `${getBusinessBranding().shopName}: Cihazınız alındı. Takip: ${track}`
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: form.customer_phone, message: smsMsg }),
+    }).catch(() => {})
+    setLastJob(created.job_no)
     setLastOrderId(created.id)
     setLastPrint({
-      jobNo,
+      jobNo: created.job_no,
       customerName: form.customer_name,
       customerPhone: form.customer_phone,
       deviceBrand: form.device_brand,

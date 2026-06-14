@@ -2,14 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Megaphone, Plus, Edit3, Trash2, Search, X, Tag, Calendar, BarChart3, Zap } from 'lucide-react'
-
-interface Campaign {
-  id: string; name: string; description: string
-  type: 'indirim' | 'hediye' | '2al1ode' | 'kupon' | 'ozel_fiyat'
-  discount_percent?: number; discount_amount?: number
-  target_categories: string[]; start_date: string; end_date: string
-  is_active: boolean; usage_count: number; max_usage?: number; created_at: string
-}
+import { getCampaigns, setCampaigns as setCampaignsStore, onStoreChange, type Campaign } from '@/lib/store'
 
 const TYPE_CFG: Record<string,{label:string;color:string;bg:string}> = {
   indirim:   {label:'İndirim',     color:'text-emerald-400', bg:'bg-emerald-500/20'},
@@ -21,8 +14,6 @@ const TYPE_CFG: Record<string,{label:string;color:string;bg:string}> = {
 const CATEGORIES = ['Telefon','Aksesuar','Yedek Parça','Hizmet']
 
 function uid(){return typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
-function load():Campaign[]{if(typeof window==='undefined')return[];try{const s=JSON.parse(localStorage.getItem('servissoft_store')||'{}');return s.campaigns||[]}catch{return[]}}
-function save(c:Campaign[]){const s=JSON.parse(localStorage.getItem('servissoft_store')||'{}');s.campaigns=c;localStorage.setItem('servissoft_store',JSON.stringify(s))}
 
 export default function KampanyalarPage(){
   const [campaigns,setCampaigns]=useState<Campaign[]>([])
@@ -31,8 +22,8 @@ export default function KampanyalarPage(){
   const [editId,setEditId]=useState<string|null>(null)
   const [form,setForm]=useState({name:'',description:'',type:'indirim' as Campaign['type'],discount_percent:0,discount_amount:0,target_categories:[] as string[],start_date:'',end_date:'',max_usage:0})
 
-  const reload=useCallback(()=>setCampaigns(load()),[])
-  useEffect(()=>{reload()},[reload])
+  const reload=useCallback(()=>setCampaigns(getCampaigns()),[])
+  useEffect(()=>{reload();return onStoreChange(m=>{if(m==='campaigns'||m==='seed')reload()})},[reload])
 
   const filtered=campaigns.filter(c=>{if(!search)return true;const s=search.toLowerCase();return c.name.toLowerCase().includes(s)||c.description.toLowerCase().includes(s)})
   const today=new Date().toISOString().split('T')[0]
@@ -47,10 +38,10 @@ export default function KampanyalarPage(){
     let u=[...campaigns]
     if(editId){u=u.map(c=>c.id===editId?{...c,...form,discount_percent:form.discount_percent||undefined,discount_amount:form.discount_amount||undefined,max_usage:form.max_usage||undefined}:c)}
     else{u.unshift({id:uid(),...form,discount_percent:form.discount_percent||undefined,discount_amount:form.discount_amount||undefined,max_usage:form.max_usage||undefined,is_active:true,usage_count:0,created_at:now})}
-    save(u);setCampaigns(u);setShowModal(false)
+    setCampaigns(u);setCampaignsStore(u);setShowModal(false)
   }
-  const del=(id:string)=>{if(!confirm('Kampanyayı silmek istediğinize emin misiniz?'))return;const u=campaigns.filter(c=>c.id!==id);save(u);setCampaigns(u)}
-  const toggle=(id:string)=>{const u=campaigns.map(c=>c.id===id?{...c,is_active:!c.is_active}:c);save(u);setCampaigns(u)}
+  const del=(id:string)=>{if(!confirm('Kampanyayı silmek istediğinize emin misiniz?'))return;const u=campaigns.filter(c=>c.id!==id);setCampaignsStore(u);setCampaigns(u)}
+  const toggle=(id:string)=>{const u=campaigns.map(c=>c.id===id?{...c,is_active:!c.is_active}:c);setCampaignsStore(u);setCampaigns(u)}
   const toggleCat=(cat:string)=>{setForm(f=>({...f,target_categories:f.target_categories.includes(cat)?f.target_categories.filter(c=>c!==cat):[...f.target_categories,cat]}))}
 
   return(

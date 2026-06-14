@@ -1,26 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Users, MessageSquare, Shield, Copy, ExternalLink, Search, Plus, Send, X, CheckCircle, Clock, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const MOCK_CUSTOMERS = [
-  { id:'1', name:'Ahmet Yılmaz',   phone:'0532 123 4567', email:'ahmet@email.com', total_jobs:4, last_job:'2026-06-04', portal_logins:12 },
-  { id:'2', name:'Fatma Kaya',     phone:'0541 987 6543', email:'fatma@email.com', total_jobs:2, last_job:'2026-06-03', portal_logins:5  },
-  { id:'3', name:'Mehmet Demir',   phone:'0555 246 8013', email:'-',               total_jobs:1, last_job:'2026-06-02', portal_logins:0  },
-  { id:'4', name:'Zeynep Arslan',  phone:'0506 135 7924', email:'zeynep@email.com',total_jobs:7, last_job:'2026-06-01', portal_logins:23 },
-  { id:'5', name:'Kemal Şahin',    phone:'0533 741 8520', email:'kemal@email.com', total_jobs:3, last_job:'2026-05-28', portal_logins:8  },
-  { id:'6', name:'Elif Doğan',     phone:'0545 369 1470', email:'elif@email.com',  total_jobs:5, last_job:'2026-05-25', portal_logins:15 },
-]
-
-const MOCK_SMS = [
-  { id:'1', date:'2026-06-04 11:34', customer:'Zeynep Arslan',  phone:'0506 135 7924', message:'Cihazınız teslime hazır. Servisimizi ziyaret edebilirsiniz.', status:'sent'  },
-  { id:'2', date:'2026-06-04 10:12', customer:'Ahmet Yılmaz',   phone:'0532 123 4567', message:'Cihazınız tamirde. Tahmini süre: 2 iş günü.', status:'sent'  },
-  { id:'3', date:'2026-06-03 16:45', customer:'Fatma Kaya',     phone:'0541 987 6543', message:'Parça bekleniyor. Fiyat onayınız için lütfen arayın: 0212 XXX XXXX', status:'sent'  },
-  { id:'4', date:'2026-06-03 09:20', customer:'Mehmet Demir',   phone:'0555 246 8013', message:'Cihazınız teslim alındı. Takip kodu: JOB-240603-003', status:'failed' },
-  { id:'5', date:'2026-06-02 14:00', customer:'Kemal Şahin',    phone:'0533 741 8520', message:'Garanti servis başlatıldı. Takip kodu: JOB-240602-011', status:'sent'  },
-]
+import { getStore, getCustomers, onStoreChange, type StoreCustomer, type NotificationLog } from '@/lib/store'
+import { getBusinessBranding } from '@/lib/business-branding'
 
 const SMS_TEMPLATES = [
   { id:'1', name:'Cihaz Teslim Alındı',      text:'Cihazınız teslim alındı. Takip kodu: {job_no}. Servis takip portali: {portal_link}' },
@@ -29,12 +13,6 @@ const SMS_TEMPLATES = [
   { id:'4', name:'Parça Bekleniyor',         text:'Cihazınızda kullanılacak parça temin edilmektedir. Süre: yaklaşık 3-5 iş günü.' },
   { id:'5', name:'Fiyat Onayı Gerekli',      text:'Arıza tespiti yapıldı. Tamir ücreti: ₺{price}. Onay için lütfen arayın.' },
   { id:'6', name:'Garanti Hatırlatma',       text:'Cihazınızın garantisi {date} tarihinde sona ermektedir. Garanti servis için arayın.' },
-]
-
-const MOCK_KVKK = [
-  { id:'1', date:'2026-06-01', customer:'Ahmet Yılmaz',  type:'export',  status:'completed' },
-  { id:'2', date:'2026-05-28', customer:'Fatma Kaya',    type:'delete',  status:'pending'   },
-  { id:'3', date:'2026-05-20', customer:'Elif Doğan',    type:'export',  status:'completed' },
 ]
 
 type Tab = 'customers' | 'sms' | 'kvkk'
@@ -47,19 +25,39 @@ export default function MusteriPortaliPage() {
   const [selectedTemplate, setSelectedTemplate] = useState(SMS_TEMPLATES[0])
   const [customMsg, setCustomMsg] = useState('')
   const [smsSearch, setSmsSearch] = useState('')
+  const [customers, setCustomers] = useState<StoreCustomer[]>([])
+  const [smsLogs, setSmsLogs] = useState<NotificationLog[]>([])
+  const [portalLink, setPortalLink] = useState('')
 
-  const portalLink = 'https://takip.auraintegra.com/summit-teknik'
+  useEffect(() => {
+    const refresh = () => {
+      setCustomers(getCustomers())
+      setSmsLogs(getStore().notificationLogs.filter(l => l.channel === 'sms'))
+      const brand = getBusinessBranding()
+      const slug = getStore().notificationSettings.portal_slug
+      setPortalLink(slug ? `${window.location.origin}/takip?slug=${slug}` : `${window.location.origin}/takip`)
+    }
+    refresh()
+    return onStoreChange(refresh)
+  }, [])
 
-  const filteredCustomers = MOCK_CUSTOMERS.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
+  const filteredCustomers = customers.filter(c =>
+    !search || c.full_name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
   )
+
+  const kvkkCustomers = customers.filter(c => c.kvkk_consent_date)
 
   function toggleCustomer(id: string) {
     setSelectedCustomers(s => s.includes(id) ? s.filter(i => i !== id) : [...s, id])
   }
 
-  function sendSMS() {
+  async function sendSMS() {
     if (selectedCustomers.length === 0) { toast.error('Müşteri seçin'); return }
+    const msg = customMsg || selectedTemplate.text.replace('{portal_link}', portalLink)
+    for (const id of selectedCustomers) {
+      const c = customers.find(x => x.id === id)
+      if (c?.phone) await fetch('/api/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: c.phone, message: msg }) })
+    }
     toast.success(`${selectedCustomers.length} müşteriye SMS gönderildi`)
     setShowSMSModal(false)
     setSelectedCustomers([])
@@ -97,10 +95,10 @@ export default function MusteriPortaliPage() {
         </div>
         <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-sky-200">
           {[
-            { label:'Kayıtlı Müşteri', value:MOCK_CUSTOMERS.length },
-            { label:'Bu Ay Portal Girişi', value:63 },
-            { label:'SMS Gönderilen (Bu Ay)', value:MOCK_SMS.length },
-            { label:'KVKK Talebi', value:MOCK_KVKK.filter(k=>k.status==='pending').length },
+            { label:'Kayıtlı Müşteri', value: customers.length },
+            { label:'SMS Log', value: smsLogs.length },
+            { label:'KVKK Onaylı', value: kvkkCustomers.length },
+            { label:'Aktif Servis', value: getStore().serviceOrders.filter(o => !['delivered','cancelled'].includes(o.status)).length },
           ].map(s => (
             <div key={s.label} className="text-center">
               <p className="text-2xl font-black text-sky-700">{s.value}</p>
@@ -149,18 +147,18 @@ export default function MusteriPortaliPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-xs font-bold text-sky-700 flex-shrink-0">
-                        {c.name.split(' ').map(n=>n[0]).join('')}
+                        {c.full_name.split(' ').map(n=>n[0]).join('')}
                       </div>
-                      <span className="text-sm font-medium text-slate-900">{c.name}</span>
+                      <span className="text-sm font-medium text-slate-900">{c.full_name}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm font-mono text-slate-600">{c.phone}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{c.email}</td>
-                  <td className="px-4 py-3"><span className="badge bg-sky-50 text-sky-700">{c.total_jobs} servis</span></td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{c.last_job}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{c.email ?? '—'}</td>
+                  <td className="px-4 py-3"><span className="badge bg-sky-50 text-sky-700">{Math.round(c.total_spent / 100) || 0} servis</span></td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{c.updated_at?.slice(0, 10) ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`badge ${c.portal_logins>0?'bg-green-50 text-green-700':'bg-slate-100 text-slate-500'}`}>
-                      {c.portal_logins > 0 ? `${c.portal_logins} giriş` : 'Hiç girmemiş'}
+                    <span className={`badge ${c.kvkk_consent_date ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {c.kvkk_consent_date ? 'Onaylı' : 'Onaysız'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -205,14 +203,14 @@ export default function MusteriPortaliPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {MOCK_SMS.filter(s => !smsSearch || s.customer.toLowerCase().includes(smsSearch.toLowerCase()) || s.message.toLowerCase().includes(smsSearch.toLowerCase())).map(s => (
+                {smsLogs.filter(s => !smsSearch || (s.customer_name ?? '').toLowerCase().includes(smsSearch.toLowerCase()) || s.content.toLowerCase().includes(smsSearch.toLowerCase())).map(s => (
                   <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{s.date}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{s.customer}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-slate-500">{s.phone}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">{s.message}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{s.created_at.slice(0, 16).replace('T', ' ')}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{s.customer_name ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-slate-500">{s.recipient}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">{s.content}</td>
                     <td className="px-4 py-3">
-                      {s.status === 'sent'
+                      {['sent', 'delivered', 'mock_sent'].includes(s.status)
                         ? <span className="badge bg-green-50 text-green-700 flex items-center gap-1 w-fit"><CheckCircle size={11}/>Gönderildi</span>
                         : <span className="badge bg-red-50 text-red-700 flex items-center gap-1 w-fit"><AlertTriangle size={11}/>Hata</span>
                       }
@@ -243,41 +241,31 @@ export default function MusteriPortaliPage() {
               <h3 className="font-semibold text-slate-900">KVKK Talepleri</h3>
               <span className="badge bg-orange-50 text-orange-700">
                 <Clock size={11} className="inline mr-1"/>
-                {MOCK_KVKK.filter(k=>k.status==='pending').length} bekleyen talep
+                {kvkkCustomers.length} onaylı müşteri
               </span>
             </div>
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {['Tarih','Müşteri','Talep Türü','Durum','İşlem'].map(h => (
+                  {['Tarih','Müşteri','Telefon','Durum'].map(h => (
                     <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase px-4 py-3">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {MOCK_KVKK.map(k => (
+                {kvkkCustomers.map(k => (
                   <tr key={k.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm text-slate-500">{k.date}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{k.customer}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500">{k.kvkk_consent_date}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{k.full_name}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-slate-500">{k.phone}</td>
                     <td className="px-4 py-3">
-                      <span className={`badge ${k.type==='export'?'bg-blue-50 text-blue-700':'bg-red-50 text-red-700'}`}>
-                        {k.type === 'export' ? '📤 Dışa Aktarma' : '🗑️ Silme Talebi'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {k.status === 'completed'
-                        ? <span className="badge bg-green-50 text-green-700"><CheckCircle size={11} className="inline mr-1"/>Tamamlandı</span>
-                        : <span className="badge bg-yellow-50 text-yellow-700"><Clock size={11} className="inline mr-1"/>Bekliyor</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        {k.type === 'export' && <button onClick={() => toast.success('Veri paketi hazırlandı')} className="text-xs text-blue-600 hover:underline">Dışa Aktar</button>}
-                        {k.type === 'delete' && k.status === 'pending' && <button onClick={() => toast.success('Veriler silindi')} className="text-xs text-red-600 hover:underline">Sil</button>}
-                      </div>
+                      <span className="badge bg-green-50 text-green-700"><CheckCircle size={11} className="inline mr-1"/>Onaylı</span>
                     </td>
                   </tr>
                 ))}
+                {kvkkCustomers.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">KVKK onaylı müşteri yok</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -311,10 +299,10 @@ export default function MusteriPortaliPage() {
               <div>
                 <label className="label">Alıcılar ({selectedCustomers.length} seçili)</label>
                 <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-50">
-                  {MOCK_CUSTOMERS.map(c => (
+                  {customers.map(c => (
                     <label key={c.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-slate-50">
                       <input type="checkbox" checked={selectedCustomers.includes(c.id)} onChange={() => toggleCustomer(c.id)} className="rounded"/>
-                      <span className="text-sm">{c.name}</span>
+                      <span className="text-sm">{c.full_name}</span>
                       <span className="text-xs text-slate-400 ml-auto">{c.phone}</span>
                     </label>
                   ))}

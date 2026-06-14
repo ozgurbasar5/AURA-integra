@@ -8,6 +8,7 @@ import {
   CreditCard, Banknote, Hash, Phone, User, FileText, Calendar,
   ArrowLeft, ArrowRight, AlertTriangle, MoreVertical, RefreshCw
 } from 'lucide-react'
+import { getCustomerOrders, setCustomerOrders, onStoreChange, type CustomerOrder } from '@/lib/store'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,24 +18,7 @@ interface OrderItem {
   price: number
 }
 
-interface CustomerOrder {
-  id: string
-  order_no: string
-  customer_name: string
-  customer_phone: string
-  items: OrderItem[]
-  total: number
-  status: 'beklemede' | 'onaylandi' | 'hazirlaniyor' | 'kargoda' | 'teslim_edildi' | 'iptal'
-  payment_status: 'odenmedi' | 'kismi' | 'odendi'
-  payment_method: string
-  notes: string
-  created_at: string
-  updated_at: string
-}
-
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const STORE_KEY = 'servissoft_store'
 
 const STATUS_CONFIG: Record<CustomerOrder['status'], { label: string; color: string; bg: string; icon: React.ElementType }> = {
   beklemede:     { label: 'Beklemede',     color: 'text-amber-700',   bg: 'bg-amber-100',  icon: Clock },
@@ -76,21 +60,8 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function getStore(): Record<string, unknown> {
-  try {
-    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}')
-  } catch { return {} }
-}
-
-function getOrders(): CustomerOrder[] {
-  const store = getStore()
-  return (store.customerOrders as CustomerOrder[]) || []
-}
-
 function saveOrders(orders: CustomerOrder[]): void {
-  const store = getStore()
-  store.customerOrders = orders
-  localStorage.setItem(STORE_KEY, JSON.stringify(store))
+  setCustomerOrders(orders)
 }
 
 // ─── Empty Form State ───────────────────────────────────────────────────────
@@ -147,18 +118,13 @@ export default function SiparislerPage() {
   // ─── Load Data ──────────────────────────────────────────────────────────────
 
   const refresh = useCallback(() => {
-    setOrders(getOrders())
+    setOrders(getCustomerOrders())
   }, [])
 
   useEffect(() => {
     setMounted(true)
     refresh()
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORE_KEY) refresh()
-    }
-    window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
+    return onStoreChange(m => { if (!m || m === 'customerOrders' || m === 'seed') refresh() })
   }, [refresh])
 
   // ─── Filtered & Paginated Data ──────────────────────────────────────────────
@@ -208,9 +174,9 @@ export default function SiparislerPage() {
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       items: order.items.map(i => ({ ...i })),
-      payment_method: order.payment_method,
+      payment_method: order.payment_method ?? PAYMENT_METHODS[0],
       payment_status: order.payment_status,
-      notes: order.notes,
+      notes: order.notes ?? '',
     })
     setModalStep(1)
     setShowModal(true)
@@ -246,7 +212,7 @@ export default function SiparislerPage() {
     const total = validItems.reduce((s, i) => s + i.quantity * i.price, 0)
 
     const now = new Date().toISOString()
-    const allOrders = getOrders()
+    const allOrders = getCustomerOrders()
 
     if (editingId) {
       const updated = allOrders.map(o => o.id === editingId ? {
@@ -286,7 +252,7 @@ export default function SiparislerPage() {
   }
 
   const handleDelete = (id: string) => {
-    const allOrders = getOrders().filter(o => o.id !== id)
+    const allOrders = getCustomerOrders().filter(o => o.id !== id)
     saveOrders(allOrders)
     refresh()
     setDeleteConfirmId(null)
@@ -294,7 +260,7 @@ export default function SiparislerPage() {
   }
 
   const handleStatusChange = (id: string, newStatus: CustomerOrder['status']) => {
-    const allOrders = getOrders().map(o => o.id === id ? { ...o, status: newStatus, updated_at: new Date().toISOString() } : o)
+    const allOrders = getCustomerOrders().map(o => o.id === id ? { ...o, status: newStatus, updated_at: new Date().toISOString() } : o)
     saveOrders(allOrders)
     refresh()
     setStatusDropdownId(null)

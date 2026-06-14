@@ -1,16 +1,19 @@
-<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AURA İntegra">
   <defs>
-    <linearGradient id="auraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#60a5fa"/>
-      <stop offset="100%" stop-color="#818cf8"/>
+    <linearGradient id="ai-core" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="ai-wing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
     </linearGradient>
   </defs>
-  <path d="M100 24 L44 58 V92 L28 92 V72 L76 32 Z" stroke="url(#auraGrad)" stroke-width="2" fill="rgba(255,255,255,0.08)"/>
-  <path d="M100 176 L156 142 V108 L172 108 V128 L124 168 Z" stroke="url(#auraGrad)" stroke-width="2" fill="rgba(255,255,255,0.08)"/>
-  <g transform="rotate(45 100 100)">
-    <rect x="82" y="82" width="36" height="36" rx="6" stroke="#fff" stroke-width="1.5" fill="none"/>
-    <rect x="90" y="90" width="20" height="20" rx="2" stroke="#93c5fd" stroke-width="1" fill="none"/>
-    <circle cx="100" cy="100" r="3" fill="#fff"/>
-  </g>
-  <text x="100" y="108" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="22" font-weight="800">A</text>
+  <path d="M50 10 L20 38 V52 L10 52 V34 L44 2 Z" fill="url(#ai-wing)" stroke="#22d3ee" stroke-width="0.6" opacity="0.95"/>
+  <path d="M50 90 L80 62 V48 L90 48 V66 L56 98 Z" fill="url(#ai-wing)" stroke="#22d3ee" stroke-width="0.6" opacity="0.95"/>
+  <circle cx="50" cy="50" r="22" stroke="#22d3ee" stroke-width="0.75" stroke-dasharray="3 2" opacity="0.45"/>
+  <rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="url(#ai-core)"/>
+  <rect x="22" y="48" width="10" height="1.5" rx="0.5" fill="#22d3ee" opacity="0.9"/>
+  <rect x="68" y="50" width="10" height="1.5" rx="0.5" fill="#22d3ee" opacity="0.9"/>
+  <circle cx="50" cy="50" r="2.5" fill="#fff"/>
 </svg>

@@ -31,6 +31,27 @@ export function mapStoreStatusToPublic(status: string): string {
   return STORE_TO_PUBLIC_STATUS[status] || status
 }
 
+/** DB (Türkçe) → store (İngilizce) */
+const PUBLIC_TO_STORE_STATUS: Record<string, string> = {
+  alindi: 'waiting_diagnosis',
+  teshis: 'parts_waiting',
+  onay_bekleniyor: 'customer_approval_pending',
+  tamir: 'in_repair',
+  kalite_kontrol: 'ready_for_pickup',
+  teslim: 'delivered',
+  iptal: 'cancelled',
+}
+
+export function mapDbStatusToStore(status: string): string {
+  if (PUBLIC_TO_STORE_STATUS[status]) return PUBLIC_TO_STORE_STATUS[status]
+  if (STORE_TO_PUBLIC_STATUS[status]) return status
+  return status
+}
+
+export function mapStoreStatusToDb(status: string): string {
+  return STORE_TO_PUBLIC_STATUS[status] || status
+}
+
 // ─── QC checklist ───────────────────────────────────────────────────────────
 
 export const QC_CHECKLIST = [
@@ -150,15 +171,17 @@ export interface CommissionRow {
   commission_amount: number
 }
 
+const DELIVERED_STATUSES = new Set(['delivered', 'teslim', 'teslim_edildi'])
+
 export function calcTechnicianCommissions(
-  orders: { technician: string | null; status: string; actual_cost?: number; estimated_cost: number }[],
+  orders: { technician: string | null; assigned_to?: string | null; status: string; actual_cost?: number; estimated_cost: number }[],
   personnel: { full_name: string; commission_rate: number; is_active: boolean }[],
   defaultRate = 5,
 ): CommissionRow[] {
   const map = new Map<string, { count: number; revenue: number }>()
   for (const o of orders) {
-    if (o.status !== 'delivered') continue
-    const name = o.technician || 'Atanmadı'
+    if (!DELIVERED_STATUSES.has(o.status)) continue
+    const name = o.technician || o.assigned_to || 'Atanmadı'
     const cur = map.get(name) || { count: 0, revenue: 0 }
     cur.count++
     cur.revenue += o.actual_cost || o.estimated_cost || 0

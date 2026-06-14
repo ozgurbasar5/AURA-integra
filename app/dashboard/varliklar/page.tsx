@@ -7,30 +7,13 @@ import {
   CheckCircle2, Wrench, AlertTriangle, Archive, CalendarClock, TrendingUp,
   DollarSign, ClipboardList
 } from 'lucide-react';
+import { getAssets, setAssets as persistAssets, onStoreChange, type Asset } from '@/lib/store';
 
 /* ───────────────── Types ───────────────── */
-interface Asset {
-  id: string;
-  name: string;
-  category: 'bilgisayar' | 'yazici' | 'test_cihazi' | 'mobilya' | 'arac' | 'diger';
-  serial_no: string;
-  barcode: string;
-  purchase_date: string;
-  purchase_price: number;
-  current_value: number;
-  assigned_to: string;
-  location: string;
-  status: 'aktif' | 'bakim' | 'arizali' | 'emekli';
-  next_maintenance: string;
-  notes: string;
-  created_at: string;
-}
-
 type CategoryKey = Asset['category'];
 type StatusKey = Asset['status'];
 
 /* ───────────────── Constants ───────────────── */
-const STORAGE_KEY = 'servissoft_store';
 const PAGE_SIZE = 10;
 
 const uid = (): string =>
@@ -87,28 +70,6 @@ const isPastDue = (d: string) => {
   return new Date(d) < new Date(new Date().toDateString());
 };
 
-const readAssets = (): Asset[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const store = JSON.parse(raw);
-    return Array.isArray(store.assets) ? store.assets : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeAssets = (assets: Asset[]) => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const store = raw ? JSON.parse(raw) : {};
-    store.assets = assets;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  } catch {
-    /* silent */
-  }
-};
-
 const emptyAsset = (): Omit<Asset, 'id' | 'created_at'> => ({
   name: '',
   category: 'bilgisayar',
@@ -138,16 +99,18 @@ export default function VarliklarPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  /* Load from localStorage */
-  useEffect(() => {
-    setAssets(readAssets());
-    setMounted(true);
-  }, []);
+  const reload = useCallback(() => setAssets(getAssets()), []);
 
-  /* Persist */
   useEffect(() => {
-    if (mounted) writeAssets(assets);
-  }, [assets, mounted]);
+    reload();
+    setMounted(true);
+    return onStoreChange(m => { if (!m || m === 'assets' || m === 'seed') reload(); });
+  }, [reload]);
+
+  const saveAssets = (next: Asset[]) => {
+    persistAssets(next);
+    setAssets(next);
+  };
 
   /* ── Filtered / searched list ── */
   const filtered = useMemo(() => {
@@ -217,22 +180,20 @@ export default function VarliklarPage() {
   const handleSave = () => {
     if (!validate()) return;
     if (editId) {
-      setAssets((prev) =>
-        prev.map((a) => (a.id === editId ? { ...a, ...form } : a)),
-      );
+      saveAssets(assets.map((a) => (a.id === editId ? { ...a, ...form } : a)));
     } else {
       const newAsset: Asset = {
         ...form,
         id: uid(),
         created_at: new Date().toISOString(),
       };
-      setAssets((prev) => [newAsset, ...prev]);
+      saveAssets([newAsset, ...assets]);
     }
     setModalOpen(false);
   };
 
   const handleDelete = (id: string) => {
-    setAssets((prev) => prev.filter((a) => a.id !== id));
+    saveAssets(assets.filter((a) => a.id !== id));
     setDeleteConfirm(null);
   };
 
@@ -354,7 +315,7 @@ export default function VarliklarPage() {
                     const st = STATUS_MAP[a.status];
                     const CatIcon = cat.icon;
                     const StIcon = st.icon;
-                    const maintenancePastDue = isPastDue(a.next_maintenance);
+                    const maintenancePastDue = isPastDue(a.next_maintenance ?? '');
 
                     return (
                       <tr key={a.id} className="hover:bg-white/[0.03] transition-colors">

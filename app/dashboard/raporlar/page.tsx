@@ -1,26 +1,32 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import {
   BarChart3, TrendingUp, Clock, DollarSign, Users,
-  Download, FileText, Calendar, Star, AlertTriangle, Inbox
+  Download, FileText, Calendar, Star, AlertTriangle, Inbox, Wallet, ChevronRight,
 } from 'lucide-react'
 import {
   AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 import { formatCurrency } from '@/lib/validators'
-import { getTransactions, getFinanceSummary, getSales, getStock, onStoreChange } from '@/lib/store'
+import { getTransactions, getFinanceSummary, getSales, getStock, getCashShifts, onStoreChange } from '@/lib/store'
 import { buildVatReport } from '@/lib/erp-features'
+
+type Tab = 'analitik' | 'gun-sonu'
 
 export default function RaporlarPage() {
   const [mounted, setMounted] = useState(false)
+  const [tab, setTab] = useState<Tab>('analitik')
+  const [closedShifts, setClosedShifts] = useState(() => getCashShifts().filter(s => s.status === 'closed'))
   const [summary, setSummary] = useState({ totalGelir: 0, totalGider: 0, netKar: 0, kasaBakiye: 0, totalStockValue: 0, criticalStockCount: 0, totalStockItems: 0, totalStockQty: 0 })
   const [monthlyData, setMonthlyData] = useState<Array<{ month: string; gelir: number; gider: number }>>([])
   const [categoryData, setCategoryData] = useState<Array<{ name: string; value: number; color: string }>>([])
 
   const refresh = useCallback(() => {
     setSummary(getFinanceSummary())
+    setClosedShifts(getCashShifts().filter(s => s.status === 'closed'))
 
     // Aylık gelir/gider — gerçek işlemlerden hesapla
     const txs = getTransactions()
@@ -61,6 +67,18 @@ export default function RaporlarPage() {
   useEffect(() => {
     setMounted(true)
     refresh()
+    fetch('/api/tenant/reports', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.revenue_by_day?.length) {
+          const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
+          setMonthlyData(json.revenue_by_day.slice(-12).map((r: { day: string; revenue: number }) => {
+            const d = new Date(r.day)
+            return { month: monthNames[d.getMonth()], gelir: r.revenue, gider: 0 }
+          }))
+        }
+      })
+      .catch(() => {})
     const unsub = onStoreChange(() => refresh())
     return unsub
   }, [refresh])
@@ -82,7 +100,61 @@ export default function RaporlarPage() {
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">Gerçek verilerinizden oluşan işletme analizi</p>
         </div>
+        <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setTab('analitik')}
+            className={`px-4 py-2 ${tab === 'analitik' ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            Analitik
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('gun-sonu')}
+            className={`px-4 py-2 flex items-center gap-1.5 ${tab === 'gun-sonu' ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            <Wallet size={14} /> Gün Sonu (Vardiya)
+          </button>
+        </div>
       </div>
+
+      {tab === 'gun-sonu' ? (
+        <div className="card p-5">
+          <h3 className="font-bold text-slate-900 text-sm mb-1">Kapanmış Vardiyalar</h3>
+          <p className="text-[11px] text-slate-400 mb-4">Vardiya kapanış raporlarını görüntüleyin ve yazdırın</p>
+          {closedShifts.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-10">Henüz kapanmış vardiya yok. Kasa modülünden vardiya kapatın.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {closedShifts.slice(0, 30).map(s => (
+                <li key={s.id}>
+                  <Link
+                    href={`/dashboard/kasa/rapor/${s.id}`}
+                    className="flex items-center gap-3 py-3 hover:bg-sky-50/50 px-2 rounded-lg group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+                      <FileText size={16} className="text-emerald-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {new Date(s.opened_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {' — '}
+                        {s.closed_at ? new Date(s.closed_at).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </p>
+                      <p className="text-xs text-slate-400">{s.opened_by}{s.closed_by ? ` → ${s.closed_by}` : ''}</p>
+                    </div>
+                    <span className={`text-xs font-bold tabular-nums ${(s.difference ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      Fark: {formatCurrency(s.difference ?? 0)}
+                    </span>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-sky-500" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+      <>
 
       {/* Metrikler — CANLI VERİ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -242,6 +314,8 @@ export default function RaporlarPage() {
             </div>
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   )

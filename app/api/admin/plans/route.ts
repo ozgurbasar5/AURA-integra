@@ -47,16 +47,9 @@ function dedupePlans(rows: DbPlan[]): DbPlan[] {
   return PLAN_TIERS.map((tier) => {
     const db = byLevel.get(tier.level)
     if (db) {
-      // Gerçek id'yi koru, ama isim/fiyat/limit/özellikleri kanonik tanıma hizala
       return {
-        id: db.id,
-        name: tier.name,
-        price: tier.price,
-        max_users: tier.max_users,
-        max_branches: tier.max_branches,
-        features: tier.features,
-        is_active: db.is_active,
-        created_at: db.created_at,
+        ...db,
+        features: Array.isArray(db.features) ? db.features : tier.features,
       }
     }
     // DB'de yoksa placeholder (SQL henüz çalıştırılmamış)
@@ -126,8 +119,11 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireSuperAdmin(request)
+    if (!auth.authorized) return auth.error
+
     const admin = getAdminClient()
     const { data, error } = await admin
       .from('subscription_plans')

@@ -1,6 +1,8 @@
 import { Suspense } from 'react'
 import LoginForm from './LoginForm'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Giriş — AURA İntegra ERP',
   description: 'AURA İntegra ERP sistemine giriş yapın',

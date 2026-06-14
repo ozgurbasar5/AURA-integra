@@ -1,43 +1,58 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Wallet, Lock, Unlock, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Wallet, Lock, Unlock, Loader2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
 import {
   getOpenCashShift, getCashShifts, openCashShift, closeCashShift,
-  getCashSummary, onStoreChange, type CashShift,
+  getCashSummary, onStoreChange, attachShiftReport, type CashShift,
 } from '@/lib/store'
+import { buildShiftReport } from '@/lib/eod-report'
+import { getBusinessBranding } from '@/lib/business-branding'
 import { formatCurrency } from '@/lib/validators'
+import { useUserRole } from '@/lib/role-context'
 
 function fmt(n: number) {
   return formatCurrency(n)
 }
 
 export default function KasaPage() {
+  const router = useRouter()
+  const { role } = useUserRole()
+  const cashier = role === 'kasiyer' ? 'Kasiyer' : role === 'owner' ? 'Sahip' : 'Personel'
+
   const [mounted, setMounted] = useState(false)
   const [openShift, setOpenShift] = useState<CashShift | undefined>()
   const [history, setHistory] = useState<CashShift[]>([])
-  const [cash, setCash] = useState(getCashSummary())
+  const [shiftCash, setShiftCash] = useState(getCashSummary())
   const [opening, setOpening] = useState('')
   const [closing, setClosing] = useState('')
   const [notes, setNotes] = useState('')
 
   const refresh = useCallback(() => {
-    setOpenShift(getOpenCashShift())
+    const open = getOpenCashShift()
+    setOpenShift(open)
     setHistory(getCashShifts().slice(0, 20))
-    setCash(getCashSummary())
+    if (open) {
+      setShiftCash(getCashSummary({ from: open.opened_at, to: new Date().toISOString() }))
+    } else {
+      const today = new Date().toISOString().slice(0, 10)
+      setShiftCash(getCashSummary({ from: `${today}T00:00:00`, to: new Date().toISOString() }))
+    }
   }, [])
 
   useEffect(() => {
     setMounted(true)
     refresh()
-    return onStoreChange(m => { if (!m || m === 'cash' || m === 'finance') refresh() })
+    return onStoreChange(m => { if (!m || m === 'cashShifts' || m === 'cash' || m === 'finance' || m === 'sales') refresh() })
   }, [refresh])
 
   function handleOpen() {
     const bal = Number(opening) || 0
-    openCashShift(bal, 'Kasiyer')
+    openCashShift(bal, cashier)
     toast.success('Vardiya açıldı')
     setOpening('')
     refresh()
@@ -46,12 +61,15 @@ export default function KasaPage() {
   function handleClose() {
     const bal = Number(closing)
     if (Number.isNaN(bal)) { toast.error('Kapanış tutarı girin'); return }
-    const result = closeCashShift(bal, 'Kasiyer', notes)
+    const result = closeCashShift(bal, cashier, notes)
     if (!result) { toast.error('Açık vardiya yok'); return }
+    const report = buildShiftReport(result, getBusinessBranding().shopName)
+    attachShiftReport(result.id, report as unknown as Record<string, unknown>)
     toast.success(`Vardiya kapandı · Fark: ${fmt(result.difference || 0)}`)
     setClosing('')
     setNotes('')
     refresh()
+    router.push(`/dashboard/kasa/rapor/${result.id}`)
   }
 
   if (!mounted) {
@@ -59,30 +77,32 @@ export default function KasaPage() {
   }
 
   const expected = openShift
-    ? openShift.opening_balance + cash.nakit - cash.nakitCikis
+    ? openShift.opening_balance + shiftCash.nakit - shiftCash.nakitCikis
     : 0
+
+  const cashLabel = openShift ? 'Vardiya Nakit Giriş' : 'Bugün Nakit Giriş'
 
   return (
     <PageShell>
       <PageHeader
         eyebrow="Finans"
         title="Kasa Vardiyası"
-        description="Açılış/kapanış, nakit sayımı ve kasa farkı takibi."
+        description="Açılış/kapanış, nakit sayımı ve gün sonu Z raporu."
         icon={Wallet}
       />
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="surface p-5 rounded-2xl">
           <p className="text-xs font-bold text-slate-500 uppercase">Kasa Bakiye</p>
-          <p className="text-2xl font-black text-slate-900 mt-1">{fmt(cash.kasaBakiye)}</p>
+          <p className="text-2xl font-black text-slate-900 mt-1">{fmt(shiftCash.kasaBakiye)}</p>
         </div>
         <div className="surface p-5 rounded-2xl">
-          <p className="text-xs font-bold text-slate-500 uppercase">Bugün Nakit Giriş</p>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{fmt(cash.nakit)}</p>
+          <p className="text-xs font-bold text-slate-500 uppercase">{cashLabel}</p>
+          <p className="text-2xl font-black text-emerald-600 mt-1">{fmt(shiftCash.nakit)}</p>
         </div>
         <div className="surface p-5 rounded-2xl">
-          <p className="text-xs font-bold text-slate-500 uppercase">Bugün Nakit Çıkış</p>
-          <p className="text-2xl font-black text-red-600 mt-1">{fmt(cash.nakitCikis)}</p>
+          <p className="text-xs font-bold text-slate-500 uppercase">{openShift ? 'Vardiya Nakit Çıkış' : 'Bugün Nakit Çıkış'}</p>
+          <p className="text-2xl font-black text-red-600 mt-1">{fmt(shiftCash.nakitCikis)}</p>
         </div>
       </div>
 
@@ -98,7 +118,7 @@ export default function KasaPage() {
               <input className="input" type="number" placeholder="Sayım tutarı (₺)" value={closing} onChange={e => setClosing(e.target.value)} />
               <input className="input" placeholder="Not (opsiyonel)" value={notes} onChange={e => setNotes(e.target.value)} />
               <button type="button" onClick={handleClose} className="btn-primary w-full flex items-center justify-center gap-2">
-                <Lock size={16} /> Vardiyayı Kapat
+                <Lock size={16} /> Vardiyayı Kapat & Rapor
               </button>
             </div>
           ) : (
@@ -121,12 +141,17 @@ export default function KasaPage() {
                   <p className="font-semibold text-slate-800">{new Date(s.opened_at).toLocaleDateString('tr-TR')}</p>
                   <p className="text-xs text-slate-400">{s.status === 'open' ? 'Açık' : 'Kapalı'}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-1">
                   <p className="font-mono font-bold">{fmt(s.closing_balance ?? s.opening_balance)}</p>
                   {s.difference !== undefined && (
                     <p className={`text-xs font-bold ${s.difference === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
                       Fark: {fmt(s.difference)}
                     </p>
+                  )}
+                  {s.status === 'closed' && (
+                    <Link href={`/dashboard/kasa/rapor/${s.id}`} className="text-xs text-sky-600 flex items-center gap-1">
+                      <FileText size={12} /> Rapor
+                    </Link>
                   )}
                 </div>
               </div>

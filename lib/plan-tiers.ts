@@ -137,18 +137,24 @@ export const ROUTE_MIN_LEVEL: Record<string, PlanLevel> = {
   '/dashboard/ikinci-el': 3,
   '/dashboard/vitrin': 3,
   '/dashboard/raporlar': 3,
-  '/dashboard/fatura': 3,
+  '/dashboard/fatura': 1,
   '/dashboard/varliklar': 3,
   '/dashboard/kampanyalar': 3,
   '/dashboard/firsatlar': 3,
+  '/dashboard/musteri-portali': 2,
+  '/dashboard/dokumantasyon': 1,
   '/dashboard/magaza': 3,
+  '/dashboard/kasa/rapor': 3,
 }
 
 /** Bir route'a verilen paket seviyesiyle erişilebilir mi? */
 export function isRouteAllowed(route: string, level: PlanLevel): boolean {
-  const required = ROUTE_MIN_LEVEL[route]
-  if (required === undefined) return true // tanımsız route'lar serbest
-  return level >= required
+  const exact = ROUTE_MIN_LEVEL[route]
+  if (exact !== undefined) return level >= exact
+  for (const [path, required] of Object.entries(ROUTE_MIN_LEVEL)) {
+    if (route.startsWith(`${path}/`)) return level >= required
+  }
+  return true
 }
 
 /** Verilen seviyenin kapsadığı tüm modül adları (kümülatif) */

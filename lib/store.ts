@@ -245,6 +245,20 @@ export interface StolenIMEI {
   created_at: string
 }
 
+export interface ForeignDevice {
+  id: string
+  imei: string
+  marka: string
+  model: string
+  musteri_adi: string
+  musteri_telefon: string
+  durum: 'kayit_bekliyor' | 'kayit_yapildi' | 'tr_kayitli'
+  giris_tarihi: string
+  kayit_son_tarih: string
+  notlar: string
+  created_at: string
+}
+
 export interface CustomerOrder {
   id: string
   order_no: string
@@ -453,6 +467,7 @@ export interface CashShift {
   closed_by?: string
   notes?: string
   status: 'open' | 'closed'
+  report_snapshot?: Record<string, unknown>
 }
 
 export interface SupplierOrder {
@@ -526,6 +541,7 @@ export interface StoreData {
   purchases: Purchase[]
   todos: TodoItem[]
   stolenIMEIs: StolenIMEI[]
+  foreignDevices: ForeignDevice[]
   customerOrders: CustomerOrder[]
   storeProducts: StoreProduct[]
   assets: Asset[]
@@ -597,6 +613,7 @@ const EMPTY_STORE: StoreData = {
   purchases: [],
   todos: [],
   stolenIMEIs: [],
+  foreignDevices: [],
   customerOrders: [],
   storeProducts: [],
   assets: [],
@@ -632,6 +649,7 @@ function ensureStoreShape(parsed: Partial<StoreData>): StoreData {
     purchases: parsed.purchases ?? [],
     todos: parsed.todos ?? [],
     stolenIMEIs: parsed.stolenIMEIs ?? [],
+    foreignDevices: parsed.foreignDevices ?? [],
     customerOrders: parsed.customerOrders ?? [],
     storeProducts: parsed.storeProducts ?? [],
     assets: parsed.assets ?? [],
@@ -774,6 +792,24 @@ function recalculateSale(sale: Sale, store: StoreData): Sale {
 // ─── PUBLIC READ API ───────────────────────────────────────────────────────────
 
 export function getStore(): StoreData { return loadStore() }
+
+/** Supabase sync — uzaktan gelen veriyi store'a yazar (local cache) */
+export function hydrateStoreFromRemote(data: Partial<StoreData>): void {
+  const store = loadStore()
+  const preserveIfEmpty: (keyof StoreData)[] = ['serviceExpenses', 'serviceDeliveries', 'statusHistory']
+  const keys = Object.keys(data) as (keyof StoreData)[]
+  for (const key of keys) {
+    const val = data[key]
+    if (val === undefined) continue
+    if (preserveIfEmpty.includes(key) && typeof val === 'object' && val !== null && !Array.isArray(val) && Object.keys(val as object).length === 0) {
+      continue
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(store as any)[key] = val
+  }
+  saveStore(store)
+  emitChange('all')
+}
 export function getStock(): StockItem[] { return loadStore().stock }
 export function getTransactions(): FinanceTransaction[] { return loadStore().transactions }
 export function getSales(): Sale[] { return loadStore().sales }
@@ -795,6 +831,24 @@ export function getServiceDelivery(serviceId: string): ServiceDelivery | undefin
 /** Get all service orders from store */
 export function getServiceOrders(): StoreServiceOrder[] {
   return loadStore().serviceOrders
+}
+
+/** API senkronizasyonu — tüm servis listesini değiştir */
+export function replaceServiceOrders(orders: StoreServiceOrder[]): void {
+  const store = loadStore()
+  store.serviceOrders = orders
+  saveStore(store)
+  emitChange('service')
+}
+
+/** Tek kayıt ekle veya güncelle */
+export function upsertServiceOrder(order: StoreServiceOrder): void {
+  const store = loadStore()
+  const idx = store.serviceOrders.findIndex(o => o.id === order.id)
+  if (idx >= 0) store.serviceOrders[idx] = { ...store.serviceOrders[idx], ...order }
+  else store.serviceOrders.push(order)
+  saveStore(store)
+  emitChange('service')
 }
 
 /** Get a single service order by ID */
@@ -1070,12 +1124,16 @@ export function completeSale(
 ): Sale {
   const store = loadStore()
 
-  // Decrease stock
   for (const item of items) {
     const stockItem = store.stock.find(s => s.id === item.stock_id)
-    if (stockItem) {
-      stockItem.stock_qty = Math.max(0, stockItem.stock_qty - item.qty)
+    if (!stockItem || stockItem.stock_qty < item.qty) {
+      throw new Error(`Yetersiz stok: ${item.name} (mevcut: ${stockItem?.stock_qty ?? 0})`)
     }
+  }
+
+  for (const item of items) {
+    const stockItem = store.stock.find(s => s.id === item.stock_id)!
+    stockItem.stock_qty -= item.qty
   }
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.qty, 0)
@@ -1115,6 +1173,9 @@ export function completeSale(
   store.kasaBakiye += sale.total_with_vat
 
   saveStore(store)
+  // #region agent log
+  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H2',location:'store.ts:completeSale',message:'POS sale completed',data:{kasaBakiye:store.kasaBakiye,total:sale.total_with_vat,netProfit:sale.net_profit,txCount:store.transactions.length},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   emitChange('stock')
   emitChange('finance')
   emitChange('sales')
@@ -1333,6 +1394,9 @@ export function deliverService(
   }
 
   saveStore(store)
+  // #region agent log
+  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H3',location:'store.ts:deliverService',message:'Service delivered',data:{serviceId,serviceFee,totalExpense,netProfit,kasaBakiye:store.kasaBakiye,margin:delivery.profit_margin},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   emitChange('finance')
   emitChange('service')
   emitChange('warranties')
@@ -1405,6 +1469,7 @@ export function resetStore() {
   emitChange('purchases')
   emitChange('todos')
   emitChange('stolenIMEIs')
+  emitChange('foreignDevices')
   emitChange('customerOrders')
   emitChange('assets')
   emitChange('campaigns')
@@ -1430,6 +1495,67 @@ export function setStoreProducts(products: StoreProduct[]) { updateSlice('storeP
 export function getPurchases(): Purchase[] { return loadStore().purchases }
 export function setPurchases(purchases: Purchase[]) { updateSlice('purchases', purchases, 'purchases') }
 
+/** Alış kaydı + stok güncelleme + gider işlemi */
+export function recordPurchase(input: Omit<Purchase, 'id' | 'created_at' | 'total_cost'>): Purchase {
+  const store = loadStore()
+  const total_cost = input.quantity * input.buy_price
+  const purchase: Purchase = {
+    ...input,
+    id: uid('pur'),
+    total_cost,
+    created_at: new Date().toISOString(),
+  }
+  store.purchases.unshift(purchase)
+
+  const stockName = input.category === 'telefon'
+    ? `${input.device_brand ?? ''} ${input.device_model ?? ''}`.trim() || 'Telefon'
+    : input.category === 'yedek_parca' ? (input.device_model || input.device_brand || 'Yedek Parça')
+    : input.category === 'aksesuar' ? (input.device_model || 'Aksesuar')
+    : `${input.category} alış`
+
+  if (['yedek_parca', 'aksesuar', 'telefon', 'ikinci_el'].includes(input.category)) {
+    const existing = store.stock.find(s =>
+      s.name.toLowerCase() === stockName.toLowerCase() ||
+      (input.imei && s.barcode === input.imei)
+    )
+    if (existing) {
+      existing.stock_qty += input.quantity
+      existing.buy_price = input.buy_price
+    } else {
+      store.stock.push({
+        id: uid('s'),
+        name: stockName,
+        barcode: input.imei || '',
+        category: input.category === 'telefon' ? 'Telefon' : input.category === 'yedek_parca' ? 'Yedek Parça' : 'Aksesuar',
+        compatible_brands: input.device_brand ? [input.device_brand] : [],
+        stock_qty: input.quantity,
+        min_stock: 5,
+        buy_price: input.buy_price,
+        sell_price: Math.round(input.buy_price * 1.25),
+        supplier: input.supplier_name,
+      })
+    }
+    emitChange('stock')
+  }
+
+  store.transactions.push({
+    id: uid('ft'),
+    type: 'gider',
+    description: `Alış — ${stockName} (${input.supplier_name})`,
+    category: 'Alış',
+    amount: total_cost,
+    payment_method: input.payment_method,
+    date: new Date().toISOString(),
+  })
+  const pm = (input.payment_method || '').toLocaleLowerCase('tr-TR')
+  if (pm.includes('nakit')) store.kasaBakiye -= total_cost
+
+  saveStore(store)
+  emitChange('purchases')
+  emitChange('finance')
+  return purchase
+}
+
 // ─── Todos ────────────────────────────────────────────────────────────────────
 
 export function getTodos(): TodoItem[] { return loadStore().todos }
@@ -1439,6 +1565,18 @@ export function setTodos(todos: TodoItem[]) { updateSlice('todos', todos, 'todos
 
 export function getStolenIMEIs(): StolenIMEI[] { return loadStore().stolenIMEIs }
 export function setStolenIMEIs(items: StolenIMEI[]) { updateSlice('stolenIMEIs', items, 'stolenIMEIs') }
+
+export function getForeignDevices(): ForeignDevice[] { return loadStore().foreignDevices }
+export function setForeignDevices(items: ForeignDevice[]) { updateSlice('foreignDevices', items, 'foreignDevices') }
+
+export function attachShiftReport(shiftId: string, snapshot: Record<string, unknown>): void {
+  const store = loadStore()
+  const idx = store.cashShifts.findIndex(s => s.id === shiftId)
+  if (idx === -1) return
+  store.cashShifts[idx].report_snapshot = snapshot
+  saveStore(store)
+  emitChange('cashShifts')
+}
 
 // ─── Customer Orders ──────────────────────────────────────────────────────────
 
@@ -1591,30 +1729,53 @@ export function addSupportTicket(data: Omit<SupportTicket, 'id' | 'created_at' |
 // ─── Dashboard Özet Fonksiyonları ──────────────────────────────────────────
 
 /** Kasa özeti — nakit / kart / diğer ayrımı (gelir işlemlerinden) */
-export function getCashSummary() {
+export function getCashSummary(opts?: { from?: string; to?: string }) {
   const store = loadStore()
+  const fromMs = opts?.from ? new Date(opts.from).getTime() : null
+  const toMs = opts?.to ? new Date(opts.to).getTime() : null
+  const inRange = (d: string) => {
+    const t = new Date(d).getTime()
+    if (fromMs != null && t < fromMs) return false
+    if (toMs != null && t > toMs) return false
+    return true
+  }
+
   let nakit = 0, kart = 0, diger = 0
   for (const t of store.transactions) {
     if (t.type !== 'gelir') continue
+    if (opts && !inRange(t.date)) continue
     const pm = (t.payment_method || '').toLocaleLowerCase('tr-TR')
     if (pm.includes('nakit')) nakit += t.amount
     else if (pm.includes('kart') || pm.includes('kredi') || pm.includes('pos')) kart += t.amount
     else diger += t.amount
   }
-  // Giderler
+  // POS satışları completeSale ile zaten transactions'a eklenir — sales dizisini tekrar sayma (çift sayım)
   let nakitCikis = 0, kartCikis = 0
   for (const t of store.transactions) {
     if (t.type !== 'gider') continue
+    if (opts && !inRange(t.date)) continue
     const pm = (t.payment_method || '').toLocaleLowerCase('tr-TR')
     if (pm.includes('kart') || pm.includes('kredi')) kartCikis += t.amount
     else nakitCikis += t.amount
   }
-  return {
+  const result = {
     nakit, kart, diger,
     toplam: nakit + kart + diger,
     nakitCikis, kartCikis,
     kasaBakiye: store.kasaBakiye,
   }
+  _logCashSummary(opts, result)
+  return result
+}
+
+function _logCashSummary(
+  opts: { from?: string; to?: string } | undefined,
+  summary: { toplam: number; kasaBakiye: number; nakitCikis: number },
+) {
+  if (typeof window === 'undefined') return
+  // #region agent log
+  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H2',location:'store.ts:getCashSummary',message:'Cash summary computed',data:{opts,toplam:summary.toplam,kasaBakiye:summary.kasaBakiye,gap:summary.kasaBakiye-summary.toplam+summary.nakitCikis},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 }
 
 /** Bugün ne yapıldı — yeni gelen / tamir edilen / teslim edilen + satış */
@@ -1629,8 +1790,12 @@ export function getTodayActivity() {
   const newOrders = store.serviceOrders.filter(o => isToday(o.created_at)).length
   const salesToday = store.sales.filter(s => isToday(s.date))
   const salesTotal = salesToday.reduce((sum, x) => sum + (x.total_with_vat || x.subtotal || 0), 0)
-  const profitToday = salesToday.reduce((sum, x) => sum + (x.net_profit || 0), 0)
-  return { delivered, repaired, newOrders, salesCount: salesToday.length, salesTotal, profitToday }
+  const salesProfit = salesToday.reduce((sum, x) => sum + (x.net_profit || 0), 0)
+  const serviceProfitToday = Object.values(store.serviceDeliveries)
+    .filter(d => isToday(d.delivered_at))
+    .reduce((sum, d) => sum + (d.net_profit || 0), 0)
+  const profitToday = salesProfit + serviceProfitToday
+  return { delivered, repaired, newOrders, salesCount: salesToday.length, salesTotal, profitToday, serviceProfitToday, salesProfit }
 }
 
 /** Teknisyen bazlı iş yükü */
@@ -1833,7 +1998,7 @@ export function openCashShift(openingBalance: number, openedBy: string, branchId
   }
   store.cashShifts.unshift(shift)
   saveStore(store)
-  emitChange('cash')
+  emitChange('cashShifts')
   return shift
 }
 
@@ -1841,12 +2006,14 @@ export function closeCashShift(closingBalance: number, closedBy: string, notes?:
   const store = loadStore()
   const idx = store.cashShifts.findIndex(s => s.status === 'open')
   if (idx === -1) return null
-  const cash = getCashSummary()
-  const expected = store.cashShifts[idx].opening_balance + cash.nakit - cash.nakitCikis
+  const shift = store.cashShifts[idx]
+  const to = new Date().toISOString()
+  const cash = getCashSummary({ from: shift.opened_at, to })
+  const expected = shift.opening_balance + cash.nakit - cash.nakitCikis
   store.cashShifts[idx] = {
-    ...store.cashShifts[idx],
+    ...shift,
     status: 'closed',
-    closed_at: new Date().toISOString(),
+    closed_at: to,
     closing_balance: closingBalance,
     expected_cash: expected,
     difference: closingBalance - expected,
@@ -1854,7 +2021,7 @@ export function closeCashShift(closingBalance: number, closedBy: string, notes?:
     notes,
   }
   saveStore(store)
-  emitChange('cash')
+  emitChange('cashShifts')
   return store.cashShifts[idx]
 }
 

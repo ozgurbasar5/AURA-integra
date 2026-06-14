@@ -12,6 +12,7 @@ export default function SubelerPage() {
   const [mounted, setMounted] = useState(false)
   const [branches, setBranches] = useState<Branch[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [maxBranches, setMaxBranches] = useState(5)
   const [form, setForm] = useState({ name: '', address: '', phone: '' })
 
   const refresh = useCallback(() => {
@@ -22,12 +23,20 @@ export default function SubelerPage() {
   useEffect(() => {
     setMounted(true)
     refresh()
+    fetch('/api/tenant/limits', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(j => { if (j.limits?.max_branches) setMaxBranches(j.limits.max_branches) })
+      .catch(() => {})
     return onStoreChange(m => { if (!m || m === 'branches') refresh() })
   }, [refresh])
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name) { toast.error('Şube adı zorunlu'); return }
+    if (branches.length >= maxBranches) {
+      toast.error(`Paket limiti: en fazla ${maxBranches} şube. Plan yükseltin.`)
+      return
+    }
     addBranch({ name: form.name, address: form.address, phone: form.phone, is_main: branches.length === 0 })
     toast.success('Şube eklendi')
     setForm({ name: '', address: '', phone: '' })

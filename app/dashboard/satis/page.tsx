@@ -8,9 +8,11 @@ import {
   TrendingUp, Calendar, Users, Receipt, Wallet, AlertTriangle
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/validators'
+import confetti from 'canvas-confetti'
 import { PAYMENT_METHODS } from '@/lib/constants'
 import {
   getStock, getSales, getFinanceSummary, completeSale as storeCompleteSale,
+  getCampaigns,
   onStoreChange, type StockItem, type Sale
 } from '@/lib/store'
 
@@ -105,7 +107,14 @@ export default function SatisPage() {
   const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.stock_id !== id))
 
   // ─── Calculations ──────────────────────────────────────────────────────────
-  const subtotal = cart.reduce((s, i) => s + i.unit_price * i.qty, 0)
+  const subtotalRaw = cart.reduce((s, i) => s + i.unit_price * i.qty, 0)
+  const today = new Date().toISOString().slice(0, 10)
+  const activeCampaign = getCampaigns().find(c =>
+    c.is_active && c.type === 'indirim' && c.start_date <= today && (!c.end_date || c.end_date >= today)
+  )
+  const discountRate = activeCampaign?.discount_percent ?? 0
+  const discountAmount = discountRate > 0 ? subtotalRaw * (discountRate / 100) : 0
+  const subtotal = subtotalRaw - discountAmount
   const kdv = subtotal * (vatRate / 100)
   const total = subtotal + kdv
 
@@ -124,13 +133,18 @@ export default function SatisPage() {
       stock_id: c.stock_id,
       name: c.name,
       qty: c.qty,
-      unit_price: c.unit_price,
+      unit_price: discountRate > 0 ? c.unit_price * (1 - discountRate / 100) : c.unit_price,
     }))
 
-    storeCompleteSale(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
-    toast.success(`Satış tamamlandı! ${formatCurrency(total)} — Stok güncellendi, gelir finansa yansıdı ✅`)
-    setCart([])
-    setCustomerName('')
+    try {
+      storeCompleteSale(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } })
+      toast.success(`Satış tamamlandı! ${formatCurrency(total)} — Stok güncellendi, gelir finansa yansıdı ✅`)
+      setCart([])
+      setCustomerName('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Satış tamamlanamadı')
+    }
   }
 
   // Today totals from recent sales

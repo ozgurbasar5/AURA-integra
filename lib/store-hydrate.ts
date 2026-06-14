@@ -1,0 +1,134 @@
+/**
+ * Bayi dashboard — Supabase ↔ localStorage otomatik senkronizasyon
+ */
+
+import {
+  onStoreChange,
+  getStore,
+  type StoreData,
+  hydrateStoreFromRemote,
+} from './store'
+
+const MODULE_MAP: Record<string, keyof StoreData | 'notificationSettings'> = {
+  stock: 'stock',
+  customers: 'customers',
+  finance: 'transactions',
+  transactions: 'transactions',
+  sales: 'sales',
+  service: 'serviceOrders',
+  serviceOrders: 'serviceOrders',
+  purchases: 'purchases',
+  todos: 'todos',
+  customerOrders: 'customerOrders',
+  storeProducts: 'storeProducts',
+  assets: 'assets',
+  campaigns: 'campaigns',
+  deals: 'deals',
+  vitrin: 'secondHandDevices',
+  secondHand: 'secondHandDevices',
+  secondhand: 'secondHandDevices',
+  branches: 'branches',
+  settings: 'notificationSettings',
+  notifications: 'notificationLogs',
+  support: 'supportTickets',
+  personnel: 'personnel',
+  warranties: 'warranties',
+  invoices: 'invoices',
+  appointments: 'appointments',
+  cash: 'cashShifts',
+  cashShifts: 'cashShifts',
+  supplier: 'supplierOrders',
+  supplierOrders: 'supplierOrders',
+  foreignDevices: 'foreignDevices',
+}
+
+let pushTimer: ReturnType<typeof setTimeout> | null = null
+let syncing = false
+let autoSyncEnabled = false
+
+export async function hydrateFromSupabase(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  try {
+    const res = await fetch('/api/tenant/sync', { credentials: 'same-origin' })
+    if (!res.ok) return false
+    const json = await res.json() as { data?: Partial<StoreData> }
+    if (json.data) {
+      syncing = true
+      hydrateStoreFromRemote(json.data)
+      syncing = false
+      return true
+    }
+  } catch {
+    /* offline */
+  }
+  return false
+}
+
+async function pushKasaBalance() {
+  if (syncing) return
+  try {
+    const store = getStore()
+    await fetch('/api/tenant/push', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module: 'kasaBalance', balance: store.kasaBakiye }),
+    })
+  } catch {
+    /* offline */
+  }
+}
+
+async function pushModule(module: keyof StoreData | 'notificationSettings') {
+  if (syncing) return
+  try {
+    const store = getStore()
+    if (module === 'notificationSettings') {
+      await fetch('/api/tenant/push', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'notificationSettings', settings: store.notificationSettings }),
+      })
+      return
+    }
+
+    const items = store[module as keyof StoreData]
+    if (!Array.isArray(items)) return
+
+    await fetch('/api/tenant/push', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ module, items }),
+    })
+  } catch {
+    /* offline — local cache kalır */
+  }
+}
+
+function schedulePush(moduleKey: string) {
+  if (!autoSyncEnabled || syncing) return
+  const mapped = MODULE_MAP[moduleKey] ?? (moduleKey as keyof StoreData)
+  if (pushTimer) clearTimeout(pushTimer)
+  pushTimer = setTimeout(() => {
+    void pushModule(mapped)
+    if (['finance', 'transactions', 'sales', 'cash', 'cashShifts'].includes(moduleKey)) {
+      void pushKasaBalance()
+    }
+  }, 2500)
+}
+
+/** Dashboard açılışında çağır — önce çek, sonra dinlemeye başla */
+export async function initTenantDataSync(): Promise<void> {
+  if (typeof window === 'undefined') return
+  await hydrateFromSupabase()
+  if (autoSyncEnabled) return
+  autoSyncEnabled = true
+  onStoreChange(schedulePush)
+}
+
+export function disableAutoSync() {
+  autoSyncEnabled = false
+  if (pushTimer) clearTimeout(pushTimer)
+}

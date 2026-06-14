@@ -4,19 +4,20 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getTenantBlockMessage, type TenantBlockReason } from '@/lib/subscription'
-import { Eye, EyeOff, Loader2, Wrench, Package, BarChart3, ShoppingCart, Shield, Zap } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Wrench, Package, BarChart3, ShoppingCart, Shield, Cloud, ArrowRight } from 'lucide-react'
+import { AuraLogo } from '@/components/landing/AuraLogo'
+import { AURA_CORPORATE } from '@/lib/brand-corporate'
 
 const FEATURES = [
-  { icon: Wrench,       label: 'Atölye Yönetimi',   desc: 'Servis süreçlerini uçtan uca yönetin' },
-  { icon: Package,      label: 'Stok Takibi',        desc: 'Parça ve ürün envanterinizi kontrol edin' },
-  { icon: BarChart3,    label: 'Gelir Raporları',     desc: 'Gerçek zamanlı finansal analizler' },
-  { icon: ShoppingCart,  label: 'POS Satış',          desc: 'Hızlı satış ve kâr marjı takibi' },
+  { icon: Wrench,       label: 'Atölye & Servis',    desc: 'Kanban, parça, teknisyen — sahadan gelen deneyim' },
+  { icon: Package,      label: 'Stok & POS',         desc: 'Envanter, satış ve alış tek defterde' },
+  { icon: BarChart3,    label: 'Finans & Rapor',     desc: 'Kasa, vardiya ve KPI panelleri' },
+  { icon: ShoppingCart, label: 'Bayi Operasyonu',    desc: 'Çok kiracılı admin ve paket yönetimi' },
   { icon: Shield,       label: 'KVKK Uyumlu',        desc: 'Müşteri verileri güvende' },
-  { icon: Zap,          label: 'Yapay Zeka',          desc: 'AI destekli arıza teşhisi' },
+  { icon: Cloud,        label: 'Bulut Senkron',      desc: '7/24 web erişim, kurulum yok' },
 ]
 
 export default function LoginForm() {
-  const supabase = createClient()
   const searchParams = useSearchParams()
 
   const [email,    setEmail]    = useState('')
@@ -29,10 +30,15 @@ export default function LoginForm() {
   const [hasSession, setHasSession] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session)
-    })
-  }, [supabase.auth])
+    try {
+      const supabase = createClient()
+      supabase.auth.getSession().then(({ data: { session } }: { data: { session: unknown } }) => {
+        setHasSession(!!session)
+      })
+    } catch {
+      /* env eksik — build/SSR güvenli */
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/api/health/supabase')
@@ -103,10 +109,10 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
-      {/* ── Sol Panel — Feature Showcase ─────────────────────────── */}
+    <div className="min-h-screen flex bg-[#e8edf3]">
+      {/* ── Sol Panel — AURA Bilişim + İntegra ─────────────────────────── */}
       <div className="hidden lg:flex lg:w-[55%] flex-col justify-between p-12
-                      bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 relative overflow-hidden">
+                      bg-gradient-to-br from-[#0e3d4f] via-[#0e5568] to-[#0e8fad] relative overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-[-120px] right-[-120px] w-[400px] h-[400px] bg-white/[0.07] rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }} />
@@ -120,31 +126,40 @@ export default function LoginForm() {
         </div>
 
         {/* Logo */}
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/10">
-              <img src="/logocad.svg" width={28} height={28} alt="AURA Logo"
-                className="w-7 h-7 object-contain" />
-            </div>
-            <div>
-              <p className="text-white font-black text-xl tracking-tight">AURA <span className="text-blue-200">BİLİŞİM</span></p>
-              <p className="text-blue-200/60 text-[10px] font-semibold uppercase tracking-widest">Teknik Servis ERP</p>
-            </div>
-          </div>
+        <div className="relative z-10 space-y-4">
+          <AuraLogo size="lg" variant="light" product="integra" />
+          <a
+            href={AURA_CORPORATE.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-cyan-200/80 text-xs font-semibold hover:text-white transition-colors"
+          >
+            {AURA_CORPORATE.name} · {AURA_CORPORATE.tagline}
+            <ArrowRight size={12} />
+          </a>
         </div>
 
         {/* Content */}
         <div className="relative z-10 space-y-8">
           <div>
             <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.1] mb-4">
-              Servisinizi<br />
-              <span className="bg-gradient-to-r from-blue-200 to-violet-200 bg-clip-text text-transparent">
-                dijitale taşıyın.
+              Bayi panelinize<br />
+              <span className="bg-gradient-to-r from-cyan-200 to-sky-100 bg-clip-text text-transparent">
+                güvenle giriş yapın.
               </span>
             </h1>
-            <p className="text-blue-100/70 text-base leading-relaxed max-w-md">
-              Servis takibinden stok yönetimine, POS&apos;tan raporlamaya — hepsini tek platformda yönetin.
+            <p className="text-cyan-100/75 text-base leading-relaxed max-w-md">
+              {AURA_CORPORATE.integraBridge}
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {AURA_CORPORATE.stats.map((s) => (
+              <div key={s.label} className="rounded-xl bg-white/10 border border-white/10 px-3 py-2.5">
+                <p className="text-lg font-black text-cyan-200">{s.value}</p>
+                <p className="text-[10px] text-cyan-100/60 font-medium">{s.label}</p>
+              </div>
+            ))}
           </div>
 
           {/* Feature grid */}
@@ -168,26 +183,25 @@ export default function LoginForm() {
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 flex items-center justify-between">
-          <p className="text-blue-200/40 text-xs">© 2026 AURA Bilişim. Tüm hakları saklıdır.</p>
-          <a href="/" className="text-blue-200/40 text-xs hover:text-white transition-colors">
-            ← Ana Sayfaya Dön
-          </a>
+        <div className="relative z-10 flex items-center justify-between gap-4">
+          <p className="text-cyan-200/50 text-xs">© 2026 {AURA_CORPORATE.name}</p>
+          <div className="flex items-center gap-4 text-xs">
+            <a href={AURA_CORPORATE.url} target="_blank" rel="noopener noreferrer" className="text-cyan-200/50 hover:text-white transition-colors">
+              aurabilisim.net
+            </a>
+            <a href="/" className="text-cyan-200/50 hover:text-white transition-colors">
+              Ana Sayfa
+            </a>
+          </div>
         </div>
       </div>
 
       {/* ── Sağ Panel (Form) ──────────────────────────────── */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center p-6 sm:p-10 bg-white">
+      <div className="w-full lg:w-[45%] flex items-center justify-center p-6 sm:p-10 bg-[#f4f7fb]">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-sky-600 flex items-center justify-center shadow-lg shadow-blue-200">
-              <img src="/logocad.svg" width={24} height={24} alt="AURA" className="w-6 h-6 object-contain" />
-            </div>
-            <div>
-              <p className="text-slate-900 font-black text-lg">AURA <span className="text-blue-600">BİLİŞİM</span></p>
-              <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider">Teknik Servis ERP</p>
-            </div>
+          <div className="mb-10 lg:hidden">
+            <AuraLogo size="md" variant="dark" product="integra" />
           </div>
 
           <div className="mb-8">

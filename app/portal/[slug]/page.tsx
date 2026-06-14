@@ -29,52 +29,7 @@ interface DeviceRecord {
   history: HistoryEntry[]
 }
 
-// ─── Mock Fallback Data ───────────────────────────────────────────────────────
-
-const MOCK_DEVICES: DeviceRecord[] = [
-  {
-    id: 'JOB-240604-001',
-    customer: 'Ahmet Yılmaz',
-    phone: '0532 123 4567',
-    device: 'iPhone 15 Pro',
-    brand: 'Apple',
-    color: 'Siyah',
-    status: 'Tamir Aşamasında',
-    status_color: 'blue',
-    intake_date: '2026-06-04',
-    eta: '2026-06-06',
-    technician: 'Mert Aydın',
-    complaint: 'Ekran kırık, sesli arıza',
-    estimated_cost: 3200,
-    history: [
-      { date: '04 Haz 09:30', status: 'Teslim Alındı', note: 'Cihaz servisimize teslim edildi' },
-      { date: '04 Haz 11:00', status: 'Arıza Tespiti', note: 'Ekran panel hasarlı, hoparlör arızalı' },
-      { date: '04 Haz 14:00', status: 'Parça Bekleniyor', note: 'Ekran sipariş edildi' },
-    ],
-  },
-  {
-    id: 'JOB-240603-015',
-    customer: 'Ahmet Yılmaz',
-    phone: '0532 123 4567',
-    device: 'Samsung A54',
-    brand: 'Samsung',
-    color: 'Beyaz',
-    status: 'Teslime Hazır',
-    status_color: 'green',
-    intake_date: '2026-06-03',
-    eta: '2026-06-04',
-    technician: 'Selin Kaya',
-    complaint: 'Batarya şişmesi',
-    estimated_cost: 850,
-    history: [
-      { date: '03 Haz 10:00', status: 'Teslim Alındı', note: 'Cihaz servisimize teslim edildi' },
-      { date: '03 Haz 13:00', status: 'Tamir Aşamasında', note: 'Batarya değiştiriliyor' },
-      { date: '03 Haz 17:00', status: 'Teslime Hazır', note: 'Cihazınız hazır. Lütfen teslim alınız.' },
-    ],
-  },
-]
-
-// ─── Status Color Helpers ─────────────────────────────────────────────────────
+// Mock removed — production uses Supabase only
 
 function getStatusBadge(color: DeviceRecord['status_color']) {
   switch (color) {
@@ -113,11 +68,31 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
   const [results, setResults] = useState<DeviceRecord[]>([])
   const [selected, setSelected] = useState<DeviceRecord | null>(null)
   const [loading, setLoading] = useState(false)
+  const [portalEnabled, setPortalEnabled] = useState<boolean | null>(null)
 
   // Company name from slug: summit-teknik → Summit Teknik
   const companyName = params.slug
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (l) => l.toUpperCase())
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('tenants')
+          .select('feature_flags')
+          .eq('portal_slug', params.slug)
+          .maybeSingle()
+        if (cancelled) return
+        const flags = (data?.feature_flags as Record<string, boolean>) ?? {}
+        setPortalEnabled(flags.portal !== false)
+      } catch {
+        if (!cancelled) setPortalEnabled(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [params.slug])
 
   // ── Search handler ──────────────────────────────────────────────────────────
 
@@ -185,25 +160,11 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
         })
         setResults(mapped)
       } else {
-        // Fallback: filter mock data
-        console.info('[Portal] Supabase boş veya hata, mock kullanılıyor:', error?.message)
-        const found = MOCK_DEVICES.filter(
-          (d) =>
-            d.phone.replace(/\s/g, '').includes(q.replace(/\s/g, '')) ||
-            d.customer.toLowerCase().includes(q.toLowerCase())
-        )
-        setResults(found)
+        setResults([])
       }
     } catch (err) {
       console.error('[Portal] Search error:', err)
-      // Fallback to mock
-      const q = query.trim()
-      const found = MOCK_DEVICES.filter(
-        (d) =>
-          d.phone.replace(/\s/g, '').includes(q.replace(/\s/g, '')) ||
-          d.customer.toLowerCase().includes(q.toLowerCase())
-      )
-      setResults(found)
+      setResults([])
     } finally {
       setSearched(true)
       setLoading(false)
@@ -246,6 +207,26 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+
+  if (portalEnabled === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (portalEnabled === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-6">
+        <div className="text-center max-w-md">
+          <Package size={40} className="mx-auto text-slate-300 mb-4" />
+          <h1 className="text-lg font-bold text-slate-800 mb-2">Müşteri portalı kapalı</h1>
+          <p className="text-sm text-slate-500">Bu bayi için online takip özelliği şu an aktif değil. Lütfen servisi telefonla arayın.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: '100vh', backgroundColor: '#f8fafc' }}>

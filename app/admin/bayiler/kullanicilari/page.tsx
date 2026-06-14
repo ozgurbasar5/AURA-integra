@@ -37,6 +37,7 @@ export default function BayiKullanicilariPage() {
   const [newEmail, setNewEmail]         = useState('')
   const [newRole, setNewRole]           = useState('staff')
   const [adding, setAdding]             = useState(false)
+  const [maxUsers, setMaxUsers]         = useState(99)
 
   // ── Load tenants ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -72,7 +73,10 @@ export default function BayiKullanicilariPage() {
           { credentials: 'same-origin' }
         )
         const json = await res.json()
-        if (res.ok && json.data) setUsers(json.data)
+        if (res.ok && json.data) {
+          setUsers(json.data)
+          if (json.limits?.max_users) setMaxUsers(json.limits.max_users)
+        }
       } catch (e) {
         console.error('loadUsers error:', e)
       } finally {
@@ -121,12 +125,17 @@ export default function BayiKullanicilariPage() {
         return
       }
 
-      const found = json as { id: string; email: string; full_name: string }
+      const activeCount = users.filter(u => u.is_active).length
+      if (activeCount >= maxUsers) {
+        toast.error(`Paket limiti: en fazla ${maxUsers} aktif kullanıcı. Plan yükseltin veya pasif kullanıcı silin.`)
+        return
+      }
 
-      // user_profiles'ı güncelle / yoksa oluştur
+      const found = json.user as { id: string; email: string; profile?: { full_name?: string } | null }
+
       await (supabase.from('user_profiles') as any).upsert({
         id:        found.id,
-        full_name: found.full_name,
+        full_name: found.profile?.full_name ?? found.email.split('@')[0],
         role:      newRole,
         tenant_id: selectedTenant.id,
         is_active: true,
@@ -136,7 +145,7 @@ export default function BayiKullanicilariPage() {
         ...prev,
         {
           id: found.id, user_id: found.id, role: newRole, is_active: true,
-          full_name: found.full_name || found.email.split('@')[0],
+          full_name: found.profile?.full_name || found.email.split('@')[0],
           email: found.email,
           created_at: new Date().toISOString(),
         }

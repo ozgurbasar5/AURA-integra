@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import {
   ClipboardList,
@@ -47,27 +46,27 @@ const STATUS_CONFIG: Record<
 > = {
   beklemede: {
     label: 'Beklemede',
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    border: 'border-amber-200',
+    bg: 'bg-amber-500/15',
+    text: 'text-amber-700 dark:text-amber-300',
+    border: 'border-amber-500/30',
   },
   inceleniyor: {
     label: 'İnceleniyor',
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    border: 'border-blue-200',
+    bg: 'bg-sky-500/15',
+    text: 'text-sky-700 dark:text-sky-300',
+    border: 'border-sky-500/30',
   },
   onaylandi: {
     label: 'Onaylandı',
-    bg: 'bg-green-50',
-    text: 'text-green-700',
-    border: 'border-green-200',
+    bg: 'bg-emerald-500/15',
+    text: 'text-emerald-700 dark:text-emerald-300',
+    border: 'border-emerald-500/30',
   },
   reddedildi: {
     label: 'Reddedildi',
-    bg: 'bg-red-50',
-    text: 'text-red-700',
-    border: 'border-red-200',
+    bg: 'bg-red-500/15',
+    text: 'text-red-700 dark:text-red-300',
+    border: 'border-red-500/30',
   },
 }
 
@@ -106,7 +105,6 @@ function formatDate(iso: string) {
 
 export default function BasvurularPage() {
   const router = useRouter()
-  const supabase = createClient()
 
   const [basvurular, setBasvurular] = useState<Basvuru[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,23 +118,37 @@ export default function BasvurularPage() {
   const [newStatus, setNewStatus] = useState<BasvuruStatus>('beklemede')
   const [internalNote, setInternalNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [plans, setPlans] = useState<{ id: string; name: string }[]>([])
+  const [provisionPlanId, setProvisionPlanId] = useState('')
+  const [provisionPassword, setProvisionPassword] = useState('')
+  const [provisioning, setProvisioning] = useState(false)
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchBasvurular = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await (
-      supabase.from('bayi_basvurulari') as any
-    ).select('*').order('created_at', { ascending: false })
-
-    if (!error && data) {
-      setBasvurular(data as Basvuru[])
+    try {
+      const res = await fetch('/api/admin/basvurular', { credentials: 'same-origin' })
+      if (res.ok) {
+        const json = await res.json()
+        setBasvurular((json.data ?? []) as Basvuru[])
+      }
+    } catch {
+      /* offline */
     }
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchBasvurular()
+    fetch('/api/admin/plans', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        const list = (json.data ?? []) as { id: string; name: string }[]
+        setPlans(list)
+        if (list[0]) setProvisionPlanId(list[0].id)
+      })
+      .catch(() => {})
   }, [fetchBasvurular])
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -167,43 +179,69 @@ export default function BasvurularPage() {
   async function handleSave() {
     if (!selected) return
     setSaving(true)
-    const { error } = await (supabase.from('bayi_basvurulari') as any)
-      .update({ status: newStatus, internal_note: internalNote })
-      .eq('id', selected.id)
-
-    if (!error) {
+    const res = await fetch('/api/admin/basvurular', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id, status: newStatus, internal_note: internalNote }),
+    })
+    if (res.ok) {
       await fetchBasvurular()
       closeDrawer()
     }
     setSaving(false)
   }
 
+  async function handleProvision() {
+    if (!selected || !provisionPlanId || provisionPassword.length < 8) return
+    setProvisioning(true)
+    try {
+      const res = await fetch('/api/admin/provision-basvuru', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          basvuru_id: selected.id,
+          plan_id: provisionPlanId,
+          password: provisionPassword,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Oluşturulamadı')
+      await fetchBasvurular()
+      closeDrawer()
+      router.push('/admin/bayiler')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Bayi oluşturulamadı')
+    } finally {
+      setProvisioning(false)
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-
+    <div className="space-y-6">
         {/* Header */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
-              <ClipboardList size={20} className="text-sky-600" />
+            <div className="w-10 h-10 bg-sky-500/15 rounded-xl flex items-center justify-center">
+              <ClipboardList size={20} className="text-sky-600 dark:text-sky-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Bayi Başvuruları</h1>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <h1 className="text-2xl font-bold text-[var(--text-primary)]">Bayi Başvuruları</h1>
+              <p className="text-sm text-[var(--text-muted)] mt-0.5">
                 Gelen bayi başvurularını inceleyin ve yönetin
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full text-sm font-medium border border-slate-200">
-              Toplam: <strong>{basvurular.length}</strong>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-muted)] text-[var(--text-secondary)] rounded-full text-sm font-medium border border-[var(--bg-border)]">
+              Toplam: <strong className="text-[var(--text-primary)]">{basvurular.length}</strong>
             </span>
             {bekleyenCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-sm font-medium border border-amber-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 rounded-full text-sm font-medium border border-amber-500/30">
                 Bekleyen: <strong>{bekleyenCount}</strong>
               </span>
             )}
@@ -218,7 +256,7 @@ export default function BasvurularPage() {
               'px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
               filterStatus === 'tumu'
                 ? 'bg-sky-600 text-white border-sky-600'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-600'
+                : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--bg-border)] hover:border-sky-400 hover:text-sky-600'
             )}
           >
             Tümü ({basvurular.length})
@@ -237,7 +275,7 @@ export default function BasvurularPage() {
                         s === 'beklemede' ? 'bg-amber-500' :
                         s === 'inceleniyor' ? 'bg-blue-500' :
                         s === 'onaylandi' ? 'bg-green-500' : 'bg-red-500')
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--bg-border)] hover:border-[var(--bg-border)]'
                 )}
               >
                 {cfg.label} ({count})
@@ -247,82 +285,82 @@ export default function BasvurularPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="table-shell">
           {loading ? (
-            <div className="flex items-center justify-center py-20 text-slate-400">
+            <div className="flex items-center justify-center py-20 text-[var(--text-muted)]">
               <div className="text-center">
                 <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm">Yükleniyor…</p>
               </div>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-              <ClipboardList size={40} className="mb-3 text-slate-300" />
-              <p className="text-sm font-medium">Başvuru bulunamadı</p>
+            <div className="flex flex-col items-center justify-center py-20 text-[var(--text-muted)]">
+              <ClipboardList size={40} className="mb-3 opacity-40" />
+              <p className="text-sm font-medium text-[var(--text-secondary)]">Başvuru bulunamadı</p>
               <p className="text-xs mt-1">
                 {filterStatus !== 'tumu' ? 'Filtreyi değiştirmeyi deneyin' : 'Henüz başvuru gelmemiş'}
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="table-base">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Firma</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">İletişim</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Şehir</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Servis Türleri</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Paket İlgisi</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Tarih</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Durum</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600"></th>
+                  <tr>
+                    <th>Firma</th>
+                    <th>İletişim</th>
+                    <th>Şehir</th>
+                    <th>Servis Türleri</th>
+                    <th>Paket İlgisi</th>
+                    <th>Tarih</th>
+                    <th>Durum</th>
+                    <th></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {filtered.map((b) => (
                     <tr
                       key={b.id}
                       onClick={() => openDrawer(b)}
-                      className="hover:bg-slate-50 cursor-pointer transition-colors"
+                      className="cursor-pointer"
                     >
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-900">{b.company_name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{b.contact_name}</div>
+                      <td>
+                        <div className="font-semibold text-[var(--text-primary)]">{b.company_name}</div>
+                        <div className="text-xs text-[var(--text-muted)] mt-0.5">{b.contact_name}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="text-slate-700">{b.email}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{b.phone}</div>
+                      <td>
+                        <div className="text-[var(--text-secondary)]">{b.email}</div>
+                        <div className="text-xs text-[var(--text-muted)] mt-0.5">{b.phone}</div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{b.city ?? '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="text-[var(--text-secondary)]">{b.city ?? '—'}</td>
+                      <td>
                         {b.device_types && b.device_types.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {b.device_types.slice(0, 2).map((d) => (
                               <span
                                 key={d}
-                                className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
+                                className="inline-block px-2 py-0.5 bg-[var(--bg-muted)] text-[var(--text-secondary)] rounded text-xs"
                               >
                                 {d}
                               </span>
                             ))}
                             {b.device_types.length > 2 && (
-                              <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-xs">
+                              <span className="inline-block px-2 py-0.5 bg-[var(--bg-muted)] text-[var(--text-muted)] rounded text-xs">
                                 +{b.device_types.length - 2}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">—</span>
+                          <span className="text-[var(--text-muted)] text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">{b.plan_interest ?? '—'}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                      <td className="text-[var(--text-secondary)] text-xs">{b.plan_interest ?? '—'}</td>
+                      <td className="text-[var(--text-muted)] text-xs whitespace-nowrap">
                         {formatDate(b.created_at)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <StatusBadge status={b.status} />
                       </td>
-                      <td className="px-4 py-3 text-slate-400">
+                      <td className="text-[var(--text-muted)]">
                         <ChevronRight size={16} />
                       </td>
                     </tr>
@@ -332,7 +370,6 @@ export default function BasvurularPage() {
             </div>
           )}
         </div>
-      </div>
 
       {/* Drawer Overlay */}
       {drawerOpen && (
@@ -345,21 +382,20 @@ export default function BasvurularPage() {
       {/* Drawer */}
       <div
         className={cn(
-          'fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out',
-          drawerOpen ? 'translate-x-0' : 'translate-x-full'
+          'drawer-panel max-w-lg flex flex-col z-50 transition-transform duration-300 ease-in-out',
+          drawerOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         )}
       >
         {selected && (
           <>
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--bg-border)] bg-[var(--bg-muted)] shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">{selected.company_name}</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Başvuru Detayı</p>
+                <h2 className="text-lg font-bold text-[var(--text-primary)]">{selected.company_name}</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-0.5">Başvuru Detayı</p>
               </div>
               <button
                 onClick={closeDrawer}
-                className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
+                className="p-2 rounded-lg hover:bg-[var(--bg-border)] text-[var(--text-muted)] transition-colors"
               >
                 <X size={20} />
               </button>
@@ -510,26 +546,36 @@ export default function BasvurularPage() {
 
               {/* Bayi Hesabı Oluştur */}
               {newStatus === 'onaylandi' && (
-                <section className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <section className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-start gap-3">
                     <UserPlus size={18} className="text-green-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-green-800">Başvuru Onaylandı</p>
-                      <p className="text-xs text-green-600 mt-1">
-                        Bayi hesabı oluşturmak için Bayi Yönetimi sayfasına gidin.
-                      </p>
-                      <button
-                        onClick={() => {
-                          closeDrawer()
-                          router.push('/admin/bayiler')
-                        }}
-                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors"
-                      >
-                        <UserPlus size={14} />
-                        Bayi Hesabı Oluştur
-                      </button>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-green-800">Tek Tık Bayi Oluştur</p>
+                      <p className="text-xs text-green-600 mt-1">Başvuru bilgileriyle bayi hesabı açılır (30 gün trial).</p>
                     </div>
                   </div>
+                  <select
+                    value={provisionPlanId}
+                    onChange={e => setProvisionPlanId(e.target.value)}
+                    className="w-full input text-sm"
+                  >
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <input
+                    type="password"
+                    placeholder="Admin şifresi (min 8 karakter)"
+                    value={provisionPassword}
+                    onChange={e => setProvisionPassword(e.target.value)}
+                    className="w-full input text-sm"
+                  />
+                  <button
+                    onClick={handleProvision}
+                    disabled={provisioning || provisionPassword.length < 8}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    <UserPlus size={14} />
+                    {provisioning ? 'Oluşturuluyor…' : 'Bayi Hesabı Oluştur'}
+                  </button>
                 </section>
               )}
             </div>

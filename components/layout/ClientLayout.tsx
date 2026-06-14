@@ -8,6 +8,7 @@ import TenantSidebar from './TenantSidebar'
 import DashboardHeader from './DashboardHeader'
 import ThemeProvider from '@/components/ThemeProvider'
 import { clearDemoSeedOnce } from '@/lib/store'
+import { initTenantDataSync } from '@/lib/store-hydrate'
 import { isRouteAllowed, ROUTE_MIN_LEVEL, PLAN_LEVEL_LABELS, type PlanLevel } from '@/lib/plan-tiers'
 import { isRouteAllowedForRole } from '@/lib/role-access'
 import { PlanProvider } from '@/lib/plan-context'
@@ -30,8 +31,8 @@ export default function ClientLayout({ tenant, user, children }: Props) {
   const pathname = usePathname()
 
   useEffect(() => {
-    // Fake/demo örnek verileri temizle (yeni bayiler temiz başlar)
     clearDemoSeedOnce()
+    void initTenantDataSync()
     setMounted(true)
   }, [])
 

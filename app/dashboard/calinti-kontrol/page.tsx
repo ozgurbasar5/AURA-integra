@@ -7,24 +7,11 @@ import {
   ShieldCheck, CalendarClock, Phone
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getForeignDevices, setForeignDevices, onStoreChange, type ForeignDevice } from '@/lib/store'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DeviceStatus = 'kayit_bekliyor' | 'kayit_yapildi' | 'tr_kayitli'
-
-interface ForeignDevice {
-  id: string
-  imei: string
-  marka: string
-  model: string
-  musteri_adi: string
-  musteri_telefon: string
-  durum: DeviceStatus
-  giris_tarihi: string       // cihazın yurda giriş / teslim tarihi
-  kayit_son_tarih: string    // kayıt için son tarih (giriş + 120 gün)
-  notlar: string
-  created_at: string
-}
+type DeviceStatus = ForeignDevice['durum']
 
 const DURUM_CONFIG: Record<DeviceStatus, { label: string; bg: string; text: string; dot: string }> = {
   kayit_bekliyor: { label: 'Kayıt Bekliyor', bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500' },
@@ -62,28 +49,6 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split('T')[0]
 }
 
-// ─── localStorage ───────────────────────────────────────────────────────────
-
-function getStoreData(): ForeignDevice[] {
-  try {
-    const raw = localStorage.getItem('servissoft_store')
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    // Yeni alan: foreignDevices (eski stolenIMEIs'i de migrate et)
-    if (Array.isArray(parsed?.foreignDevices)) return parsed.foreignDevices
-    return []
-  } catch { return [] }
-}
-
-function saveStoreData(items: ForeignDevice[]) {
-  try {
-    const raw = localStorage.getItem('servissoft_store')
-    const store = raw ? JSON.parse(raw) : {}
-    store.foreignDevices = items
-    localStorage.setItem('servissoft_store', JSON.stringify(store))
-  } catch { /* silent */ }
-}
-
 const emptyForm = {
   imei: '', marka: '', model: '',
   musteri_adi: '', musteri_telefon: '',
@@ -97,6 +62,19 @@ const emptyForm = {
 export default function YurtDisiCihazPage() {
   const [mounted, setMounted] = useState(false)
   const [data, setData] = useState<ForeignDevice[]>([])
+
+  const reload = useCallback(() => setData(getForeignDevices()), [])
+
+  useEffect(() => {
+    reload()
+    setMounted(true)
+    return onStoreChange(m => { if (!m || m === 'foreignDevices' || m === 'seed') reload() })
+  }, [reload])
+
+  const persist = (items: ForeignDevice[]) => {
+    setForeignDevices(items)
+    setData(items)
+  }
 
   const [checkImei, setCheckImei] = useState('')
   const [checkResult, setCheckResult] = useState<'found' | 'notfound' | null>(null)
@@ -113,9 +91,6 @@ export default function YurtDisiCihazPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [viewItem, setViewItem] = useState<ForeignDevice | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-
-  const refresh = useCallback(() => setData(getStoreData()), [])
-  useEffect(() => { setMounted(true); refresh() }, [refresh])
 
   const stats = useMemo(() => ({
     total: data.length,
@@ -189,19 +164,19 @@ export default function YurtDisiCihazPage() {
         notlar: form.notlar.trim(), created_at: now,
       })
     }
-    saveStoreData(updated); setData(updated); setShowModal(false)
+    persist(updated); setShowModal(false)
     toast.success(editingId ? 'Cihaz güncellendi' : 'Cihaz eklendi')
   }
 
   const handleDelete = (id: string) => {
     const updated = data.filter(d => d.id !== id)
-    saveStoreData(updated); setData(updated); setDeleteId(null)
+    persist(updated); setDeleteId(null)
     toast.success('Kayıt silindi')
   }
 
   const setDurum = (id: string, durum: DeviceStatus) => {
     const updated = data.map(d => d.id === id ? { ...d, durum } : d)
-    saveStoreData(updated); setData(updated)
+    persist(updated)
     toast.success(`Durum: ${DURUM_CONFIG[durum].label}`)
   }
 

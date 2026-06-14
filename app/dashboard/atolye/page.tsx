@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
-  Wrench, Plus, Search, Loader2, Phone, ChevronRight, X,
+  Wrench, Plus, Search, Loader2, ChevronRight, X,
 } from 'lucide-react'
-import {
-  getServiceOrders, addServiceOrder, onStoreChange, type StoreServiceOrder,
-} from '@/lib/store'
+import { onStoreChange, type StoreServiceOrder } from '@/lib/store'
+import { loadServiceOrdersFromApi, createServiceOrderRemote } from '@/lib/service-order-bridge'
+import dynamic from 'next/dynamic'
+
+const AtolyeKanban = dynamic(() => import('@/components/atolye/AtolyeKanban'), { ssr: false })
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   waiting_diagnosis: { label: 'Bekliyor', cls: 'bg-slate-100 text-slate-700' },
@@ -59,12 +60,12 @@ function badge(status: string) {
 }
 
 export default function AtolyePage() {
-  const supabase = createClient()
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     customer_name: '', customer_phone: '', device_brand: 'Samsung',
@@ -73,29 +74,10 @@ export default function AtolyePage() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
-    try {
-      const { data } = await supabase.from('service_orders').select('*').order('created_at', { ascending: false })
-      if (data?.length) {
-        setOrders(data.map((r: any) => ({
-          id: r.id,
-          job_no: r.job_no || `SRV-${String(r.id).slice(0, 6)}`,
-          customer_name: r.customer_name || '—',
-          customer_phone: r.customer_phone || '',
-          device_brand: r.device_brand || '',
-          device_model: r.device_model || '',
-          imei: r.imei || '',
-          status: r.status || 'waiting_diagnosis',
-          estimated_cost: Number(r.estimated_cost) || 0,
-          created_at: r.created_at,
-        })))
-      } else {
-        setOrders(getServiceOrders().map(mapStore))
-      }
-    } catch {
-      setOrders(getServiceOrders().map(mapStore))
-    }
+    const list = await loadServiceOrdersFromApi()
+    setOrders(list.map(mapStore))
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   function mapStore(o: StoreServiceOrder): OrderRow {
     return {
@@ -134,29 +116,16 @@ export default function AtolyePage() {
       return
     }
     setSaving(true)
-    const jobNo = `SRV-${Date.now().toString().slice(-6)}`
-    const created = addServiceOrder({
-      job_no: jobNo,
+    await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
       device_brand: form.device_brand,
       device_model: form.device_model,
-      imei: form.imei || '-',
-      status: 'waiting_diagnosis',
-      technician: null,
-      estimated_cost: Number(form.estimated_cost) || 0,
+      imei: form.imei || undefined,
       description: form.description,
-      created_at: new Date().toISOString(),
-      eta: null,
+      estimated_cost: Number(form.estimated_cost) || 0,
+      status: 'waiting_diagnosis',
     })
-    try {
-      await supabase.from('service_orders').insert({
-        id: created.id, job_no: jobNo, customer_name: form.customer_name,
-        customer_phone: form.customer_phone, device_brand: form.device_brand,
-        device_model: form.device_model, imei: form.imei, status: 'waiting_diagnosis',
-        estimated_cost: Number(form.estimated_cost) || 0, description: form.description,
-      })
-    } catch { /* local ok */ }
     toast.success('Servis kaydı oluşturuldu')
     setShowModal(false)
     setForm({ customer_name: '', customer_phone: '', device_brand: 'Samsung', device_model: '', imei: '', description: '', estimated_cost: '' })
@@ -172,9 +141,15 @@ export default function AtolyePage() {
           <h1 className="text-2xl font-black text-slate-900">Atölye</h1>
           <p className="text-sm text-slate-500 mt-1">{counts.active} aktif · {counts.repair} tamirde · {counts.ready} teslime hazır</p>
         </div>
-        <button type="button" onClick={() => setShowModal(true)} className="btn-primary shrink-0">
-          <Plus size={16} /> Yeni Servis
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+            <button type="button" onClick={() => setViewMode('kanban')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'kanban' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Kanban</button>
+            <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'list' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Liste</button>
+          </div>
+          <button type="button" onClick={() => setShowModal(true)} className="btn-primary">
+            <Plus size={16} /> Yeni Servis
+          </button>
+        </div>
       </div>
 
       <div className="relative">
@@ -202,6 +177,13 @@ export default function AtolyePage() {
         ))}
       </div>
 
+      {viewMode === 'kanban' ? (
+        loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
+        ) : (
+          <AtolyeKanban orders={filtered} onRefresh={fetchOrders} />
+        )
+      ) : (
       <div className="surface overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
@@ -239,6 +221,7 @@ export default function AtolyePage() {
           </div>
         )}
       </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>

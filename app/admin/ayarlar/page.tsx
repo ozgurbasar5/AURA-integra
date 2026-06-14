@@ -40,6 +40,7 @@ export default function AyarlarPage() {
   const [toast, setToast]         = useState<{ type: 'success'|'error', msg: string } | null>(null)
   const [loading, setLoading]     = useState(false)
   const [stats, setStats]         = useState({ tenants: 0, users: 0, basvurular: 0 })
+  const [auditLogs, setAuditLogs] = useState<Array<{ action: string; actor_email?: string; created_at: string; target_type?: string }>>([])
 
   // Genel Ayarlar state
   const [genelForm, setGenelForm] = useState({
@@ -71,11 +72,21 @@ export default function AyarlarPage() {
   useEffect(() => {
     fetchPlans()
     fetchStats()
-    // Load genel from localStorage
-    const saved = localStorage.getItem('aura_genel_ayarlar')
-    if (saved) setGenelForm(JSON.parse(saved))
-    const savedBildirim = localStorage.getItem('aura_bildirim_ayarlar')
-    if (savedBildirim) setBildirimForm(JSON.parse(savedBildirim))
+    fetch('/api/admin/platform-settings', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        const s = json.settings as Record<string, unknown> | undefined
+        if (s?.platform_adi) setGenelForm(g => ({ ...g, platform_adi: String(s.platform_adi) }))
+        if (s?.iletisim_email) setGenelForm(g => ({ ...g, iletisim_email: String(s.iletisim_email) }))
+        if (s?.deneme_suresi) setGenelForm(g => ({ ...g, deneme_suresi: String(s.deneme_suresi) }))
+        if (s?.odeme_hatirlama) setBildirimForm(b => ({ ...b, odeme_hatirlama: String(s.odeme_hatirlama) }))
+        if (s?.email_bildirim != null) setBildirimForm(b => ({ ...b, email_bildirim: !!s.email_bildirim }))
+      })
+      .catch(() => {})
+    fetch('/api/admin/audit-logs?limit=20', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => setAuditLogs(json.data ?? []))
+      .catch(() => {})
   }, [])
 
   async function fetchPlans() {
@@ -109,15 +120,28 @@ export default function AyarlarPage() {
         ? plan.features
         : String(plan.features).split(',').map((f: string) => f.trim()).filter(Boolean)
 
-      const payload = { ...plan, features: featArr }
-      const { error } = await (supabase.from('subscription_plans') as any)
-        .upsert(payload, { onConflict: 'id' })
-      if (error) throw error
-      showToast('success', `"${plan.name}" paketi kaydedildi`)
+      const res = await fetch('/api/admin/plans', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          updates: {
+            name: plan.name,
+            price: plan.price,
+            max_users: plan.max_users,
+            max_branches: plan.max_branches,
+            features: featArr,
+          },
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Kayıt hatası')
+      showToast('success', `"${plan.name}" paketi kaydedildi — anasayfa güncellenecek`)
       setEditingPlan(null)
       fetchPlans()
-    } catch (e: any) {
-      showToast('error', e.message || 'Kayıt hatası')
+    } catch (e: unknown) {
+      showToast('error', e instanceof Error ? e.message : 'Kayıt hatası')
     } finally { setLoading(false) }
   }
 
@@ -164,14 +188,30 @@ export default function AyarlarPage() {
     }
   }
 
-  function saveGenel() {
-    localStorage.setItem('aura_genel_ayarlar', JSON.stringify(genelForm))
-    showToast('success', 'Genel ayarlar kaydedildi')
+  async function saveGenel() {
+    const settings = {
+      platform_adi: genelForm.platform_adi,
+      iletisim_email: genelForm.iletisim_email,
+      destek_tel: genelForm.destek_tel,
+      kdv_orani: genelForm.kdv_orani,
+      deneme_suresi: genelForm.deneme_suresi,
+      odeme_hatirlama: bildirimForm.odeme_hatirlama,
+      abonelik_uyari: bildirimForm.abonelik_uyari,
+      email_bildirim: bildirimForm.email_bildirim,
+      sms_bildirim: bildirimForm.sms_bildirim,
+    }
+    const res = await fetch('/api/admin/platform-settings', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    })
+    if (!res.ok) { showToast('error', 'Kayıt başarısız'); return }
+    showToast('success', 'Platform ayarları kaydedildi')
   }
 
-  function saveBildirim() {
-    localStorage.setItem('aura_bildirim_ayarlar', JSON.stringify(bildirimForm))
-    showToast('success', 'Bildirim ayarları kaydedildi')
+  async function saveBildirim() {
+    await saveGenel()
   }
 
   async function testDb() {
@@ -221,8 +261,8 @@ export default function AyarlarPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h2 className="font-semibold text-slate-800">Abonelik Paketleri (3 Sabit)</h2>
-              <p className="text-xs text-slate-500">VantaPhone tarzı Deneyim / Pro / Business — yalnızca biri vitrin paketi olabilir</p>
+              <h2 className="font-semibold text-slate-800">Abonelik Paketleri</h2>
+              <p className="text-xs text-slate-500">Anasayfa fiyat ve özellikleri buradan güncellenir — vitrin paketi öne çıkar</p>
             </div>
           </div>
 
@@ -454,6 +494,19 @@ export default function AyarlarPage() {
             <button onClick={testDb} className="btn-secondary mt-4 flex items-center gap-2">
               <Database size={15} /> Veritabanını Test Et
             </button>
+          </div>
+          <div className="card p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">Son Admin İşlemleri (Audit Log)</h2>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {auditLogs.length === 0 ? (
+                <p className="text-sm text-slate-400">Kayıt yok — migration 20260615 çalıştırın</p>
+              ) : auditLogs.map(log => (
+                <div key={log.created_at + log.action} className="text-xs border-b border-slate-100 py-2 flex justify-between gap-2">
+                  <span className="font-mono text-slate-700">{log.action}</span>
+                  <span className="text-slate-400 shrink-0">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

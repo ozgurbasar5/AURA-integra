@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { ArrowRight, CheckCircle2 } from 'lucide-react'
+import { AuraLogo } from '@/components/landing/AuraLogo'
+import { AURA_CORPORATE } from '@/lib/brand-corporate'
+import { getPlanLevel } from '@/lib/plan-tiers'
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type ServiceType = 'cep_telefonu' | 'robot_supurge' | 'akilli_saat' | 'bilgisayar'
-type PlanType = 'starter' | 'pro' | 'enterprise'
+type PlanType = 'deneme' | 'stok_satis' | 'teknik_servis' | 'finans'
 type MonthlyService = '<10' | '10-50' | '50-100' | '100+'
 
 interface FormData {
@@ -32,10 +36,23 @@ interface FormErrors {
   kvkk?: string
 }
 
+const PLAN_KEY_BY_LEVEL: Record<number, PlanType> = {
+  1: 'stok_satis',
+  2: 'teknik_servis',
+  3: 'finans',
+}
+
+const DEFAULT_PLAN_OPTIONS: { value: PlanType; label: string; price: string; tag?: string }[] = [
+  { value: 'deneme', label: '30 Gün Deneme', price: 'Ücretsiz', tag: 'Önerilen' },
+  { value: 'stok_satis', label: 'Stok & Satış', price: '₺450/ay' },
+  { value: 'teknik_servis', label: 'Teknik Servis', price: '₺750/ay', tag: 'Vitrin' },
+  { value: 'finans', label: 'Finans & Analitik', price: '₺1.200/ay' },
+]
+
 // ─── SUCCESS SCREEN ────────────────────────────────────────────────────────────
 function SuccessScreen({ firmaAdi }: { firmaAdi: string }) {
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-6">
+    <div className="landing-page min-h-screen flex items-center justify-center p-6">
       <div className="max-w-md w-full text-center">
         {/* Animated checkmark */}
         <div className="flex justify-center mb-8">
@@ -138,6 +155,36 @@ export default function BasvuruPage() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [trialDays, setTrialDays] = useState(30)
+  const [planOptions, setPlanOptions] = useState(DEFAULT_PLAN_OPTIONS)
+
+  useEffect(() => {
+    fetch('/api/public/plans')
+      .then((r) => r.json())
+      .then((json) => {
+        const trial = Number(json.trialDays) || 30
+        setTrialDays(trial)
+        const rows = json.data as Array<{ name: string; price: number; is_active: boolean }> | undefined
+        if (!rows?.length) return
+
+        const opts: typeof DEFAULT_PLAN_OPTIONS = [
+          { value: 'deneme', label: `${trial} Gün Deneme`, price: 'Ücretsiz', tag: 'Önerilen' },
+        ]
+        for (const p of rows) {
+          const level = getPlanLevel(p.name)
+          const key = PLAN_KEY_BY_LEVEL[level]
+          if (!key || opts.some((o) => o.value === key)) continue
+          opts.push({
+            value: key,
+            label: p.name,
+            price: `₺${Number(p.price).toLocaleString('tr-TR')}/ay`,
+            tag: p.is_active ? 'Vitrin' : undefined,
+          })
+        }
+        if (opts.length >= 2) setPlanOptions(opts)
+      })
+      .catch(() => {})
+  }, [])
 
   // ── Validation ──────────────────────────────────────────────────────────────
   function validate(): boolean {
@@ -197,8 +244,8 @@ export default function BasvuruPage() {
         body: JSON.stringify(form),
       })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.success === false) {
         throw new Error(data.error || 'Gönderim başarısız oldu')
       }
 
@@ -228,48 +275,62 @@ export default function BasvuruPage() {
     { value: 'bilgisayar', label: 'Bilgisayar', icon: '💻' },
   ]
 
-  const planOptions: { value: PlanType; label: string; price: string; tag?: string }[] = [
-    { value: 'starter', label: 'Starter', price: '₺390/ay' },
-    { value: 'pro', label: 'Pro', price: '₺890/ay', tag: 'Popüler' },
-    { value: 'enterprise', label: 'Enterprise', price: '₺1890/ay' },
-  ]
-
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="landing-page min-h-screen" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── Navbar ── */}
-      <nav className="bg-white border-b border-slate-200 px-4 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-sky-600 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span className="text-base font-bold text-slate-900">AURA <span className="text-sky-600">İntegra</span></span>
-          </Link>
-          <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-sky-600 transition-colors">
-            Giriş Yap →
-          </Link>
+      <nav className="landing-nav sticky top-0 z-40 border-b backdrop-blur-xl">
+        <div className="max-w-6xl mx-auto px-4 h-[4rem] flex items-center justify-between">
+          <Link href="/"><AuraLogo size="sm" variant="dark" product="integra" /></Link>
+          <div className="flex items-center gap-4">
+            <a href={AURA_CORPORATE.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-[var(--landing-muted)] hover:text-[var(--landing-accent)] hidden sm:inline">
+              aurabilisim.net
+            </a>
+            <Link href="/login" className="text-sm font-semibold text-[var(--landing-accent)]">
+              Giriş →
+            </Link>
+          </div>
         </div>
       </nav>
 
-      {/* ── Header ── */}
-      <div className="bg-gradient-to-b from-sky-600 to-sky-700 py-12 px-4 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/40 text-sky-100 text-xs font-semibold mb-4 border border-sky-400/30">
-          🚀 30 Gün Ücretsiz Deneyin
-        </div>
-        <h1 className="text-3xl font-extrabold text-white mb-2">Bayi Başvuru Formu</h1>
-        <p className="text-sky-200 max-w-md mx-auto text-sm">
-          Formu doldurun, ekibimiz 24 saat içinde sizinle iletişime geçsin.
-          Kurulum tamamen ücretsiz.
-        </p>
-      </div>
+      <div className="max-w-6xl mx-auto px-4 py-10 grid lg:grid-cols-[minmax(0,1fr)_380px] gap-8 items-start">
+        {/* Sol — kurumsal güven */}
+        <aside className="hidden lg:block space-y-4 sticky top-24">
+          <div className="landing-card p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--landing-accent)] mb-2">{AURA_CORPORATE.tagline}</p>
+            <h2 className="text-xl font-black text-[var(--landing-text)] mb-3">{AURA_CORPORATE.name}</h2>
+            <p className="text-sm text-[var(--landing-muted)] leading-relaxed mb-4">{AURA_CORPORATE.shortBio}</p>
+            <ul className="space-y-2 mb-4">
+              {AURA_CORPORATE.trustPoints.map((t) => (
+                <li key={t} className="flex gap-2 text-xs text-[var(--landing-muted)]">
+                  <CheckCircle2 size={14} className="text-[var(--landing-accent)] shrink-0 mt-0.5" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+            <a href={AURA_CORPORATE.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--landing-accent)] hover:opacity-80">
+              aurabilisim.net <ArrowRight size={14} />
+            </a>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {AURA_CORPORATE.stats.map((s) => (
+              <div key={s.label} className="landing-stat rounded-xl border px-3 py-2.5">
+                <p className="text-lg font-black text-[#0c5f73]">{s.value}</p>
+                <p className="text-[10px] text-[var(--landing-muted)] font-medium">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </aside>
 
-      {/* ── Form ── */}
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="min-w-0">
+          <div className="text-center lg:text-left mb-8">
+            <span className="landing-tag mb-3 inline-block">{trialDays} gün ücretsiz deneme</span>
+            <h1 className="text-2xl sm:text-3xl font-black text-[var(--landing-text)] mb-2">Bayi Başvuru Formu</h1>
+            <p className="text-sm text-[var(--landing-muted)] max-w-lg mx-auto lg:mx-0">
+              {AURA_CORPORATE.product} demo hesabı için formu doldurun; ekibimiz 24 saat içinde dönüş yapar.
+            </p>
+          </div>
+        <div className="landing-card overflow-hidden">
 
           {/* Form header */}
           <div className="border-b border-slate-100 px-8 py-5 bg-slate-50">
@@ -595,7 +656,7 @@ export default function BasvuruPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 px-6 rounded-xl text-base font-bold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-sky-200 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+              className="w-full py-4 px-6 rounded-xl text-base font-bold text-white bg-[var(--landing-accent)] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed shadow-md transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -625,12 +686,15 @@ export default function BasvuruPage() {
 
           </form>
         </div>
+        </div>
       </div>
 
-      {/* Footer strip */}
-      <div className="text-center py-6 text-xs text-slate-400">
-        © 2025 AURA İntegra · <a href="#" className="hover:text-slate-600">Gizlilik</a> · <a href="#" className="hover:text-slate-600">KVKK</a>
-      </div>
+      <footer className="text-center py-6 text-xs text-[var(--landing-muted)] border-t border-[var(--landing-border)] landing-surface">
+        © 2026 {AURA_CORPORATE.name} ·{' '}
+        <a href={AURA_CORPORATE.url} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--landing-accent)]">aurabilisim.net</a>
+        {' · '}
+        <Link href="/" className="hover:text-[var(--landing-accent)]">Ana Sayfa</Link>
+      </footer>
 
     </div>
   )

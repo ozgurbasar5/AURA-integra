@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import {
   onStoreChange, getCashSummary, getTodayActivity,
-  getTechnicianWorkload, getPartUsageThisWeek,
+  getTechnicianWorkload, getPartUsageThisWeek, getCashShifts,
 } from '@/lib/store'
 
 function fmt(n: number) {
@@ -52,7 +52,10 @@ export function TodayActivityWidget() {
 
 export function CashSummaryWidget() {
   const [c, setC] = useState({ nakit: 0, kart: 0, diger: 0, toplam: 0, nakitCikis: 0, kartCikis: 0, kasaBakiye: 0 })
-  const refresh = useCallback(() => setC(getCashSummary()), [])
+  const refresh = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    setC(getCashSummary({ from: `${today}T00:00:00`, to: new Date().toISOString() }))
+  }, [])
   useEffect(() => { refresh(); return onStoreChange(refresh) }, [refresh])
 
   const rows = [
@@ -63,7 +66,7 @@ export function CashSummaryWidget() {
   return (
     <div className="surface p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-[var(--text-primary)] text-sm">Kasa Özeti</h3>
+        <h3 className="font-bold text-[var(--text-primary)] text-sm">Bugün Kasa Özeti</h3>
         <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-300">
           Bakiye: {fmt(c.kasaBakiye)}
         </span>
@@ -83,6 +86,29 @@ export function CashSummaryWidget() {
         <span className="text-sm font-semibold text-[var(--text-secondary)]">Toplam Tahsilat</span>
         <span className="text-base font-black text-emerald-600 tabular-nums">{fmt(c.toplam)}</span>
       </div>
+    </div>
+  )
+}
+
+// ─── Son Vardiya Özeti ───────────────────────────────────────────────────────
+
+export function LastShiftSummaryWidget() {
+  const [shift, setShift] = useState<ReturnType<typeof getCashShifts>[0] | null>(null)
+  const refresh = useCallback(() => {
+    setShift(getCashShifts().find(s => s.status === 'closed') ?? null)
+  }, [])
+  useEffect(() => { refresh(); return onStoreChange(m => { if (!m || m === 'cashShifts') refresh() }) }, [refresh])
+
+  if (!shift?.closed_at) return null
+  return (
+    <div className="surface p-5">
+      <h3 className="font-bold text-[var(--text-primary)] text-sm mb-2">Son Gün Sonu</h3>
+      <p className="text-xs text-[var(--text-muted)]">
+        {new Date(shift.closed_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+      </p>
+      <p className={`text-lg font-black mt-2 tabular-nums ${(shift.difference ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+        Fark: {fmt(shift.difference ?? 0)}
+      </p>
     </div>
   )
 }

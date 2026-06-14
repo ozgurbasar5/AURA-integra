@@ -1,5 +1,3 @@
-import Image from 'next/image'
-
 interface LogoProps {
   className?: string
   showText?: boolean
@@ -38,13 +36,13 @@ export default function Logo({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={shopLogo} alt="" className="w-full h-full object-contain bg-white p-0.5" />
         ) : (
-          <Image
-            src="/LOGOCAD.SVG"
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/aura-integra-logo.svg"
             alt={displayName}
             width={px}
             height={px}
-            className="object-contain bg-gradient-to-br from-sky-600 to-cyan-700 p-1"
-            priority
+            className="object-contain w-full h-full bg-gradient-to-br from-slate-50 to-cyan-50 p-1"
           />
         )}
       </div>

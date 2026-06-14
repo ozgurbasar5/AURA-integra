@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import PageHeader from '@/components/dashboard/PageHeader'
 import { useStoreSlice } from '@/hooks/useStoreSlice'
+import { useFeatureFlags } from '@/hooks/useFeatureFlags'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { getInvoices, setInvoices, addInvoice, type InvoiceRecord } from '@/lib/store'
 import { formatCurrency, formatDate } from '@/lib/validators'
 
@@ -34,13 +36,15 @@ const emptyForm: {
 
 export default function FaturaPage() {
   const { items: invoices, saveAll, mounted } = useStoreSlice(getInvoices, setInvoices, 'invoices')
+  const { flags, loading: flagsLoading } = useFeatureFlags()
+  const efaturaEnabled = flags ? isFeatureEnabled(flags, 'efatura') : false
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
-  if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
+  if (!mounted || flagsLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
   const filtered = invoices.filter(inv => {
     if (search) {
@@ -61,6 +65,10 @@ export default function FaturaPage() {
 
   function handleCreate() {
     if (!form.customer_name || form.unit_price <= 0) { toast.error('Müşteri ve tutar zorunlu'); return }
+    if (form.invoice_type === 'efatura' && !efaturaEnabled) {
+      toast.error('e-Fatura özelliği aktif değil')
+      return
+    }
     const subtotal = form.unit_price * form.quantity
     const kdv = subtotal * 0.2
     const prefix = form.invoice_type === 'efatura' ? 'FAT' : 'ARA'
@@ -216,8 +224,13 @@ export default function FaturaPage() {
             <div className="p-5 space-y-3">
               <div><label className="label">Tip</label>
                 <select className="select" value={form.invoice_type} onChange={e => setForm(f => ({ ...f, invoice_type: e.target.value as InvoiceRecord['invoice_type'] }))}>
-                  <option value="earsiv">e-Arşiv</option><option value="efatura">e-Fatura</option><option value="irsaliye">İrsaliye</option>
+                  <option value="earsiv">e-Arşiv</option>
+                  {efaturaEnabled && <option value="efatura">e-Fatura</option>}
+                  <option value="irsaliye">İrsaliye</option>
                 </select>
+                {!efaturaEnabled && (
+                  <p className="text-[10px] text-amber-600 mt-1">e-Fatura entegrasyonu paketinizde aktif değil.</p>
+                )}
               </div>
               <div><label className="label">Müşteri *</label><input className="input" value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-3">

@@ -1,29 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
-
-async function requireSuperAdmin(request: NextRequest) {
-  try {
-    const sb = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return null
-    const { data: profile } = await sb.from('user_profiles').select('role').eq('id', user.id).single()
-    return (profile as any)?.role === 'super_admin' ? user : null
-  } catch { return null }
-}
+import { requireSuperAdmin } from '@/lib/admin-auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const admin = await requireSuperAdmin(request)
-    if (!admin) {
-      return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 })
-    }
+    const auth = await requireSuperAdmin(request)
+    if (!auth.authorized) return auth.error
 
     const body = await request.json()
     const { userId, email, newPassword } = body

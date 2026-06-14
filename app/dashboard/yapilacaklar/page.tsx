@@ -6,19 +6,9 @@ import {
   ListTodo, CheckCircle2, Clock, Flame, ChevronDown, ChevronUp, Search, Filter,
   ClipboardList, BarChart3, Settings, Wrench, Package, DollarSign, Users, Globe
 } from 'lucide-react';
+import { getTodos, setTodos as persistTodos, onStoreChange, type TodoItem } from '@/lib/store';
 
-/* ─── Types ─── */
-interface Todo {
-  id: string;
-  title: string;
-  description: string;
-  priority: 'dusuk' | 'orta' | 'yuksek' | 'acil';
-  category: 'servis' | 'stok' | 'finans' | 'musteri' | 'genel';
-  assigned_to: string;
-  due_date: string;
-  completed: boolean;
-  created_at: string;
-}
+type Todo = TodoItem;
 
 type PriorityKey = Todo['priority'];
 type CategoryKey = Todo['category'];
@@ -67,27 +57,6 @@ const emptyTodo: Omit<Todo, 'id' | 'created_at' | 'completed'> = {
   title: '', description: '', priority: 'orta', category: 'genel', assigned_to: '', due_date: '',
 };
 
-/* ─── Helpers ─── */
-function loadTodos(): Todo[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const store = JSON.parse(raw);
-    return Array.isArray(store.todos) ? store.todos : [];
-  } catch { return []; }
-}
-
-function saveTodos(todos: Todo[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const store = raw ? JSON.parse(raw) : {};
-    store.todos = todos;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  } catch { /* ignore */ }
-}
-
 function formatDate(d: string) {
   if (!d) return '';
   const dt = new Date(d);
@@ -116,13 +85,13 @@ export default function YapilacaklarPage() {
 
   /* ── Load ── */
   useEffect(() => {
-    setTodos(loadTodos());
+    setTodos(getTodos());
     setMounted(true);
+    return onStoreChange(m => { if (m === 'todos' || m === 'seed') setTodos(getTodos()) });
   }, []);
 
-  /* ── Save ── */
   useEffect(() => {
-    if (mounted) saveTodos(todos);
+    if (mounted) persistTodos(todos);
   }, [todos, mounted]);
 
   /* ── Stats ── */
@@ -144,8 +113,8 @@ export default function YapilacaklarPage() {
       const q = search.toLowerCase();
       list = list.filter(t =>
         t.title.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        t.assigned_to.toLowerCase().includes(q)
+        (t.description ?? '').toLowerCase().includes(q) ||
+        (t.assigned_to ?? '').toLowerCase().includes(q)
       );
     }
     const prioOrder: Record<PriorityKey, number> = { acil: 0, yuksek: 1, orta: 2, dusuk: 3 };
@@ -177,14 +146,14 @@ export default function YapilacaklarPage() {
   const saveForm = () => {
     if (!form.title.trim()) { setFormError('Başlık zorunludur'); return; }
     if (editingId) {
-      setTodos(prev => prev.map(t => t.id === editingId ? { ...t, ...form, title: form.title.trim(), description: form.description.trim(), assigned_to: form.assigned_to.trim() } : t));
+      setTodos(prev => prev.map(t => t.id === editingId ? { ...t, ...form, title: form.title.trim(), description: (form.description ?? '').trim(), assigned_to: (form.assigned_to ?? '').trim() } : t));
     } else {
       const newTodo: Todo = {
         id: uid(),
         ...form,
         title: form.title.trim(),
-        description: form.description.trim(),
-        assigned_to: form.assigned_to.trim(),
+        description: (form.description ?? '').trim(),
+        assigned_to: (form.assigned_to ?? '').trim(),
         completed: false,
         created_at: new Date().toISOString(),
       };
@@ -296,7 +265,7 @@ export default function YapilacaklarPage() {
         {filtered.map(todo => {
           const prio = PRIORITY_MAP[todo.priority];
           const cat  = CATEGORY_MAP[todo.category];
-          const overdue = isOverdue(todo.due_date, todo.completed);
+          const overdue = isOverdue(todo.due_date ?? '', todo.completed);
           const expanded = expandedId === todo.id;
 
           return (

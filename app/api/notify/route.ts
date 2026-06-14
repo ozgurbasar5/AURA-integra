@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import nodemailer from 'nodemailer'
+import { sendSms } from '@/lib/notification-service'
 
 function escapeHtml(str: string): string {
   return String(str)
@@ -22,18 +23,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Env kontrol
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single()
+
+    const body = await request.json()
+    const { to, subject, type, data, message } = body
+
+    if (message && !type) {
+      if (profile?.tenant_id) {
+        const { data: tenant } = await supabase
+          .from('tenants')
+          .select('feature_flags')
+          .eq('id', profile.tenant_id)
+          .single()
+        const flags = (tenant?.feature_flags as Record<string, boolean>) ?? {}
+        if (flags.sms === false) {
+          return NextResponse.json({ error: 'SMS özelliği bu bayi için kapalı.' }, { status: 403 })
+        }
+      }
+      const smsResult = await sendSms({ to, message })
+      return NextResponse.json({ success: smsResult.ok, status: smsResult.status, error: smsResult.error })
+    }
+
+    // Env kontrol — SMS-only path needs no SMTP
     const smtpEmail = process.env.SMTP_EMAIL
     const smtpPassword = process.env.SMTP_PASSWORD
+
+    if (!to) {
+      return NextResponse.json({ error: 'Alıcı zorunludur.' }, { status: 400 })
+    }
+
     if (!smtpEmail || !smtpPassword) {
       return NextResponse.json({ error: 'E-posta yapılandırması eksik.' }, { status: 500 })
     }
 
-    const body = await request.json()
-    const { to, subject, type, data } = body
-
-    if (!to || !type) {
-      return NextResponse.json({ error: 'Alıcı ve tür zorunludur.' }, { status: 400 })
+    if (!type) {
+      return NextResponse.json({ error: 'type veya message gerekli' }, { status: 400 })
     }
 
     const transporter = nodemailer.createTransport({

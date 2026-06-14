@@ -1,18 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-// Mock data — gerçek veriler API'den gelecek
-const data = Array.from({ length: 30 }, (_, i) => {
-  const date = new Date()
-  date.setDate(date.getDate() - (29 - i))
-  return {
-    date: date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
-    amount: Math.floor(Math.random() * 3000) + 800,
-  }
-})
+interface ChartPoint { date: string; amount: number }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-[#18181b] border border-[#27272a] rounded-lg px-3 py-2 text-xs">
@@ -25,6 +18,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function AdminRevenueChart() {
+  const [data, setData] = useState<ChartPoint[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin/revenue?days=30', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => setData(json.data ?? []))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">Yükleniyor...</div>
+  }
+
+  if (!data.length) {
+    return <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">Henüz ödeme kaydı yok</div>
+  }
+
   return (
     <div className="h-48">
       <ResponsiveContainer width="100%" height="100%">

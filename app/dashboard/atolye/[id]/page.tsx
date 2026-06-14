@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Printer, MessageCircle, Phone, User, Wrench,
@@ -14,12 +13,14 @@ import { getBusinessBranding } from '@/lib/business-branding'
 import ServicePrintSheet from '@/components/atolye/ServicePrintSheet'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
 import {
-  getServiceOrderById, updateServiceStatus, updateServiceOrder,
+  updateServiceStatus, updateServiceOrder,
   addServiceExpense, removeServiceExpense, getServiceExpenses, getServiceProfitPreview,
-  deliverService, getServiceDelivery, canDeliverService, getStock,
+  getStock, usePartsForService, getPersonnel,
+  deliverService, getServiceDelivery, canDeliverService,
   type StoreServiceOrder,
 } from '@/lib/store'
 import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
+import { fetchServiceOrderById, updateServiceOrderRemote } from '@/lib/service-order-bridge'
 import { useUserRole } from '@/lib/role-context'
 
 const STATUSES: Record<string, { label: string; cls: string }> = {
@@ -42,7 +43,6 @@ function fmt(n: number) {
 export default function AtolyeDetailPage() {
   const { id } = useParams() as { id: string }
   const router = useRouter()
-  const supabase = createClient()
   const { canDeliver, canEditPricing, canSeeFinance } = useUserRole()
 
   const [loading, setLoading] = useState(true)
@@ -60,22 +60,19 @@ export default function AtolyeDetailPage() {
   const [compatible, setCompatible] = useState<ReturnType<typeof getCompatibleParts>>([])
   const [showWaPreview, setShowWaPreview] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [technician, setTechnician] = useState<string>('')
+  const personnel = getPersonnel().filter(p => p.is_active)
 
   const load = useCallback(async () => {
     setLoading(true)
-    let o = getServiceOrderById(id)
-    if (!o) {
-      try {
-        const { data } = await supabase.from('service_orders').select('*').eq('id', id).single()
-        if (data) o = data as typeof o
-      } catch { /* offline */ }
-    }
+    const o = await fetchServiceOrderById(id)
     if (o) {
       setOrder(o)
       setNotes(o.notes || '')
       setPrivateNote(o.private_note || '')
       setPrice(o.actual_cost || o.estimated_cost || 0)
       setStatus(o.status || 'waiting_diagnosis')
+      setTechnician(o.technician || '')
       setParts((o.used_parts || []).map(p => ({
         id: p.id, name: p.name, quantity: p.qty,
         unit_cost: p.unit_buy, unit_price: p.unit_sell,
@@ -84,7 +81,7 @@ export default function AtolyeDetailPage() {
       setCompatible(getCompatibleParts(getStock(), o.device_brand, o.device_model))
     }
     setLoading(false)
-  }, [id, supabase])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 
@@ -99,39 +96,60 @@ export default function AtolyeDetailPage() {
     setSaving(true)
     updateServiceOrder(id, {
       notes, private_note: privateNote, actual_cost: price, estimated_cost: price, status,
+      technician: technician || null,
       final_checks: finalChecks,
       used_parts: parts.map(p => ({
         id: p.id, name: p.name, qty: p.quantity,
         unit_buy: p.unit_cost, unit_sell: p.unit_price,
       })),
     })
-    try {
-      await (supabase.from('service_orders') as any).update({ notes, actual_cost: price, status }).eq('id', id)
-    } catch { /* offline */ }
-    setOrder(prev => prev ? { ...prev, notes, private_note: privateNote, actual_cost: price, status } : prev)
+    await updateServiceOrderRemote(id, {
+      status, actual_cost: price, estimated_cost: price, notes,
+    })
+    setOrder(prev => prev ? { ...prev, notes, private_note: privateNote, actual_cost: price, status, technician: technician || null } : prev)
     toast.success('Kaydedildi')
     setSaving(false)
   }
 
   function handleStatusChange(v: string) {
+    if (v === 'delivered') {
+      handleDeliver()
+      return
+    }
     setStatus(v)
     updateServiceStatus(id, v)
+    void updateServiceOrderRemote(id, { status: v })
+    // #region agent log
+    fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H1',location:'atolye/[id]:handleStatusChange',message:'Status changed',data:{newStatus:v,hasDelivery:!!getServiceDelivery(id),calledDeliverService:false},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     toast.success(`Durum: ${STATUSES[v]?.label || v}`)
   }
 
   function addPart() {
-    if (!partForm.name || !partForm.sell) return
+    if (!partForm.name || !partForm.sell || !order) return
+    const qty = Number(partForm.qty) || 1
     const p: Part = {
       id: String(Date.now()), name: partForm.name,
-      quantity: Number(partForm.qty) || 1,
+      quantity: qty,
       unit_cost: Number(partForm.cost) || 0,
       unit_price: Number(partForm.sell) || 0,
     }
+    const stockMatch = getStock().find(s =>
+      s.name.toLocaleLowerCase('tr-TR') === partForm.name.trim().toLocaleLowerCase('tr-TR')
+    )
+    if (stockMatch && stockMatch.stock_qty >= qty) {
+      usePartsForService(
+        [{ stock_id: stockMatch.id, name: stockMatch.name, qty, unit_buy: p.unit_cost || stockMatch.buy_price, unit_sell: p.unit_price }],
+        order.job_no,
+        order.customer_name,
+      )
+    } else {
+      addServiceExpense(id, { source: 'part', reference_id: p.id, description: p.name, amount: p.unit_cost * p.quantity })
+    }
     setParts(prev => [...prev, p])
-    addServiceExpense(id, { source: 'part', reference_id: p.id, description: p.name, amount: p.unit_cost * p.quantity })
     setPartForm({ name: '', qty: '1', cost: '', sell: '' })
     setShowPartForm(false)
-    toast.success('Parça eklendi')
+    toast.success(stockMatch ? 'Parça eklendi — stok düşüldü' : 'Parça eklendi (stok dışı)')
   }
 
   function removePart(partId: string) {
@@ -152,7 +170,9 @@ export default function AtolyeDetailPage() {
     updateServiceOrder(id, { final_checks: finalChecks })
     const result = deliverService(id, price, order.job_no, order.customer_name, 'nakit')
     if (!result) { toast.error('Teslim kaydedilemedi'); return }
-    handleStatusChange('delivered')
+    setStatus('delivered')
+    updateServiceStatus(id, 'delivered')
+    void updateServiceOrderRemote(id, { status: 'delivered' })
     toast.success(`Teslim edildi · Kâr: ${fmt(profit.netProfit)}`)
   }
 
@@ -298,6 +318,24 @@ export default function AtolyeDetailPage() {
             <select className="select" value={status} onChange={e => handleStatusChange(e.target.value)} disabled={isDone}>
               {STATUS_OPTIONS.map(k => <option key={k} value={k}>{STATUSES[k].label}</option>)}
             </select>
+            <div>
+              <label className="label">Teknisyen</label>
+              <select
+                className="select"
+                value={technician}
+                onChange={e => {
+                  const name = e.target.value
+                  setTechnician(name)
+                  updateServiceOrder(id, { technician: name || null })
+                }}
+                disabled={isDone}
+              >
+                <option value="">Atanmadı</option>
+                {personnel.map(p => (
+                  <option key={p.id} value={p.full_name}>{p.full_name} — {p.position}</option>
+                ))}
+              </select>
+            </div>
             {canEditPricing && (
               <>
                 <div>

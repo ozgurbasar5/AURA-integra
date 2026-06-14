@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Bell, Pencil, Trash2, PauseCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency, TENANT_STATUS_COLORS, TENANT_STATUS_LABELS } from '@/lib/utils'
@@ -55,6 +56,9 @@ export default function BayilerPage() {
   const [subEnd,   setSubEnd]   = useState('')
   const [subPlanId, setSubPlanId] = useState('')
   const [subStatus, setSubStatus] = useState('')
+  const [tenantHealth, setTenantHealth] = useState<{ active_users: number; orders_30d: number; revenue_30d: number; overdue_payments: number } | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [featureFlags, setFeatureFlags] = useState({ sms: true, portal: true, whatsapp: false, efatura: false })
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<NewTenantForm>({
     resolver: zodResolver(newTenantSchema),
@@ -146,6 +150,14 @@ export default function BayilerPage() {
       setSubEnd(selectedTenant.subscription_end || '')
       setSubPlanId(selectedTenant.plan_id || '')
       setSubStatus(selectedTenant.status || '')
+      fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(json => {
+          setTenantHealth(json.health ?? null)
+          const flags = json.tenant?.feature_flags as typeof featureFlags | undefined
+          if (flags) setFeatureFlags({ ...featureFlags, ...flags })
+        })
+        .catch(() => setTenantHealth(null))
     }
   }, [selectedTenant])
 
@@ -249,9 +261,19 @@ export default function BayilerPage() {
   }
 
   const sendPaymentReminder = async (tenantId: string) => {
-    // Gerçek implementasyon: e-posta / SMS API çağrısı
-    console.log('Ödeme hatırlatıcı gönderiliyor, tenant:', tenantId)
-    toast.success('Hatırlatıcı gönderildi')
+    try {
+      const res = await fetch('/api/admin/remind-payment', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenantId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gönderilemedi')
+      toast.success('Ödeme hatırlatıcısı e-posta ile gönderildi')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Hatırlatıcı gönderilemedi')
+    }
   }
 
   return (
@@ -553,6 +575,75 @@ export default function BayilerPage() {
                     <p className="text-white text-sm font-medium">{value}</p>
                   </div>
                 ))}
+              </div>
+
+              {tenantHealth && (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Aktif Kullanıcı', value: tenantHealth.active_users },
+                    { label: 'Servis (30g)', value: tenantHealth.orders_30d },
+                    { label: 'Ciro (30g)', value: formatCurrency(tenantHealth.revenue_30d) },
+                    { label: 'Gecikmiş Ödeme', value: tenantHealth.overdue_payments },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-sky-500/10 border border-sky-500/20 rounded-lg p-3">
+                      <p className="text-sky-400/70 text-xs mb-1">{label}</p>
+                      <p className="text-white text-sm font-bold">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
+                <p className="text-zinc-500 text-xs">Modül bayrakları</p>
+                {(['sms', 'portal', 'whatsapp', 'efatura'] as const).map(key => (
+                  <label key={key} className="flex items-center justify-between text-sm text-zinc-300">
+                    <span className="capitalize">{key}</span>
+                    <input type="checkbox" checked={featureFlags[key]} onChange={e => setFeatureFlags(f => ({ ...f, [key]: e.target.checked }))} />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  className="btn-secondary text-xs w-full mt-2"
+                  onClick={async () => {
+                    const res = await fetch('/api/admin/feature-flags', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ tenant_id: selectedTenant.id, feature_flags: featureFlags }),
+                    })
+                    if (res.ok) toast.success('Bayraklar kaydedildi')
+                    else toast.error('Kayıt başarısız')
+                  }}
+                >
+                  Bayrakları Kaydet
+                </button>
+                <Link href={`/admin/bayiler/preview/${selectedTenant.id}`} className="btn-ghost text-xs w-full block text-center mt-1">
+                  Bayi Önizleme →
+                </Link>
+              </div>
+
+              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
+                <p className="text-zinc-500 text-xs">Admin şifre sıfırlama</p>
+                <div className="flex gap-2">
+                  <input type="password" className="input flex-1" placeholder="Yeni şifre (min 8)" value={resetPassword} onChange={e => setResetPassword(e.target.value)} />
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs shrink-0"
+                    onClick={async () => {
+                      if (resetPassword.length < 8) { toast.error('Min 8 karakter'); return }
+                      const res = await fetch('/api/admin/update-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: selectedTenant.email, password: resetPassword }),
+                      })
+                      const json = await res.json()
+                      if (!res.ok) { toast.error(json.error || 'Başarısız'); return }
+                      toast.success('Şifre güncellendi')
+                      setResetPassword('')
+                    }}
+                  >
+                    Sıfırla
+                  </button>
+                </div>
               </div>
 
               {/* ── Abonelik Yönetimi Kartı ─────────────────────────────────── */}
