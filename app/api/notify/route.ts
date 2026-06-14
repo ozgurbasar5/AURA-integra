@@ -1,0 +1,100 @@
+export const dynamic = 'force-dynamic'
+
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import nodemailer from 'nodemailer'
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+export async function POST(request: Request) {
+  try {
+    // Auth kontrolü
+    const supabase = createClient()
+    const { data: { user }, error: authErr } = await supabase.auth.getUser()
+    if (authErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Env kontrol
+    const smtpEmail = process.env.SMTP_EMAIL
+    const smtpPassword = process.env.SMTP_PASSWORD
+    if (!smtpEmail || !smtpPassword) {
+      return NextResponse.json({ error: 'E-posta yapılandırması eksik.' }, { status: 500 })
+    }
+
+    const body = await request.json()
+    const { to, subject, type, data } = body
+
+    if (!to || !type) {
+      return NextResponse.json({ error: 'Alıcı ve tür zorunludur.' }, { status: 400 })
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: smtpEmail, pass: smtpPassword },
+    })
+
+    let htmlContent = ''
+    const customerName = escapeHtml(data?.customerName || 'Müşteri')
+    const device = escapeHtml(data?.device || 'Cihaz')
+    const price = escapeHtml(String(data?.price || '0'))
+    const islem = escapeHtml(data?.islem || '-')
+
+    if (type === 'hazir') {
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; color: #333; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+          <h2 style="color: #d97706;">Cihazınız Teslime Hazır! 🚀</h2>
+          <p>Sayın <strong>${customerName}</strong>,</p>
+          <p>Servisimize bıraktığınız <strong>${device}</strong> cihazınızın işlemleri tamamlanmıştır.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr style="background: #f9f9f9;">
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Cihaz Durumu:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd; color: green; font-weight: bold;">HAZIR / TAMAMLANDI</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Yapılan İşlem:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd;">${islem}</td>
+            </tr>
+            <tr style="background: #f9f9f9;">
+              <td style="padding: 10px; border: 1px solid #ddd;"><strong>Toplam Tutar:</strong></td>
+              <td style="padding: 10px; border: 1px solid #ddd; font-size: 1.2em; font-weight: bold;">${price} TL</td>
+            </tr>
+          </table>
+          <p>Cihazınızı dilediğiniz zaman servisimizden teslim alabilirsiniz.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #777;">Bu mail Aura Bilişim tarafından otomatik gönderilmiştir.</p>
+        </div>
+      `
+    } else if (type === 'fiyat_onayi') {
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2563eb;">Fiyat Onayı Bekleniyor</h2>
+          <p>Sayın ${customerName}, ${device} cihazınız için arıza tespiti yapılmıştır.</p>
+          <p><strong>Onarım Tutarı: ${price} TL</strong></p>
+          <p>Onaylamak için lütfen bu maili cevaplayınız veya bizi arayınız.</p>
+        </div>
+      `
+    } else {
+      return NextResponse.json({ error: 'Geçersiz bildirim türü.' }, { status: 400 })
+    }
+
+    await transporter.sendMail({
+      from: `"Aura Bilişim Servis" <${smtpEmail}>`,
+      to,
+      subject: subject || 'Cihaz Durum Bilgilendirmesi',
+      html: htmlContent,
+    })
+
+    return NextResponse.json({ success: true, message: 'Mail gönderildi' })
+  } catch (error) {
+    console.error('Mail hatası:', error)
+    return NextResponse.json({ success: false, error: 'Mail gönderilemedi' }, { status: 500 })
+  }
+}

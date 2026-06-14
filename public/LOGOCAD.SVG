@@ -1,0 +1,16 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="auraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+  </defs>
+  <path d="M100 24 L44 58 V92 L28 92 V72 L76 32 Z" stroke="url(#auraGrad)" stroke-width="2" fill="rgba(255,255,255,0.08)"/>
+  <path d="M100 176 L156 142 V108 L172 108 V128 L124 168 Z" stroke="url(#auraGrad)" stroke-width="2" fill="rgba(255,255,255,0.08)"/>
+  <g transform="rotate(45 100 100)">
+    <rect x="82" y="82" width="36" height="36" rx="6" stroke="#fff" stroke-width="1.5" fill="none"/>
+    <rect x="90" y="90" width="20" height="20" rx="2" stroke="#93c5fd" stroke-width="1" fill="none"/>
+    <circle cx="100" cy="100" r="3" fill="#fff"/>
+  </g>
+  <text x="100" y="108" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="22" font-weight="800">A</text>
+</svg>

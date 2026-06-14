@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giriş Yap — Aura İntegra ERP</title>
+  <meta name="description" content="Aura İntegra ERP sistemine giriş yapın.">
+  <!-- TODO(security): In production add HTTP-only cookies, CSRF tokens, bcrypt/argon2 password hashing, rate limiting on login endpoint -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+
+<div class="login-bg-glow"></div>
+
+<!-- ================================================================
+     LEFT PANEL (Visual / Marketing)
+     ================================================================ -->
+<div class="login-left">
+  <div class="login-left-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Güvenli · KVKK Uyumlu
+  </div>
+
+  <h2 class="login-left-title">
+    Servisinizi<br><span class="grad">Verimli Yönetin</span>
+  </h2>
+
+  <p class="login-left-sub">
+    Aura İntegra ile tüm servis, stok ve finans süreçlerinizi
+    tek platformdan, gerçek zamanlı olarak takip edin.
+  </p>
+
+  <ul class="login-feature-list">
+    <li>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      24 durumlu teknik servis state machine
+    </li>
+    <li>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      IMEI + e-Devlet entegrasyonu
+    </li>
+    <li>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      KDV beyanı ve çek yönetimi (TDHP)
+    </li>
+    <li>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Müşteri portalı — SMS OTP + 2FA
+    </li>
+    <li>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Gerçek zamanlı KPI & 12 ay ciro grafiği
+    </li>
+  </ul>
+</div>
+
+<!-- ================================================================
+     RIGHT PANEL (Login Form)
+     ================================================================ -->
+<div class="login-right">
+  <!-- Back link -->
+  <a href="index.html" class="login-back-link">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Ana sayfaya dön
+  </a>
+
+  <!-- Logo -->
+  <a href="index.html" class="login-logo">
+    <div class="login-logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+        <path d="M8 6h8M8 10h4"/>
+      </svg>
+    </div>
+    <div class="landing-logo-text">
+      <span class="landing-logo-name" style="font-size:15px">Aura İntegra</span>
+      <span class="landing-logo-sub">ERP Sistemi</span>
+    </div>
+  </a>
+
+  <h1 class="login-form-title">Hoş Geldiniz</h1>
+  <p class="login-form-sub">Panele erişmek için giriş yapın.</p>
+
+  <!-- Error box -->
+  <div class="login-error" id="login-error" role="alert">
+    Kullanıcı adı veya şifre hatalı. Lütfen tekrar deneyin.
+  </div>
+
+  <!-- Form -->
+  <form class="login-form" id="login-form" novalidate>
+    <div class="form-group">
+      <label for="username">Kullanıcı Adı</label>
+      <div class="input-group">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          placeholder="kullanici"
+          autocomplete="username"
+          required
+          maxlength="64"
+        >
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Şifre</label>
+      <div class="password-wrapper">
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+          maxlength="128"
+        >
+        <button type="button" class="password-toggle" id="pw-toggle" aria-label="Şifreyi göster/gizle">
+          <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <button type="submit" class="login-btn" id="login-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="login-icon"><polyline points="13 17 18 12 13 7"/><path d="M6 12h12"/></svg>
+      <div class="spinner" id="login-spinner"></div>
+      <span id="login-btn-text">Giriş Yap</span>
+    </button>
+  </form>
+
+  <!-- Demo credentials -->
+  <div class="login-demo-box">
+    <div class="login-demo-box-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Demo Bilgileri
+    </div>
+    <div class="login-demo-credentials">
+      <div class="demo-cred">
+        <span>Kullanıcı adı</span>
+        <span>admin</span>
+      </div>
+      <div class="demo-cred">
+        <span>Şifre</span>
+        <span>integra2026</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="login-version">v1.0.0 · Aura İntegra</div>
+
+<script>
+  /* ================================================================
+     LOGIN PAGE LOGIC
+     - XSS-safe: no innerHTML, only textContent
+     - TODO(security): Replace with real backend auth (JWT + HttpOnly cookie + Argon2 + rate limiting)
+     ================================================================ */
+
+  const DEMO_CREDENTIALS = [
+    { username: 'admin',    password: 'integra2026', role: 'admin',      name: 'Admin Kullanıcı' },
+    { username: 'mehmet',   password: 'teknisyen1',  role: 'teknisyen',  name: 'Mehmet Demir' },
+  ];
+
+  const form      = document.getElementById('login-form');
+  const userInput = document.getElementById('username');
+  const passInput = document.getElementById('password');
+  const errorBox  = document.getElementById('login-error');
+  const loginBtn  = document.getElementById('login-btn');
+  const spinner   = document.getElementById('login-spinner');
+  const loginIcon = document.getElementById('login-icon');
+  const btnText   = document.getElementById('login-btn-text');
+  const pwToggle  = document.getElementById('pw-toggle');
+
+  // Password show/hide
+  pwToggle.addEventListener('click', () => {
+    const isPass = passInput.type === 'password';
+    passInput.type = isPass ? 'text' : 'password';
+    // Rebuild eye icon safely using SVG DOM
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const newSvg = document.createElementNS(svgNS, 'svg');
+    newSvg.setAttribute('id', 'eye-icon');
+    newSvg.setAttribute('viewBox', '0 0 24 24');
+    newSvg.setAttribute('fill', 'none');
+    newSvg.setAttribute('stroke', 'currentColor');
+    newSvg.setAttribute('stroke-width', '2');
+
+    if (isPass) {
+      // Eye-off icon
+      const l1 = document.createElementNS(svgNS, 'line');
+      l1.setAttribute('x1', '1'); l1.setAttribute('y1', '1');
+      l1.setAttribute('x2', '23'); l1.setAttribute('y2', '23');
+      const p1 = document.createElementNS(svgNS, 'path');
+      p1.setAttribute('d', 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94');
+      const p2 = document.createElementNS(svgNS, 'path');
+      p2.setAttribute('d', 'M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19');
+      const p3 = document.createElementNS(svgNS, 'path');
+      p3.setAttribute('d', 'M14.12 14.12a3 3 0 1 1-4.24-4.24');
+      newSvg.appendChild(l1); newSvg.appendChild(p1); newSvg.appendChild(p2); newSvg.appendChild(p3);
+    } else {
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '3');
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z');
+      newSvg.appendChild(path); newSvg.appendChild(circle);
+    }
+
+    const oldSvg = document.getElementById('eye-icon');
+    if (oldSvg) oldSvg.replaceWith(newSvg);
+  });
+
+  // Form submit
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    // Sanitize inputs (trim, limit)
+    const username = userInput.value.trim().slice(0, 64);
+    const password = passInput.value.slice(0, 128);
+
+    if (!username || !password) {
+      showError();
+      return;
+    }
+
+    // Loading state
+    loginBtn.disabled = true;
+    spinner.classList.add('active');
+    loginIcon.style.display = 'none';
+    btnText.textContent = 'Giriş yapılıyor...';
+    errorBox.classList.remove('visible');
+
+    // TODO(security): Replace timeout with real fetch('/api/auth/login', {...}) with CSRF token
+    setTimeout(() => {
+      const user = DEMO_CREDENTIALS.find(
+        u => u.username === username && u.password === password
+      );
+
+      if (user) {
+        // TODO(security): In production, session is managed server-side via HttpOnly cookie
+        // Store minimal non-sensitive display data only
+        sessionStorage.setItem('ai_user_name', user.name);
+        sessionStorage.setItem('ai_user_role', user.role);
+        sessionStorage.setItem('ai_user_id',   user.username);
+        sessionStorage.setItem('ai_auth',       'demo_session_' + Date.now());
+        window.location.href = 'app.html';
+      } else {
+        loginBtn.disabled = false;
+        spinner.classList.remove('active');
+        loginIcon.style.display = '';
+        btnText.textContent = 'Giriş Yap';
+        showError();
+
+        // Clear password field on failure
+        passInput.value = '';
+        passInput.focus();
+      }
+    }, 900);
+  });
+
+  function showError() {
+    errorBox.classList.add('visible');
+    userInput.focus();
+  }
+
+  // Clear error on typing
+  [userInput, passInput].forEach(inp => {
+    inp.addEventListener('input', () => errorBox.classList.remove('visible'));
+  });
+
+  // Check if already logged in → redirect
+  if (sessionStorage.getItem('ai_auth')) {
+    window.location.href = 'app.html';
+  }
+</script>
+</body>
+</html>
