@@ -7,8 +7,9 @@ import { getNotificationSettings, setNotificationSettings, type NotificationSett
 import {
   getNotificationPrefs, saveNotificationPrefs, DEFAULT_NOTIFICATION_PREFS,
   getPortalSettings, savePortalSettings, type NotificationPrefs, type PortalSettings,
-  getViewOptions, applyViewOptions, DEFAULT_PORTAL_SETTINGS,
+  getViewOptions, applyViewOptions, DEFAULT_PORTAL_SETTINGS, type ViewOptions,
 } from '@/lib/user-settings'
+import { dispatchViewOptionsChanged } from '@/hooks/useViewOptions'
 import {
   readLogoFile, saveBusinessBranding, syncBusinessBrandingToSupabase, fetchBusinessBrandingFromSupabase,
   type BusinessBranding,
@@ -54,7 +55,13 @@ export default function AyarlarPage() {
   const [portal, setPortal] = useState<PortalSettings>(() => ({ ...DEFAULT_PORTAL_SETTINGS }))
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [viewOpts, setViewOpts] = useState({ compact: false, noAnim: false, highContrast: false })
+  const [viewOpts, setViewOpts] = useState<ViewOptions>({
+    compact: false,
+    noAnim: false,
+    highContrast: false,
+    sidebarMode: 'classic',
+    sidebarPersistCollapse: false,
+  })
   const [autoNotify, setAutoNotify] = useState<NotificationSettings>({
     auto_sms: true, auto_whatsapp: true, on_status_change: true, on_delivery: true,
     require_qc_on_delivery: true, shop_address: '', shop_phone: '', shop_name: '', shop_logo: '', portal_slug: '',
@@ -65,12 +72,26 @@ export default function AyarlarPage() {
   const [dragOver, setDragOver] = useState(false)
   const [showCrop, setShowCrop] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [notifConfig, setNotifConfig] = useState({ netgsm_user: '', netgsm_pass: '', netgsm_header: '', smtp_email: '', whatsapp_phone: '' })
+  const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null)
+  const [newApiKey, setNewApiKey] = useState<string | null>(null)
 
-  function toggleViewOpt(key: 'compact' | 'noAnim' | 'highContrast') {
+  function toggleViewOpt(key: keyof Pick<ViewOptions, 'compact' | 'noAnim' | 'highContrast' | 'sidebarPersistCollapse'>) {
     setViewOpts(prev => {
       const next = { ...prev, [key]: !prev[key] }
       applyViewOptions(next)
+      dispatchViewOptionsChanged(next)
       toast.success('Görünüm seçeneği uygulandı')
+      return next
+    })
+  }
+
+  function setSidebarMode(mode: ViewOptions['sidebarMode']) {
+    setViewOpts(prev => {
+      const next = { ...prev, sidebarMode: mode }
+      applyViewOptions(next)
+      dispatchViewOptionsChanged(next)
+      toast.success(mode === 'categorized' ? 'Kategorize menü etkin' : 'Klasik menü etkin')
       return next
     })
   }
@@ -135,6 +156,16 @@ export default function AyarlarPage() {
       }))
       if (remote.portal_slug) setPortal(p => ({ ...p, slug: remote.portal_slug! }))
     })
+    fetch('/api/tenant/notification-config', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => { if (json.config) setNotifConfig(c => ({ ...c, ...json.config })) })
+      .catch(() => {})
+    fetch('/api/tenant/api-key', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.has_key && json.key_hint) setApiKeyPreview(json.key_hint)
+      })
+      .catch(() => {})
   }, [])
 
   function handleThemeChange(key: ThemeKey) {
@@ -295,13 +326,13 @@ export default function AyarlarPage() {
         <p className="text-[var(--text-secondary)] text-sm mt-0.5">Hesap, tema, bildirim ve entegrasyon ayarları</p>
       </div>
 
-      <div className="flex gap-5">
-        {/* Sidebar */}
-        <div className="w-48 flex-shrink-0">
-          <nav className="space-y-0.5">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-5">
+        {/* Sidebar / mobil yatay sekmeler */}
+        <div className="md:w-48 flex-shrink-0">
+          <nav className="mobile-scroll-tabs md:block md:space-y-0.5 md:overflow-visible md:mx-0 md:px-0">
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex-shrink-0 md:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                   tab === t.id
                     ? 'text-white'
                     : 'settings-nav-idle text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-[var(--text-primary)]'
@@ -442,7 +473,7 @@ export default function AyarlarPage() {
 
               <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-4">Profil Bilgileri</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="label">Ad Soyad</label><input className="input" value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))}/></div>
                   <div><label className="label">E-posta</label><input className="input" value={profile.email} onChange={e=>setProfile(p=>({...p,email:e.target.value}))}/></div>
                   <div><label className="label">Telefon</label><input className="input" value={profile.phone} onChange={e=>setProfile(p=>({...p,phone:e.target.value}))}/></div>
@@ -464,7 +495,7 @@ export default function AyarlarPage() {
                         className="btn-secondary p-2.5"><Copy size={14}/></button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
                       { key:'sms_enabled',  label:'SMS Bildirimleri', desc:'Müşterilere otomatik SMS' },
                       { key:'otp_enabled',  label:'OTP Giriş',        desc:'Tek seferlik kod doğrulama' },
@@ -509,7 +540,7 @@ export default function AyarlarPage() {
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Tema Rengi</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-5">Panel renk temasını seçin. Tüm butonlar, vurgular ve aktif menü bu rengi kullanır.</p>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {(Object.entries(THEMES) as [ThemeKey, typeof THEMES[ThemeKey]][]).map(([key, theme]) => (
                     <button key={key} onClick={() => handleThemeChange(key)}
                       className={`settings-theme-card relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all hover:shadow-md ${
@@ -557,11 +588,72 @@ export default function AyarlarPage() {
               </div>
 
               <div className="card p-5">
+                <h3 className="font-semibold text-[var(--text-primary)] mb-1">Menü Düzeni</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">
+                  Sol panelde Stok, Finans gibi kategorilere tıklayınca alt menüler açılsın mı?
+                </p>
+
+                <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarMode('classic')}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      viewOpts.sidebarMode === 'classic'
+                        ? 'border-[var(--accent)] bg-[var(--accent-light)]'
+                        : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-[var(--text-primary)] mb-2">Klasik Liste</p>
+                    <div className="space-y-1 text-[10px] font-mono text-[var(--text-muted)]">
+                      <p className="uppercase tracking-wider">MODÜLLER</p>
+                      <p>Stok</p>
+                      <p>Teknik Servis</p>
+                      <p>Finans</p>
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)] mt-2">Sabit, hep açık liste</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSidebarMode('categorized')}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      viewOpts.sidebarMode === 'categorized'
+                        ? 'border-[var(--accent)] bg-[var(--accent-light)]'
+                        : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-[var(--text-primary)] mb-2">Kategorize Menü</p>
+                    <div className="space-y-1 text-[10px] text-[var(--text-muted)]">
+                      <p className="font-semibold text-[var(--text-primary)]">▾ Stok</p>
+                      <p className="pl-2 opacity-70">Stok · Sayım</p>
+                      <p className="font-semibold text-[var(--text-primary)]">▸ Finans</p>
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)] mt-2">Tıklayınca alt segmentler açılır</p>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between py-2 border-t border-[var(--bg-border)]">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Sidebar Daraltmayı Hatırla</p>
+                    <p className="text-xs text-[var(--text-muted)]">Daraltılmış menü tercihi cihazda saklanır</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleViewOpt('sidebarPersistCollapse')}
+                    className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${viewOpts.sidebarPersistCollapse ? '' : 'settings-toggle-off bg-[var(--bg-border)]'}`}
+                    style={viewOpts.sidebarPersistCollapse ? { backgroundColor: 'var(--accent)' } : {}}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${viewOpts.sidebarPersistCollapse ? 'left-5' : 'left-0.5'}`}/>
+                  </button>
+                </div>
+              </div>
+
+              <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-4">Görünüm Seçenekleri</h3>
                 <div className="space-y-3">
                   {([
                     { key: 'compact' as const,      label:'Kompakt Mod',         desc:'Tablo ve kart aralıklarını azaltır' },
-                    { key: 'noAnim' as const,       label:'Animasyonları Kapat', desc:'Performans için geçiş animasyonlarını kapatır' },
+                    { key: 'noAnim' as const,       label:'Animasyonları Kapat', desc:'Menü geçişleri dahil animasyonları kapatır' },
                     { key: 'highContrast' as const, label:'Yüksek Kontrast',     desc:'Erişilebilirlik için kontrast artırır' },
                   ]).map(o => (
                     <div key={o.key} className="flex items-center justify-between py-2 border-b border-[var(--bg-border)] last:border-0">
@@ -739,15 +831,77 @@ export default function AyarlarPage() {
               </div>
 
               <div className="card p-5">
+                <h3 className="font-semibold text-[var(--text-primary)] mb-3">SMS / E-posta Yapılandırması</h3>
+                <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                  <div>
+                    <label className="label">Netgsm Kullanıcı</label>
+                    <input className="input text-sm" value={notifConfig.netgsm_user}
+                      onChange={e => setNotifConfig(c => ({ ...c, netgsm_user: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Netgsm Başlık</label>
+                    <input className="input text-sm" value={notifConfig.netgsm_header}
+                      onChange={e => setNotifConfig(c => ({ ...c, netgsm_header: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Netgsm Şifre</label>
+                    <input type="password" className="input text-sm" placeholder="••••••••"
+                      onChange={e => setNotifConfig(c => ({ ...c, netgsm_pass: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">WhatsApp İş Telefonu</label>
+                    <input className="input text-sm" value={notifConfig.whatsapp_phone}
+                      onChange={e => setNotifConfig(c => ({ ...c, whatsapp_phone: e.target.value }))} placeholder="905xxxxxxxxx" />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void fetch('/api/tenant/notification-config', {
+                      method: 'PUT',
+                      credentials: 'same-origin',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(notifConfig),
+                    }).then(r => r.json()).then(json => {
+                      if (json.ok) toast.success('Bildirim ayarları kaydedildi')
+                      else toast.error(json.error || 'Kaydedilemedi')
+                    })
+                  }}
+                  className="btn-primary text-sm"
+                >
+                  Bildirim Ayarlarını Kaydet
+                </button>
+                <a href="/api/tenant/export/accounting" className="ml-3 text-sm text-sky-600 font-semibold hover:underline">
+                  Muhasebe CSV İndir →
+                </a>
+              </div>
+
+              <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-3">API Erişimi</h3>
                 <div>
                   <label className="label">API Anahtarı</label>
                   <div className="flex gap-2">
-                    <input className="input flex-1 font-mono text-xs" value="ak_live_********************xyz8" readOnly/>
-                    <button onClick={()=>{navigator.clipboard?.writeText('ak_live_xyz8');toast.success('API anahtarı kopyalandı')}} className="btn-secondary p-2.5"><Copy size={14}/></button>
-                    <button onClick={()=>toast.success('Yeni API anahtarı oluşturuldu')} className="btn-secondary p-2.5"><RefreshCw size={14}/></button>
+                    <input className="input flex-1 font-mono text-xs" value={newApiKey ?? apiKeyPreview ?? 'Henüz oluşturulmadı'} readOnly/>
+                    {(newApiKey ?? apiKeyPreview) && (
+                      <button onClick={() => { navigator.clipboard?.writeText(newApiKey ?? ''); toast.success('Kopyalandı') }} className="btn-secondary p-2.5"><Copy size={14}/></button>
+                    )}
+                    <button
+                      onClick={() => {
+                        void fetch('/api/tenant/api-key', { method: 'POST', credentials: 'same-origin' })
+                          .then(r => r.json())
+                          .then(json => {
+                            if (json.api_key) {
+                              setNewApiKey(json.api_key)
+                              toast.success('Yeni API anahtarı oluşturuldu — şimdi kopyalayın')
+                            } else toast.error(json.error || 'Oluşturulamadı')
+                          })
+                      }}
+                      className="btn-secondary p-2.5"
+                    >
+                      <RefreshCw size={14}/>
+                    </button>
                   </div>
-                  <p className="text-xs text-[var(--text-muted)] mt-2">API anahtarınızı kimseyle paylaşmayın. Yenilemek tüm entegrasyonları etkiler.</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-2">REST API: GET /api/v1/orders — Header: X-API-Key</p>
                 </div>
               </div>
             </div>
@@ -767,7 +921,7 @@ export default function AyarlarPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
                   {[
                     { label:'Aylık Ücret',    value:'₺1.490 + KDV' },
                     { label:'Sonraki Ödeme',  value:'04 Temmuz 2026' },

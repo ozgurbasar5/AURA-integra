@@ -15,12 +15,20 @@ import { SMS_TEMPLATES } from './constants'
  */
 
 // ─── Unique ID Helper ──────────────────────────────────────────────────────────
-let _uidCounter = 0
-function uid(prefix: string): string {
+// NOT: Üretilen id'ler ÇIPLAK UUID olmalı. Supabase senkronizasyonunda satırlar
+// `id` (UUID) üzerinden upsert ile tekilleştiriliyor; prefix'li id'ler UUID
+// kontrolünü geçemediği için her push'ta yeni satır eklenip mükerrer kayıt
+// oluşmasına yol açıyordu. Prefix'e bağımlı hiçbir mantık olmadığı için kaldırıldı.
+function uid(_prefix?: string): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `${prefix}_${crypto.randomUUID()}`
+    return crypto.randomUUID()
   }
-  return `${prefix}_${Date.now()}_${++_uidCounter}_${Math.random().toString(36).slice(2, 8)}`
+  // RFC4122 v4 fallback (crypto.randomUUID yoksa)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -187,6 +195,9 @@ export interface StoreServiceOrder {
   approval_token?: string
   branch_id?: string
   supplier_order_id?: string
+  financial_posted?: boolean
+  delivered_at?: string
+  net_profit?: number
 }
 
 export interface StatusHistoryEntry {
@@ -1173,9 +1184,6 @@ export function completeSale(
   store.kasaBakiye += sale.total_with_vat
 
   saveStore(store)
-  // #region agent log
-  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H2',location:'store.ts:completeSale',message:'POS sale completed',data:{kasaBakiye:store.kasaBakiye,total:sale.total_with_vat,netProfit:sale.net_profit,txCount:store.transactions.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   emitChange('stock')
   emitChange('finance')
   emitChange('sales')
@@ -1368,6 +1376,15 @@ export function deliverService(
   }
   store.serviceDeliveries[serviceId] = delivery
 
+  if (order) {
+    order.financial_posted = true
+    order.delivered_at = delivery.delivered_at
+    order.actual_cost = serviceFee
+    order.net_profit = netProfit
+    order.status = 'delivered'
+    order.updated_at = delivery.delivered_at
+  }
+
   // Otomatik servis garantisi
   if (order && store.notificationSettings.service_warranty_months > 0) {
     const months = store.notificationSettings.service_warranty_months
@@ -1394,9 +1411,6 @@ export function deliverService(
   }
 
   saveStore(store)
-  // #region agent log
-  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H3',location:'store.ts:deliverService',message:'Service delivered',data:{serviceId,serviceFee,totalExpense,netProfit,kasaBakiye:store.kasaBakiye,margin:delivery.profit_margin},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   emitChange('finance')
   emitChange('service')
   emitChange('warranties')
@@ -1420,6 +1434,11 @@ export function undoServiceDelivery(serviceId: string): boolean {
   }, 0)
 
   delete store.serviceDeliveries[serviceId]
+  const order = store.serviceOrders.find(o => o.id === serviceId)
+  if (order) {
+    order.financial_posted = false
+    order.delivered_at = undefined
+  }
   saveStore(store)
   emitChange('finance')
   emitChange('service')
@@ -1769,13 +1788,10 @@ export function getCashSummary(opts?: { from?: string; to?: string }) {
 }
 
 function _logCashSummary(
-  opts: { from?: string; to?: string } | undefined,
-  summary: { toplam: number; kasaBakiye: number; nakitCikis: number },
+  _opts: { from?: string; to?: string } | undefined,
+  _summary: { toplam: number; kasaBakiye: number; nakitCikis: number },
 ) {
-  if (typeof window === 'undefined') return
-  // #region agent log
-  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H2',location:'store.ts:getCashSummary',message:'Cash summary computed',data:{opts,toplam:summary.toplam,kasaBakiye:summary.kasaBakiye,gap:summary.kasaBakiye-summary.toplam+summary.nakitCikis},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+  /* no-op — reserved for future diagnostics */
 }
 
 /** Bugün ne yapıldı — yeni gelen / tamir edilen / teslim edilen + satış */

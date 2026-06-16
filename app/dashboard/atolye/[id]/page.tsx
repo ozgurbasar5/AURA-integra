@@ -119,9 +119,6 @@ export default function AtolyeDetailPage() {
     setStatus(v)
     updateServiceStatus(id, v)
     void updateServiceOrderRemote(id, { status: v })
-    // #region agent log
-    fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'33922f'},body:JSON.stringify({sessionId:'33922f',hypothesisId:'H1',location:'atolye/[id]:handleStatusChange',message:'Status changed',data:{newStatus:v,hasDelivery:!!getServiceDelivery(id),calledDeliverService:false},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     toast.success(`Durum: ${STATUSES[v]?.label || v}`)
   }
 

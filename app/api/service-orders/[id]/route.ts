@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
 import { buildStatusSmsMessage, sendSms, logNotification } from '@/lib/notification-service'
+import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
 import type { ServiceOrderStatus } from '@/types/database'
 
 type RouteParams = { params: { id: string } }
@@ -40,7 +41,8 @@ async function getAuthContext() {
 const ORDER_SELECT = `
   *,
   customers ( id, full_name, phone, email ),
-  technician:user_profiles!technician_id ( id, full_name )
+  technician:user_profiles!technician_id ( id, full_name ),
+  tenants ( shop_name, company_name, feature_flags )
 `
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
@@ -113,14 +115,29 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       const tenantId = String(orderRow.tenant_id ?? profile.tenant_id ?? '')
       const phone = String(orderRow.customer_phone ?? '')
       const orderNo = String(orderRow.order_no ?? '')
-      const shopName = String((orderRow.tenants as { shop_name?: string; company_name?: string } | null)?.shop_name
-        ?? (orderRow.tenants as { company_name?: string } | null)?.company_name ?? 'Servis')
+      const tenantRow = orderRow.tenants as { shop_name?: string; company_name?: string; feature_flags?: Record<string, boolean> } | null
+      const shopName = String(tenantRow?.shop_name ?? tenantRow?.company_name ?? 'Servis')
+      const dbStatus = String(data.status ?? '')
 
-      if (tenantId && phone && body.status) {
-        const msg = buildStatusSmsMessage(String(data.status), orderNo, shopName)
+      if (tenantId && phone && dbStatus) {
+        const flags = tenantRow?.feature_flags ?? {}
+        if (flags.sms === false) {
+          return NextResponse.json({ data })
+        }
+
+        const msg = buildStatusSmsMessage(dbStatus, orderNo, shopName)
         if (msg) {
+          const credentials = await getTenantSmsCredentials(tenantId)
+          const smsResult = await sendSms({
+            to: phone,
+            message: msg,
+            orderNo,
+            tenantId,
+            customerName: String(orderRow.customer_name ?? ''),
+            credentials,
+          })
+
           const svc = getServiceClient()
-          const smsResult = await sendSms({ to: phone, message: msg, orderNo, tenantId })
           if (svc) {
             await logNotification(svc, tenantId, {
               channel: 'sms',
@@ -131,6 +148,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
               customer_name: String(orderRow.customer_name ?? ''),
             })
           }
+
+          await logSmsToDb({
+            tenantId,
+            recipient: phone,
+            message: msg,
+            status: smsResult.status,
+            providerRef: smsResult.providerRef,
+            errorMessage: smsResult.error,
+            orderNo,
+            customerName: String(orderRow.customer_name ?? ''),
+          })
         }
       }
     }

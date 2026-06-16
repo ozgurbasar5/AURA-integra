@@ -63,6 +63,27 @@ export default function FaturaPage() {
     sent: invoices.filter(i => i.status === 'gonderildi').length,
   }
 
+  function handleSubmitGib(inv: InvoiceRecord) {
+    if (inv.invoice_type !== 'efatura') {
+      toast.error('Yalnızca e-Fatura GIB\'e gönderilebilir')
+      return
+    }
+    void (async () => {
+      const res = await fetch('/api/tenant/invoices/submit', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_id: inv.id }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        toast.success(json.message || 'GIB kuyruğuna alındı')
+      } else {
+        toast.error(json.error || 'Gönderilemedi')
+      }
+    })()
+  }
+
   function handleCreate() {
     if (!form.customer_name || form.unit_price <= 0) { toast.error('Müşteri ve tutar zorunlu'); return }
     if (form.invoice_type === 'efatura' && !efaturaEnabled) {
@@ -195,6 +216,10 @@ export default function FaturaPage() {
                         {inv.status === 'taslak' && (
                           <button onClick={() => sendInvoice(inv.id)}
                             className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600" title="Gönder"><Send size={13} /></button>
+                        )}
+                        {inv.invoice_type === 'efatura' && inv.status !== 'gonderildi' && efaturaEnabled && (
+                          <button onClick={() => handleSubmitGib(inv)}
+                            className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-600" title="GIB'e Gönder"><Send size={13} /></button>
                         )}
                       </div>
                     </td>

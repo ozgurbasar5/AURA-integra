@@ -1,41 +1,80 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, XCircle, Loader2, Smartphone } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  getServiceOrderByToken, processServiceApproval, type StoreServiceOrder,
-} from '@/lib/store'
 import { formatCurrency } from '@/lib/validators'
+
+type OrderData = {
+  order_no: string
+  device_brand: string
+  device_model: string
+  approval_amount?: number
+  actual_cost?: number
+  estimated_cost?: number
+  approval_desc?: string
+  description?: string
+}
 
 export default function OnayPage() {
   const { token } = useParams() as { token: string }
-  const [mounted, setMounted] = useState(false)
-  const [order, setOrder] = useState<StoreServiceOrder | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [order, setOrder] = useState<OrderData | null>(null)
   const [done, setDone] = useState<'approved' | 'rejected' | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    const o = getServiceOrderByToken(token)
-    setOrder(o ?? null)
+    void (async () => {
+      try {
+        const res = await fetch(`/api/public/approve/${encodeURIComponent(token)}`)
+        const json = await res.json()
+        if (!res.ok) {
+          setOrder(null)
+          return
+        }
+        if (json.decided === 'approved') setDone('approved')
+        else if (json.decided === 'rejected') setDone('rejected')
+        setOrder(json.data ?? null)
+      } catch {
+        setOrder(null)
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [token])
 
-  function handleDecision(approved: boolean) {
-    const result = processServiceApproval(token, approved)
-    if (!result) { toast.error('Geçersiz veya süresi dolmuş link'); return }
-    setOrder(result)
-    setDone(approved ? 'approved' : 'rejected')
-    toast.success(approved ? 'Onayınız alındı' : 'Reddedildi')
+  async function handleDecision(approved: boolean) {
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/public/approve/${encodeURIComponent(token)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error(json.error || 'İşlem başarısız')
+        return
+      }
+      setDone(approved ? 'approved' : 'rejected')
+      toast.success(approved ? 'Onayınız alındı' : 'Reddedildi')
+    } catch {
+      toast.error('Bağlantı hatası')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  if (!mounted) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#05061a]">
         <Loader2 className="animate-spin text-sky-400" size={32} />
       </div>
     )
   }
+
+  const amount = order?.approval_amount || order?.actual_cost || order?.estimated_cost || 0
 
   return (
     <div className="min-h-screen bg-[#05061a] text-white flex items-center justify-center p-4">
@@ -71,27 +110,27 @@ export default function OnayPage() {
         ) : (
           <>
             <p className="text-2xl font-black mb-1">{order.device_brand} {order.device_model}</p>
-            <p className="text-sm text-white/40 font-mono mb-4">{order.job_no}</p>
+            <p className="text-sm text-white/40 font-mono mb-4">{order.order_no}</p>
             <div className="bg-white/[0.06] rounded-2xl p-4 mb-6">
               <p className="text-xs text-white/40 uppercase font-bold mb-1">Onarım ücreti</p>
-              <p className="text-3xl font-black text-sky-300">
-                {formatCurrency(order.approval_amount || order.actual_cost || order.estimated_cost || 0)}
-              </p>
+              <p className="text-3xl font-black text-sky-300">{formatCurrency(amount)}</p>
               {order.approval_desc && <p className="text-sm text-white/60 mt-2">{order.approval_desc}</p>}
               {order.description && <p className="text-sm text-white/50 mt-2">{order.description}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
+                disabled={submitting}
                 onClick={() => handleDecision(false)}
-                className="py-3.5 rounded-xl border border-red-500/40 text-red-300 font-bold hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                className="py-3.5 rounded-xl border border-red-500/40 text-red-300 font-bold hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <XCircle size={18} /> Reddet
               </button>
               <button
                 type="button"
+                disabled={submitting}
                 onClick={() => handleDecision(true)}
-                className="py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors flex items-center justify-center gap-2"
+                className="py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <CheckCircle2 size={18} /> Onayla
               </button>

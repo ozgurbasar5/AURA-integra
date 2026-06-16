@@ -29,7 +29,7 @@ export function TodayActivityWidget() {
   return (
     <div className="surface p-5">
       <h3 className="font-bold text-[var(--text-primary)] text-sm mb-4">Bugün Ne Yapıldı?</h3>
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         {items.map(i => (
           <div key={i.label} className="text-center">
             <div className={`w-11 h-11 rounded-xl ${i.bg} dark:bg-opacity-20 flex items-center justify-center mx-auto mb-2`}>

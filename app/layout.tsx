@@ -6,6 +6,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: 'cover',
 }
 
 export const metadata: Metadata = {
@@ -13,6 +14,8 @@ export const metadata: Metadata = {
   description: 'AURA Bilişim Teknoloji Üssü güvencesiyle bayi ve servis ağları için bulut entegrasyon platformu. Stok, atölye, finans ve müşteri portalı tek panelde.',
   keywords: 'AURA İntegra, AURA Bilişim, teknik servis, bayi ERP, stok, POS, entegrasyon',
   authors: [{ name: 'AURA Bilişim', url: 'https://aurabilisim.net' }],
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, title: 'AURA İntegra' },
 }
 
 export default function RootLayout({

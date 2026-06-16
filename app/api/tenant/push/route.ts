@@ -2,6 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
+import { canPushModule } from '@/lib/api-role-guard'
+import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
+import { getServiceClient } from '@/lib/supabase/service'
 import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceOrderToDb } from '@/lib/db-mappers'
 import type { StoreData } from '@/lib/store'
 
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
 
-  const { supabase, tenantId, userId } = auth
+  const { supabase, tenantId, userId, role } = auth
 
   let body: PushBody
   try {
@@ -38,6 +41,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const moduleKey = String(body.module)
+    if (!canPushModule(role, moduleKey)) {
+      return NextResponse.json({ error: 'Bu modül için yazma yetkiniz yok' }, { status: 403 })
+    }
+
     if (body.module === 'kasaBalance' && body.balance != null) {
       const balance = Number(body.balance)
       const { data: existing } = await supabase
@@ -104,8 +112,51 @@ export async function POST(req: NextRequest) {
           if (!isUuid(String(row.id ?? ''))) delete row.id
           return row
         })
-        const { error } = await upsertRows(supabase, 'financial_transactions', rows)
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+        const admin = getServiceClient()
+        const rowsToWrite: Record<string, unknown>[] = []
+        let skippedDuplicates = 0
+        for (const row of rows) {
+          if (
+            row.service_id &&
+            row.type === 'gelir' &&
+            row.category === 'Servis Teslim' &&
+            admin
+          ) {
+            const { data: existing } = await admin
+              .from('financial_transactions')
+              .select('id')
+              .eq('tenant_id', tenantId)
+              .eq('service_id', row.service_id)
+              .eq('type', 'gelir')
+              .eq('category', 'Servis Teslim')
+              .maybeSingle()
+            // Bu servis için zaten bir teslim geliri varsa ve gelen satırın stabil
+            // (UUID) id'si yoksa, bu bir yeniden senkrondur → mükerrer kaydı atla.
+            // 409 yerine bu satırı çıkarıp diğer işlemlerin yazılmasına izin ver.
+            if (existing?.id && existing.id !== row.id) {
+              skippedDuplicates++
+              continue
+            }
+          }
+          rowsToWrite.push(row)
+        }
+
+        const { error } = await upsertRows(supabase, 'financial_transactions', rowsToWrite)
+        if (error) {
+          if (error.message.includes('idx_financial_tx_service_delivery') || error.message.includes('duplicate')) {
+            return NextResponse.json({ error: 'Duplike servis teslim finans kaydı engellendi' }, { status: 409 })
+          }
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        await writeTenantAuditLog({
+          tenantId,
+          userId,
+          action: 'upsert',
+          entityType: 'financial_transactions',
+          newData: { count: rowsToWrite.length, skippedDuplicates },
+        })
         break
       }
       case 'sales': {

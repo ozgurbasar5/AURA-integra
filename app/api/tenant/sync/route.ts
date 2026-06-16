@@ -30,6 +30,7 @@ import {
   foreignDeviceToStore,
 } from '@/lib/db-mappers'
 import type { StoreData } from '@/lib/store'
+import type { ServiceDelivery } from '@/lib/store'
 
 export async function GET() {
   const auth = await requireTenantAuth()
@@ -114,12 +115,39 @@ export async function GET() {
     const tenant = tenantRes.data as Record<string, unknown> | null
     const settingsJson = (settingsRes.data?.settings as Record<string, unknown>) ?? {}
 
+    const serviceOrders = (ordersRes.data ?? []).map(r => serviceOrderToStore(r as Record<string, unknown>))
+    const transactions = (txRes.data ?? []).map(r => txToStore(r as Record<string, unknown>))
+
+    const serviceDeliveries: Record<string, ServiceDelivery> = {}
+    for (const order of serviceOrders) {
+      if (!order.financial_posted) continue
+      const incomeTx = transactions.find(
+        t => t.service_id === order.id && t.type === 'gelir' && t.category === 'Servis Teslim'
+      )
+      const expenseTotal = transactions
+        .filter(t => t.service_id === order.id && t.type === 'gider')
+        .reduce((s, t) => s + t.amount, 0)
+      const serviceFee = incomeTx?.amount ?? order.actual_cost ?? 0
+      const netProfit = order.net_profit ?? (serviceFee - expenseTotal)
+      serviceDeliveries[order.id] = {
+        service_id: order.id,
+        service_fee: serviceFee,
+        total_expense: expenseTotal,
+        net_profit: netProfit,
+        profit_margin: serviceFee > 0 ? Math.round((netProfit / serviceFee) * 10000) / 100 : 0,
+        delivered_at: order.delivered_at ?? new Date().toISOString(),
+        financial_posted: true,
+        finance_tx_id: incomeTx?.id,
+      }
+    }
+
     const payload: Partial<StoreData> = {
       stock: (partsRes.data ?? []).map(r => partToStock(r as Record<string, unknown>)),
       customers: (customersRes.data ?? []).map(r => customerToStore(r as Record<string, unknown>)),
-      transactions: (txRes.data ?? []).map(r => txToStore(r as Record<string, unknown>)),
+      transactions,
       sales: (salesRes.data ?? []).map(r => saleToStore(r as Record<string, unknown>)),
-      serviceOrders: (ordersRes.data ?? []).map(r => serviceOrderToStore(r as Record<string, unknown>)),
+      serviceOrders,
+      serviceDeliveries,
       purchases: (purchasesRes.data ?? []).map(r => purchaseToStore(r as Record<string, unknown>)),
       todos: (todosRes.data ?? []).map(r => todoToStore(r as Record<string, unknown>)),
       stolenIMEIs: (stolenRes.data ?? []).map(r => stolenToStore(r as Record<string, unknown>)),

@@ -84,17 +84,19 @@ export default function OdemelerPage() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-white text-2xl font-black">Abonelik & Ödemeler</h1>
+          <h1 className="text-white text-xl sm:text-2xl font-black">Abonelik & Ödemeler</h1>
           <p className="text-zinc-500 text-sm mt-1">{payments.length} ödeme kaydı</p>
         </div>
-        <button onClick={exportExcel} className="btn-secondary">
-          <Download size={16} /> Excel İndir
-        </button>
-        <button onClick={syncOverdue} className="btn-secondary">
-          Gecikmişleri Güncelle
-        </button>
+        <div className="mobile-toolbar">
+          <button onClick={exportExcel} className="btn-secondary">
+            <Download size={16} /> Excel İndir
+          </button>
+          <button onClick={syncOverdue} className="btn-secondary">
+            Gecikmişleri Güncelle
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -113,9 +115,9 @@ export default function OdemelerPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <Filter size={14} className="text-zinc-500" />
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <Filter size={14} className="text-zinc-500 shrink-0" />
+        <div className="mobile-scroll-tabs flex gap-2">
           {['', 'pending', 'overdue', 'paid', 'cancelled'].map(s => (
             <button
               key={s}

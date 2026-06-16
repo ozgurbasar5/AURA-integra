@@ -3,6 +3,7 @@
  */
 
 import nodemailer from 'nodemailer'
+import type { TenantSmsCredentials } from '@/lib/tenant-sms'
 
 export interface SendSmsInput {
   to: string
@@ -10,6 +11,7 @@ export interface SendSmsInput {
   tenantId?: string
   orderNo?: string
   customerName?: string
+  credentials?: TenantSmsCredentials | null
 }
 
 export interface SendEmailInput {
@@ -22,10 +24,11 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/^0/, '90')
 }
 
-export async function sendSms(input: SendSmsInput): Promise<{ ok: boolean; status: string; error?: string }> {
-  const usercode = process.env.NETGSM_USERCODE ?? process.env.NETGSM_USER
-  const password = process.env.NETGSM_PASSWORD ?? process.env.NETGSM_PASS
-  const header = process.env.NETGSM_HEADER ?? 'AURA'
+export async function sendSms(input: SendSmsInput): Promise<{ ok: boolean; status: string; error?: string; providerRef?: string }> {
+  const creds = input.credentials
+  const usercode = creds?.usercode ?? process.env.NETGSM_USERCODE ?? process.env.NETGSM_USER
+  const password = creds?.password ?? process.env.NETGSM_PASSWORD ?? process.env.NETGSM_PASS
+  const header = creds?.header ?? process.env.NETGSM_HEADER ?? 'AURA'
 
   if (!usercode || !password) {
     if (process.env.NODE_ENV === 'development') {
@@ -47,7 +50,7 @@ export async function sendSms(input: SendSmsInput): Promise<{ ok: boolean; statu
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
     const text = await res.text()
     const ok = text.startsWith('00') || text.includes('OK')
-    return { ok, status: ok ? 'sent' : 'failed', error: ok ? undefined : text }
+    return { ok, status: ok ? 'sent' : 'failed', error: ok ? undefined : text, providerRef: ok ? text.slice(0, 32) : undefined }
   } catch (err) {
     return { ok: false, status: 'failed', error: err instanceof Error ? err.message : 'SMS hatası' }
   }

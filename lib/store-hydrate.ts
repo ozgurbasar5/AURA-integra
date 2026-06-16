@@ -8,6 +8,13 @@ import {
   type StoreData,
   hydrateStoreFromRemote,
 } from './store'
+import {
+  setSyncSyncing,
+  setSyncSynced,
+  setSyncError,
+  incrementPending,
+  decrementPending,
+} from './sync-status'
 
 const MODULE_MAP: Record<string, keyof StoreData | 'notificationSettings'> = {
   stock: 'stock',
@@ -48,18 +55,23 @@ let autoSyncEnabled = false
 
 export async function hydrateFromSupabase(): Promise<boolean> {
   if (typeof window === 'undefined') return false
+  setSyncSyncing()
   try {
     const res = await fetch('/api/tenant/sync', { credentials: 'same-origin' })
-    if (!res.ok) return false
+    if (!res.ok) {
+      setSyncError('Senkronizasyon başarısız')
+      return false
+    }
     const json = await res.json() as { data?: Partial<StoreData> }
     if (json.data) {
       syncing = true
       hydrateStoreFromRemote(json.data)
       syncing = false
+      setSyncSynced()
       return true
     }
   } catch {
-    /* offline */
+    setSyncError('Çevrimdışı')
   }
   return false
 }
@@ -81,29 +93,34 @@ async function pushKasaBalance() {
 
 async function pushModule(module: keyof StoreData | 'notificationSettings') {
   if (syncing) return
+  incrementPending()
   try {
     const store = getStore()
     if (module === 'notificationSettings') {
-      await fetch('/api/tenant/push', {
+      const res = await fetch('/api/tenant/push', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ module: 'notificationSettings', settings: store.notificationSettings }),
       })
+      if (!res.ok) setSyncError('Ayarlar kaydedilemedi')
       return
     }
 
     const items = store[module as keyof StoreData]
     if (!Array.isArray(items)) return
 
-    await fetch('/api/tenant/push', {
+    const res = await fetch('/api/tenant/push', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module, items }),
     })
+    if (!res.ok) setSyncError('Veri kaydedilemedi')
   } catch {
-    /* offline — local cache kalır */
+    setSyncError('Çevrimdışı')
+  } finally {
+    decrementPending()
   }
 }
 

@@ -14,6 +14,7 @@ import { buildShiftReport } from '@/lib/eod-report'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { formatCurrency } from '@/lib/validators'
 import { useUserRole } from '@/lib/role-context'
+import { isOwnerRole } from '@/lib/role-access'
 
 function fmt(n: number) {
   return formatCurrency(n)
@@ -22,7 +23,7 @@ function fmt(n: number) {
 export default function KasaPage() {
   const router = useRouter()
   const { role } = useUserRole()
-  const cashier = role === 'kasiyer' ? 'Kasiyer' : role === 'owner' ? 'Sahip' : 'Personel'
+  const cashier = role === 'kasiyer' ? 'Kasiyer' : isOwnerRole(role) ? 'Sahip' : 'Personel'
 
   const [mounted, setMounted] = useState(false)
   const [openShift, setOpenShift] = useState<CashShift | undefined>()

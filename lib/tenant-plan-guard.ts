@@ -7,10 +7,12 @@ export async function getTenantPlanLevel(
 ): Promise<PlanLevel> {
   const { data } = await supabase
     .from('tenants')
-    .select('plan_name')
+    .select('plan_id, subscription_plans(name)')
     .eq('id', tenantId)
     .single()
-  return getPlanLevel(data?.plan_name)
+
+  const plan = data?.subscription_plans as { name?: string } | null
+  return getPlanLevel(plan?.name)
 }
 
 export async function requireTenantPlanLevel(

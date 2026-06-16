@@ -26,9 +26,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             ⚠️ {auth.warning}
           </div>
         )}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-w-0">
           <AdminSidebar user={{ email: user.email ?? '', full_name: auth.data.full_name }} />
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto min-w-0 pt-14 lg:pt-0">
             <div className="page-wrapper">{children}</div>
           </main>
         </div>

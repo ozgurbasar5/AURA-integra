@@ -164,6 +164,42 @@ html.ui-high-contrast {
   --text-muted: #475569;
   --bg-border: #94a3b8;
 }
+
+/* ── Sidebar kategori accordion ─────────────────────────────────────────── */
+.sidebar-nav-link--active .sidebar-nav-indicator {
+  animation: sidebar-indicator-in 0.2s ease-out;
+}
+
+@keyframes sidebar-indicator-in {
+  from { transform: translateY(-50%) scaleY(0.3); opacity: 0; }
+  to   { transform: translateY(-50%) scaleY(1); opacity: 1; }
+}
+
+.sidebar-category-panel {
+  will-change: grid-template-rows;
+}
+
+.sidebar-category-items .sidebar-category-item {
+  opacity: 0;
+  animation: sidebar-item-in 0.18s ease-out forwards;
+  animation-delay: calc(var(--item-index, 0) * 30ms);
+}
+
+@keyframes sidebar-item-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+html.ui-no-anim .sidebar-category-items .sidebar-category-item {
+  opacity: 1;
+  animation: none;
+  transform: none;
+}
+
+html.ui-no-anim .sidebar-nav-link--active .sidebar-nav-indicator {
+  animation: none;
+}
+
 html.dark.ui-high-contrast {
   --text-primary: #ffffff;
   --text-secondary: #e2e8f0;
@@ -341,10 +377,40 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
 
   /* Page wrapper */
   .page-wrapper {
-    @apply p-5 md:p-8 max-w-7xl mx-auto min-h-full;
+    @apply px-4 py-4 sm:p-5 md:p-8 max-w-7xl mx-auto min-h-full min-w-0;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
     background-image:
       radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.04) 0%, transparent 40%),
       radial-gradient(circle at 0% 100%, rgba(15, 23, 42, 0.03) 0%, transparent 35%);
+  }
+
+  /* Mobil: tablo taşmasını yatay kaydırma ile çöz */
+  .card:has(> table),
+  .card:has(> .overflow-x-auto) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-toolbar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .mobile-scroll-tabs {
+    @apply flex gap-1 overflow-x-auto pb-px -mx-1 px-1;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .mobile-scroll-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  }
+  .safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 
   .filter-chip {
@@ -367,7 +433,8 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
   }
 
   .table-shell {
-    @apply surface overflow-hidden;
+    @apply surface overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
   }
   .table-shell table {
     @apply table-base;

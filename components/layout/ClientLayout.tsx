@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Lock } from 'lucide-react'
 import TenantSidebar from './TenantSidebar'
 import DashboardHeader from './DashboardHeader'
 import ThemeProvider from '@/components/ThemeProvider'
+import GlobalSearchModal, { useGlobalSearchShortcut } from '@/components/search/GlobalSearchModal'
+import AuraAI from '@/components/AuraAI'
 import { clearDemoSeedOnce } from '@/lib/store'
 import { initTenantDataSync } from '@/lib/store-hydrate'
 import { isRouteAllowed, ROUTE_MIN_LEVEL, PLAN_LEVEL_LABELS, type PlanLevel } from '@/lib/plan-tiers'
@@ -28,7 +30,11 @@ interface Props {
 
 export default function ClientLayout({ tenant, user, children }: Props) {
   const [mounted, setMounted] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const pathname = usePathname()
+  const openSearch = useCallback(() => setSearchOpen(true), [])
+
+  useGlobalSearchShortcut(openSearch)
 
   useEffect(() => {
     clearDemoSeedOnce()
@@ -41,19 +47,22 @@ export default function ClientLayout({ tenant, user, children }: Props) {
   const roleAllowed = isRouteAllowedForRole(pathname, user.role)
   const allowed = planAllowed && roleAllowed
   const requiredLevel = (ROUTE_MIN_LEVEL[pathname] ?? 1) as PlanLevel
+  const showAi = planLevel >= 2
 
   return (
     <ThemeProvider>
      <PlanProvider level={planLevel}>
       <RoleProvider role={user.role}>
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {showAi && <AuraAI />}
       <div className="flex h-screen bg-[var(--bg-base)] overflow-hidden">
         {mounted ? (
-          <TenantSidebar tenant={tenant} user={user} />
+          <TenantSidebar tenant={tenant} user={user} onOpenSearch={openSearch} />
         ) : (
           <aside className="hidden lg:flex flex-col shrink-0 w-[250px] sidebar-dark border-r border-white/5" />
         )}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} /></div>}
+          {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
           <main className="flex-1 overflow-y-auto">
             <div className="page-wrapper">
               {allowed ? (
@@ -85,14 +94,11 @@ export default function ClientLayout({ tenant, user, children }: Props) {
                       yükseltmeniz gerekiyor. Mevcut paketiniz: <strong>{PLAN_LEVEL_LABELS[planLevel]}</strong>.
                     </p>
                     <Link
-                      href="/dashboard"
+                      href="/dashboard/plan-yukselt"
                       className="inline-flex items-center justify-center mt-5 px-5 py-2.5 bg-sky-600 text-white text-sm font-bold rounded-xl hover:bg-sky-700 transition-colors"
                     >
-                      Anasayfaya Dön
+                      Paketleri İncele
                     </Link>
-                    <p className="text-slate-400 text-xs mt-3">
-                      Yükseltme için sistem yöneticinizle iletişime geçin.
-                    </p>
                   </div>
                 </div>
               )}

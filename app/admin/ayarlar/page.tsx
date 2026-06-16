@@ -239,12 +239,12 @@ export default function AyarlarPage() {
       )}
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-slate-200 mb-8">
+      <div className="mobile-scroll-tabs border-b border-slate-200 mb-6 md:mb-8">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px
+            className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px whitespace-nowrap
               ${activeTab === id
                 ? 'border-sky-600 text-sky-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'

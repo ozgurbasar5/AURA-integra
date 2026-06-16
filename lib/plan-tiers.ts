@@ -145,6 +145,8 @@ export const ROUTE_MIN_LEVEL: Record<string, PlanLevel> = {
   '/dashboard/dokumantasyon': 1,
   '/dashboard/magaza': 3,
   '/dashboard/kasa/rapor': 3,
+  '/dashboard/plan-yukselt': 1,
+  '/dashboard/stok/sayim': 1,
 }
 
 /** Bir route'a verilen paket seviyesiyle erişilebilir mi? */

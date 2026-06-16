@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getServiceClient } from '@/lib/supabase/service'
+import { isOwnerRole } from '@/lib/role-access'
+import { normalizeTenantRole } from '@/lib/tenant-roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +87,11 @@ export async function PUT(req: NextRequest) {
 
   if (!profile?.tenant_id) {
     return NextResponse.json({ error: 'Profil bulunamadı' }, { status: 403 })
+  }
+
+  const userRole = normalizeTenantRole(profile.role)
+  if (!isOwnerRole(userRole)) {
+    return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gerekli' }, { status: 403 })
   }
 
   const admin = getServiceClient()

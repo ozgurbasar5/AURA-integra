@@ -1,17 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Users, Plus, Trash2, Mail, Shield, Search, ChevronDown, Building2, Loader2, Check } from 'lucide-react'
+import { Users, Plus, Trash2, Mail, Search, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import { TENANT_ROLE_OPTIONS, normalizeTenantRole } from '@/lib/tenant-roles'
 
-const ROLES = [
-  { value: 'owner',      label: 'Sahip',      color: 'bg-purple-100 text-purple-700' },
-  { value: 'manager',    label: 'Yönetici',   color: 'bg-blue-100 text-blue-700'   },
-  { value: 'staff',      label: 'Personel',   color: 'bg-slate-100 text-slate-700'  },
-  { value: 'technician', label: 'Teknisyen',  color: 'bg-green-100 text-green-700' },
-  { value: 'cashier',    label: 'Kasiyer',    color: 'bg-amber-100 text-amber-700' },
-]
+const ROLES = TENANT_ROLE_OPTIONS
 
 interface Tenant { id: string; company_name: string; portal_slug: string | null }
 interface TenantUser {
@@ -24,9 +18,24 @@ interface TenantUser {
   created_at: string
 }
 
-export default function BayiKullanicilariPage() {
-  const supabase = createClient()
+async function patchUser(body: {
+  user_id: string
+  tenant_id: string
+  role?: string
+  is_active?: boolean
+  detach?: boolean
+}) {
+  const res = await fetch('/api/admin/users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'Güncellenemedi')
+}
 
+export default function BayiKullanicilariPage() {
   const [tenants, setTenants]           = useState<Tenant[]>([])
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
   const [users, setUsers]               = useState<TenantUser[]>([])
@@ -35,11 +44,10 @@ export default function BayiKullanicilariPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchEmail, setSearchEmail]   = useState('')
   const [newEmail, setNewEmail]         = useState('')
-  const [newRole, setNewRole]           = useState('staff')
+  const [newRole, setNewRole]           = useState('teknisyen')
   const [adding, setAdding]             = useState(false)
   const [maxUsers, setMaxUsers]         = useState(99)
 
-  // ── Load tenants ──────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       setLoadingTenants(true)
@@ -62,7 +70,6 @@ export default function BayiKullanicilariPage() {
     load()
   }, [])
 
-  // ── Load users for selected tenant ───────────────────────────────────────
   useEffect(() => {
     if (!selectedTenant) return
     async function loadUsers() {
@@ -74,7 +81,10 @@ export default function BayiKullanicilariPage() {
         )
         const json = await res.json()
         if (res.ok && json.data) {
-          setUsers(json.data)
+          setUsers(json.data.map((u: TenantUser) => ({
+            ...u,
+            role: normalizeTenantRole(u.role),
+          })))
           if (json.limits?.max_users) setMaxUsers(json.limits.max_users)
         }
       } catch (e) {
@@ -86,34 +96,47 @@ export default function BayiKullanicilariPage() {
     loadUsers()
   }, [selectedTenant])
 
-  // ── Change role ───────────────────────────────────────────────────────────
   async function changeRole(userId: string, role: string) {
+    if (!selectedTenant) return
     try {
-      await (supabase.from('user_profiles') as any)
-        .update({ role })
-        .eq('id', userId)
+      await patchUser({ user_id: userId, tenant_id: selectedTenant.id, role })
       setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role } : u))
       toast.success('Rol güncellendi')
-    } catch { toast.error('Güncellenemedi') }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
   }
 
-  // ── Toggle active ─────────────────────────────────────────────────────────
   async function toggleActive(userId: string, current: boolean) {
+    if (!selectedTenant) return
     try {
-      await (supabase.from('user_profiles') as any)
-        .update({ is_active: !current })
-        .eq('id', userId)
+      await patchUser({ user_id: userId, tenant_id: selectedTenant.id, is_active: !current })
       setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, is_active: !current } : u))
       toast.success(current ? 'Kullanıcı pasife alındı' : 'Kullanıcı aktif edildi')
-    } catch { toast.error('Güncellenemedi') }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
   }
 
-  // ── Add user — /api/admin/find-user (service role → auth.users) ──────────
+  async function removeFromTenant(userId: string) {
+    if (!selectedTenant) return
+    try {
+      await patchUser({ user_id: userId, tenant_id: selectedTenant.id, detach: true })
+      setUsers(prev => prev.filter(x => x.user_id !== userId))
+      toast.success('Kullanıcı bayiden çıkarıldı')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Çıkarılamadı')
+    }
+  }
+
   async function addUser() {
     if (!newEmail.trim() || !selectedTenant) return
     setAdding(true)
     try {
-      const res  = await fetch(`/api/admin/find-user?email=${encodeURIComponent(newEmail.trim().toLowerCase())}`)
+      const res  = await fetch(
+        `/api/admin/find-user?email=${encodeURIComponent(newEmail.trim().toLowerCase())}`,
+        { credentials: 'same-origin' }
+      )
       const json = await res.json()
 
       if (!res.ok) {
@@ -133,13 +156,22 @@ export default function BayiKullanicilariPage() {
 
       const found = json.user as { id: string; email: string; profile?: { full_name?: string } | null }
 
-      await (supabase.from('user_profiles') as any).upsert({
-        id:        found.id,
-        full_name: found.profile?.full_name ?? found.email.split('@')[0],
-        role:      newRole,
-        tenant_id: selectedTenant.id,
-        is_active: true,
-      }, { onConflict: 'id' })
+      const attachRes = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          tenant_id: selectedTenant.id,
+          user_id: found.id,
+          role: newRole,
+          full_name: found.profile?.full_name ?? found.email.split('@')[0],
+        }),
+      })
+      const attachJson = await attachRes.json()
+      if (!attachRes.ok) {
+        toast.error(attachJson.error || 'Eklenemedi')
+        return
+      }
 
       setUsers(prev => [
         ...prev,
@@ -153,14 +185,13 @@ export default function BayiKullanicilariPage() {
       toast.success(`✓ ${found.email} → ${selectedTenant.company_name} bayisine eklendi`)
       setShowAddModal(false)
       setNewEmail('')
-      setNewRole('staff')
-    } catch (e: any) {
-      toast.error('Beklenmeyen hata: ' + (e.message || String(e)))
+      setNewRole('teknisyen')
+    } catch (e: unknown) {
+      toast.error('Beklenmeyen hata: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setAdding(false)
     }
   }
-
 
   const filteredUsers = users.filter(u =>
     u.full_name.toLowerCase().includes(searchEmail.toLowerCase()) ||
@@ -169,7 +200,6 @@ export default function BayiKullanicilariPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -177,12 +207,11 @@ export default function BayiKullanicilariPage() {
             Bayi Kullanıcıları
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Her bayiye birden fazla kullanıcı atayın — aynı anda birlikte çalışabilirler
+            Her bayiye birden fazla kullanıcı atayın — roller bayi paneli ile uyumludur
           </p>
         </div>
       </div>
 
-      {/* Tenant Selector */}
       <div className="card p-5">
         <label className="label">Bayi Seçin</label>
         {loadingTenants ? (
@@ -222,7 +251,6 @@ export default function BayiKullanicilariPage() {
         )}
       </div>
 
-      {/* Users Panel */}
       {selectedTenant && (
         <div className="card overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
@@ -315,16 +343,7 @@ export default function BayiKullanicilariPage() {
                       </td>
                       <td className="px-5 py-3">
                         <button
-                          onClick={() => {
-                            // Remove from tenant (set tenant_id to null)
-                            supabase.from('user_profiles' as any)
-                              .update({ tenant_id: null })
-                              .eq('id', u.user_id)
-                              .then(() => {
-                                setUsers(prev => prev.filter(x => x.user_id !== u.user_id))
-                                toast.success('Kullanıcı bayiden çıkarıldı')
-                              })
-                          }}
+                          onClick={() => removeFromTenant(u.user_id)}
                           className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           title="Bayiden çıkar"
                         >
@@ -340,14 +359,13 @@ export default function BayiKullanicilariPage() {
         </div>
       )}
 
-      {/* Add User Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
             <h3 className="font-bold text-slate-900 text-lg mb-1">Kullanıcı Ekle</h3>
             <p className="text-sm text-slate-500 mb-5">
               <strong>{selectedTenant?.company_name}</strong> bayisine kullanıcı ekleyin.
-              Supabase'de kayıtlı herhangi bir kullanıcı e-postası girilebilir.
+              Supabase&apos;de kayıtlı herhangi bir kullanıcı e-postası girilebilir.
             </p>
             <div className="space-y-4">
               <div>
@@ -372,12 +390,12 @@ export default function BayiKullanicilariPage() {
                   ))}
                 </select>
                 <p className="text-xs text-slate-400 mt-1.5">
-                  Sahip: Tam erişim • Yönetici: Kullanıcı yönetimi hariç tüm özellikler • Personel: Servis ve stok
+                  Sahip: Tam erişim • Teknisyen: Atölye & stok • Satış/Kasiyer: POS & kabul • Muhasebe: Finans modülleri
                 </p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => { setShowAddModal(false); setNewEmail(''); setNewRole('staff') }}
+              <button onClick={() => { setShowAddModal(false); setNewEmail(''); setNewRole('teknisyen') }}
                 className="flex-1 btn-secondary">
                 İptal
               </button>

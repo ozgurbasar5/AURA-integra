@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AURA İntegra
 
-## Getting Started
+Multi-tenant SaaS ERP for technical service shops and dealer networks.
 
-First, run the development server:
+## Architecture
+
+- **Frontend:** Next.js 14 App Router, React 18, Tailwind CSS
+- **Backend:** Supabase (Auth, Postgres, RLS)
+- **Client store:** `lib/store.ts` (localStorage) + debounced sync via `/api/tenant/sync|push`
+- **Service orders:** Supabase-first via `/api/service-orders`
+
+## Panels
+
+| Path | Description |
+|------|-------------|
+| `/dashboard` | Dealer ERP (36 modules) |
+| `/admin` | Super-admin (tenants, payments, churn) |
+| `/portal/[slug]` | Customer self-service tracking |
+| `/takip` | Public order lookup |
+| `/onay/[token]` | Repair approval (server-backed) |
+
+## Module maturity
+
+| Module | Data | API | Notes |
+|--------|------|-----|-------|
+| Atölye / Kabul | Hybrid | Yes | Service orders API + SMS |
+| Stok / POS / Kasa | localStorage + sync | Push | Stok sayım with barcode |
+| Bildirimler | localStorage | `/api/notify` | Real SMS/email send |
+| Global search | — | `/api/search` | Cmd+K modal |
+| e-Fatura | localStorage | GIB stub | `/api/tenant/invoices/submit` |
+| AI Asistan | — | `/api/ai` | Gemini (Paket 2+) |
+| Raporlar | Store + DB views | `/api/tenant/reports` | Paket 3 |
+
+## Environment
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+NETGSM_USER=
+NETGSM_PASSWORD=
+NETGSM_HEADER=
+SMTP_EMAIL=
+SMTP_PASSWORD=
+GEMINI_API_KEY=
+CRON_SECRET=
+```
+
+## Scripts
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Public API
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```http
+GET /api/v1/orders
+X-API-Key: ak_live_...
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Generate keys in **Ayarlar → Entegrasyonlar**.
 
-## Learn More
+## Cron
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```http
+POST /api/cron/appointment-reminders
+Authorization: Bearer $CRON_SECRET
+```

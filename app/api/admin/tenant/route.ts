@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
     const authUserId = authResult.id
 
-    await admin.from('user_profiles').upsert(
+    const { error: profileErr } = await admin.from('user_profiles').upsert(
       {
         id: authUserId,
         tenant_id: tenantId,
@@ -134,6 +134,14 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: 'id' }
     )
+
+    if (profileErr) {
+      await admin.from('tenants').delete().eq('id', tenantId)
+      return NextResponse.json(
+        { error: `Kullanıcı profili oluşturulamadı: ${profileErr.message}` },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(
       {

@@ -18,6 +18,8 @@ export interface ViewOptions {
   compact: boolean
   noAnim: boolean
   highContrast: boolean
+  sidebarMode: 'classic' | 'categorized'
+  sidebarPersistCollapse: boolean
 }
 
 const NOTIF_PREFS_KEY = 'aura_notification_prefs'
@@ -73,13 +75,34 @@ export function savePortalSettings(settings: PortalSettings) {
 }
 
 export function getViewOptions(): ViewOptions {
-  if (typeof window === 'undefined') return { compact: false, noAnim: false, highContrast: false }
+  if (typeof window === 'undefined') {
+    return {
+      compact: false,
+      noAnim: false,
+      highContrast: false,
+      sidebarMode: 'classic',
+      sidebarPersistCollapse: false,
+    }
+  }
   try {
     const raw = localStorage.getItem(VIEW_OPTS_KEY)
-    if (!raw) return { compact: false, noAnim: false, highContrast: false }
-    return JSON.parse(raw)
+    const defaults: ViewOptions = {
+      compact: false,
+      noAnim: false,
+      highContrast: false,
+      sidebarMode: 'classic',
+      sidebarPersistCollapse: false,
+    }
+    if (!raw) return defaults
+    return { ...defaults, ...JSON.parse(raw) }
   } catch {
-    return { compact: false, noAnim: false, highContrast: false }
+    return {
+      compact: false,
+      noAnim: false,
+      highContrast: false,
+      sidebarMode: 'classic',
+      sidebarPersistCollapse: false,
+    }
   }
 }
 

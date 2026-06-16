@@ -101,67 +101,67 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
     setLoading(true)
 
     try {
-      // Try fetching from Supabase by phone or customer name
-      const q = query.trim()
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select(`
-          id,
-          job_no,
-          customer_name,
-          customer_phone,
-          device_brand,
-          device_model,
-          status,
-          estimated_cost,
-          created_at,
-          eta,
-          description
-        `)
-        .or(`customer_phone.ilike.%${q}%,customer_name.ilike.%${q}%`)
-        .order('created_at', { ascending: false })
+      const res = await fetch(
+        `/api/public/portal/${encodeURIComponent(params.slug)}/search?q=${encodeURIComponent(query.trim())}`
+      )
+      const json = await res.json()
 
-      if (!error && data && data.length > 0) {
-        const mapped: DeviceRecord[] = data.map((r: any) => {
-          const st = r.status as string
-          let statusLabel = st
-          let statusColor: DeviceRecord['status_color'] = 'blue'
-
-          if (['ready_for_pickup', 'delivered', 'repair_complete', 'warranty_complete'].includes(st)) {
-            statusLabel = 'Teslime Hazır'
-            statusColor = 'green'
-          } else if (['cancelled', 'customer_refused', 'beyond_repair', 'no_fix_no_fee'].includes(st)) {
-            statusLabel = 'İptal / Tamamlanamadı'
-            statusColor = 'red'
-          } else if (['waiting_diagnosis', 'customer_approval_pending'].includes(st)) {
-            statusLabel = 'İncelemede'
-            statusColor = 'amber'
-          } else {
-            statusLabel = 'İşlemde'
-            statusColor = 'blue'
-          }
-
-          return {
-            id: r.job_no || r.id,
-            customer: r.customer_name,
-            phone: r.customer_phone,
-            device: r.device_model,
-            brand: r.device_brand,
-            color: '—',
-            status: statusLabel,
-            status_color: statusColor,
-            intake_date: r.created_at?.slice(0, 10) ?? '—',
-            eta: r.eta ?? '—',
-            technician: '—',
-            complaint: r.description ?? '—',
-            estimated_cost: Number(r.estimated_cost) || 0,
-            history: [],
-          }
-        })
-        setResults(mapped)
-      } else {
+      if (!res.ok || !json.results?.length) {
         setResults([])
+        setSearched(true)
+        setLoading(false)
+        return
       }
+
+      const mapped: DeviceRecord[] = json.results.map((r: {
+        id: string
+        order_no: string
+        customer_name: string
+        customer_phone: string
+        device_model: string
+        device_brand: string
+        status: string
+        estimated_cost: number
+        created_at: string
+        eta: string
+        description: string
+      }) => {
+        const st = r.status as string
+        let statusLabel = st
+        let statusColor: DeviceRecord['status_color'] = 'blue'
+
+        if (['ready_for_pickup', 'delivered', 'repair_complete', 'teslim', 'tamamlandi'].includes(st)) {
+          statusLabel = 'Teslime Hazır'
+          statusColor = 'green'
+        } else if (['cancelled', 'customer_refused', 'iptal'].includes(st)) {
+          statusLabel = 'İptal / Tamamlanamadı'
+          statusColor = 'red'
+        } else if (['waiting_diagnosis', 'customer_approval_pending', 'onay_bekleniyor', 'teshis'].includes(st)) {
+          statusLabel = 'İncelemede'
+          statusColor = 'amber'
+        } else {
+          statusLabel = 'İşlemde'
+          statusColor = 'blue'
+        }
+
+        return {
+          id: r.order_no || r.id,
+          customer: r.customer_name,
+          phone: r.customer_phone,
+          device: r.device_model,
+          brand: r.device_brand,
+          color: '—',
+          status: statusLabel,
+          status_color: statusColor,
+          intake_date: r.created_at?.slice(0, 10) ?? '—',
+          eta: r.eta ?? '—',
+          technician: '—',
+          complaint: r.description ?? '—',
+          estimated_cost: Number(r.estimated_cost) || 0,
+          history: [],
+        }
+      })
+      setResults(mapped)
     } catch (err) {
       console.error('[Portal] Search error:', err)
       setResults([])

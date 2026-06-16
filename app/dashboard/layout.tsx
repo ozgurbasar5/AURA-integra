@@ -7,6 +7,7 @@ import {
 } from '@/lib/supabase/auth-helpers'
 import { evaluateTenantAccess } from '@/lib/subscription'
 import { getPlanLevel } from '@/lib/plan-tiers'
+import { normalizeTenantRole } from '@/lib/tenant-roles'
 import ClientLayout from '@/components/layout/ClientLayout'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -61,7 +62,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         user={{
           full_name: profile.full_name,
           email: user.email ?? '',
-          role: profile.role,
+          role: normalizeTenantRole(profile.role),
         }}
       >
         {children}

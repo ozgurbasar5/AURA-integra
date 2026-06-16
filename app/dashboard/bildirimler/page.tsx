@@ -62,10 +62,39 @@ export default function BildirimlerPage() {
 
   function handleSend() {
     if (!sendForm.recipient || !sendForm.content) { toast.error('Alıcı ve mesaj zorunlu'); return }
-    addNotificationLog({ ...sendForm, status: 'delivered' })
-    toast.success('Bildirim gönderildi')
-    setSendForm({ channel: 'sms', recipient: '', content: '', customer_name: '' })
-    setShowSendModal(false)
+    void (async () => {
+      try {
+        const payload =
+          sendForm.channel === 'email'
+            ? { to: sendForm.recipient, subject: 'AURA İntegra Bildirimi', type: 'hazir', data: { customerName: sendForm.customer_name || 'Müşteri', device: '-', price: '0', islem: sendForm.content } }
+            : { to: sendForm.recipient, message: sendForm.content }
+
+        const res = await fetch('/api/notify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const json = await res.json()
+        const ok = json.success !== false && res.ok
+
+        addNotificationLog({
+          ...sendForm,
+          status: ok ? 'delivered' : 'failed',
+        })
+
+        if (ok) {
+          toast.success('Bildirim gönderildi')
+          setSendForm({ channel: 'sms', recipient: '', content: '', customer_name: '' })
+          setShowSendModal(false)
+        } else {
+          toast.error(json.error || 'Gönderilemedi')
+        }
+      } catch {
+        addNotificationLog({ ...sendForm, status: 'failed' })
+        toast.error('Bağlantı hatası')
+      }
+    })()
   }
 
   return (

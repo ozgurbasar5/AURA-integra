@@ -65,11 +65,16 @@ export default function AuraAI() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end font-sans">
+    <div className="fixed z-50 flex flex-col items-end font-sans safe-bottom"
+      style={{
+        bottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+        right: 'max(1.25rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
       
       {/* SOHBET PENCERESİ */}
       {isOpen && (
-        <div className="w-80 h-[450px] bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-all duration-300 animate-in slide-in-from-bottom-5">
+        <div className="w-[min(100vw-2rem,20rem)] sm:w-80 h-[min(450px,calc(100dvh-6rem))] bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 shadow-2xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-all duration-300 animate-in slide-in-from-bottom-5">
           
           {/* Üst Bar */}
           <div className="bg-gradient-to-r from-cyan-600 to-blue-600 p-4 flex justify-between items-center text-white shadow-md">

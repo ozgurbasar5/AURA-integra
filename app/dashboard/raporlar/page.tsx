@@ -13,6 +13,7 @@ import {
 import { formatCurrency } from '@/lib/validators'
 import { getTransactions, getFinanceSummary, getSales, getStock, getCashShifts, onStoreChange } from '@/lib/store'
 import { buildVatReport } from '@/lib/erp-features'
+import { toast } from 'sonner'
 
 type Tab = 'analitik' | 'gun-sonu'
 
@@ -68,7 +69,10 @@ export default function RaporlarPage() {
     setMounted(true)
     refresh()
     fetch('/api/tenant/reports', { credentials: 'same-origin' })
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(r.status === 403 ? 'Paket seviyeniz bu rapor için yetersiz' : 'Rapor verisi alınamadı')
+        return r.json()
+      })
       .then(json => {
         if (json.revenue_by_day?.length) {
           const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
@@ -78,7 +82,10 @@ export default function RaporlarPage() {
           }))
         }
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Rapor verisi yüklenemedi'
+        toast.error(msg)
+      })
     const unsub = onStoreChange(() => refresh())
     return unsub
   }, [refresh])

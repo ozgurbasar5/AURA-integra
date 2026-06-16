@@ -3,6 +3,7 @@
  */
 
 import { mapDbStatusToStore, mapStoreStatusToDb } from './erp-features'
+import { decryptPii, encryptPii } from './pii-crypto'
 import type {
   StockItem,
   FinanceTransaction,
@@ -71,14 +72,23 @@ export function stockToPart(row: StockItem, tenantId: string): Row {
 
 export function customerToStore(row: Row): StoreCustomer {
   const seg = String(row.segment ?? 'normal')
+  const phoneRaw = row.phone_enc && !row.phone
+    ? decryptPii(String(row.phone_enc))
+    : String(row.phone ?? '')
+  const vknRaw = row.vkn_enc
+    ? decryptPii(String(row.vkn_enc))
+    : (row.vkn ? String(row.vkn) : undefined)
+  const tcRaw = row.tc_no_enc
+    ? decryptPii(String(row.tc_no_enc))
+    : (row.tc_no ? String(row.tc_no) : undefined)
   return {
     id: String(row.id),
     full_name: String(row.full_name ?? ''),
-    phone: String(row.phone ?? ''),
+    phone: phoneRaw,
     email: row.email ? String(row.email) : undefined,
     address: row.address ? String(row.address) : undefined,
-    tc_no: row.tc_no ? String(row.tc_no) : undefined,
-    vkn: row.vkn ? String(row.vkn) : undefined,
+    tc_no: tcRaw,
+    vkn: vknRaw,
     customer_type: (row.customer_type as StoreCustomer['customer_type']) ?? 'bireysel',
     segment: seg === 'normal' ? 'regular' : (seg as StoreCustomer['segment']),
     company_name: row.company_name ? String(row.company_name) : undefined,
@@ -95,15 +105,26 @@ export function customerToStore(row: Row): StoreCustomer {
 }
 
 export function customerToDb(c: StoreCustomer, tenantId: string): Row {
+  // NOT: `phone` aranabilir (takip/portal/global arama) ve NOT NULL bir alan;
+  // ayrıca AES-GCM deterministik olmadığı için şifreli telefonda eşleşme/arama
+  // imkânsız. Bu yüzden telefon DAİMA düz metin tutulur. Yalnızca aranmayan
+  // hassas alanlar (vkn, tc_no) anahtar mevcutsa şifrelenir.
+  const phone = c.phone.replace(/\s/g, '')
+  const usePiiEnc = Boolean(process.env.APP_ENCRYPTION_KEY && process.env.APP_ENCRYPTION_KEY.length >= 16)
+  const vknEnc = encryptPii(c.vkn ?? null)
+  const tcEnc = encryptPii(c.tc_no ?? null)
   return {
     id: c.id.match(/^[0-9a-f-]{36}$/i) ? c.id : undefined,
     tenant_id: tenantId,
     full_name: c.full_name,
-    phone: c.phone.replace(/\s/g, ''),
+    phone,
+    phone_enc: null,
     email: c.email ?? null,
     address: c.address ?? null,
-    tc_no: c.tc_no ?? null,
-    vkn: c.vkn ?? null,
+    tc_no: usePiiEnc ? null : (c.tc_no ?? null),
+    tc_no_enc: usePiiEnc && tcEnc ? tcEnc : null,
+    vkn: usePiiEnc ? null : (c.vkn ?? null),
+    vkn_enc: usePiiEnc && vknEnc ? vknEnc : null,
     customer_type: c.customer_type,
     segment: c.segment === 'regular' ? 'normal' : c.segment,
     company_name: c.company_name ?? null,
@@ -216,6 +237,9 @@ export function serviceOrderToStore(row: Row): StoreServiceOrder {
     final_checks: (row.final_checks as string[]) ?? [],
     approval_token: row.approval_token ? String(row.approval_token) : undefined,
     approval_status: row.approval_status as StoreServiceOrder['approval_status'],
+    financial_posted: row.financial_posted === true,
+    delivered_at: row.delivered_at ? String(row.delivered_at) : undefined,
+    net_profit: row.net_profit != null ? Number(row.net_profit) : undefined,
     created_at: String(row.created_at ?? new Date().toISOString()),
     updated_at: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
     eta: row.estimated_delivery ? String(row.estimated_delivery) : null,
@@ -752,6 +776,9 @@ export function serviceOrderToDb(row: StoreServiceOrder, tenantId: string, userI
     estimated_delivery: row.eta ?? null,
     approval_token: row.approval_token ?? null,
     approval_status: row.approval_status ?? null,
+    financial_posted: row.financial_posted === true,
+    delivered_at: row.delivered_at ?? null,
+    net_profit: row.net_profit ?? null,
     created_by: userId ?? null,
   }
 }

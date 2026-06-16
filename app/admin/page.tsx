@@ -11,6 +11,8 @@ const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
   ),
 })
 
+const AdminChurnPanel = dynamic(() => import('./AdminChurnPanel'), { ssr: false })
+
 interface TenantRow {
   id: string
   status: string
@@ -101,6 +103,8 @@ export default async function AdminDashboardPage() {
           )
         })}
       </div>
+
+      <AdminChurnPanel />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 card p-5">

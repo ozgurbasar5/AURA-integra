@@ -3,12 +3,15 @@
  * Sahip (tenant_admin, admin, mudur) → tam erişim
  */
 
+import { normalizeTenantRole } from './tenant-roles'
+
 export const OWNER_ROLES = ['tenant_admin', 'admin', 'mudur'] as const
 
 export type AppRole = string
 
 export function isOwnerRole(role: string): boolean {
-  return OWNER_ROLES.includes(role as (typeof OWNER_ROLES)[number])
+  const normalized = normalizeTenantRole(role)
+  return OWNER_ROLES.includes(normalized as (typeof OWNER_ROLES)[number])
 }
 
 /** Rol → erişilebilir route prefix listesi (* = hepsi) */
@@ -63,8 +66,9 @@ const ROLE_ROUTES: Record<string, string[] | '*'> = {
 }
 
 export function getAllowedRoutes(role: string): string[] | '*' {
-  if (isOwnerRole(role)) return '*'
-  return ROLE_ROUTES[role] ?? ['/dashboard']
+  const normalized = normalizeTenantRole(role)
+  if (isOwnerRole(normalized)) return '*'
+  return ROLE_ROUTES[normalized] ?? ROLE_ROUTES[role] ?? ['/dashboard']
 }
 
 export function isRouteAllowedForRole(pathname: string, role: string): boolean {
@@ -81,33 +85,38 @@ export function isNavAllowed(href: string, role: string): boolean {
 
 /** Teknisyen paneli — sade sidebar grupları */
 export function getSidebarGroupsForRole(role: string): string[] | null {
-  if (isOwnerRole(role)) return null
-  if (role === 'teknisyen') return ['ANA', 'ATÖLYE']
-  if (role === 'satis') return ['ANA', 'SATIŞ']
-  if (role === 'kasiyer') return ['ANA', 'KASA']
-  if (role === 'muhasebe') return ['ANA', 'FİNANS']
-  if (role === 'viewer') return ['ANA']
+  const r = normalizeTenantRole(role)
+  if (isOwnerRole(r)) return null
+  if (r === 'teknisyen') return ['ANA', 'ATÖLYE']
+  if (r === 'satis') return ['ANA', 'SATIŞ']
+  if (r === 'kasiyer') return ['ANA', 'KASA']
+  if (r === 'muhasebe') return ['ANA', 'FİNANS']
+  if (r === 'viewer') return ['ANA']
   return ['ANA']
 }
 
 export function getRoleHomeLabel(role: string): string {
-  if (role === 'teknisyen') return 'Atölye Paneli'
-  if (role === 'satis') return 'Satış Paneli'
-  if (role === 'muhasebe') return 'Finans Paneli'
-  if (role === 'kasiyer') return 'Kasa Paneli'
+  const r = normalizeTenantRole(role)
+  if (r === 'teknisyen') return 'Atölye Paneli'
+  if (r === 'satis') return 'Satış Paneli'
+  if (r === 'muhasebe') return 'Finans Paneli'
+  if (r === 'kasiyer') return 'Kasa Paneli'
   return 'Yönetim Paneli'
 }
 
 export function canSeeFinance(role: string): boolean {
-  return isOwnerRole(role) || role === 'muhasebe'
+  const r = normalizeTenantRole(role)
+  return isOwnerRole(r) || r === 'muhasebe'
 }
 
 export function canDeliverService(role: string): boolean {
-  return isOwnerRole(role) || role === 'satis' || role === 'kasiyer' || role === 'admin'
+  const r = normalizeTenantRole(role)
+  return isOwnerRole(r) || r === 'satis' || r === 'kasiyer' || r === 'admin'
 }
 
 export function canEditPricing(role: string): boolean {
-  return isOwnerRole(role) || role === 'satis' || role === 'muhasebe'
+  const r = normalizeTenantRole(role)
+  return isOwnerRole(r) || r === 'satis' || r === 'muhasebe'
 }
 
 export function canManageUsers(role: string): boolean {

@@ -17,19 +17,8 @@ export type AuditReport = {
   timestamp: string
 }
 
-function logDebug(payload: Record<string, unknown>) {
-  // #region agent log
-  fetch('http://127.0.0.1:7468/ingest/0c57ec44-6fe2-45e2-9efe-a00a4cd05205', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '33922f' },
-    body: JSON.stringify({
-      sessionId: '33922f',
-      location: 'finance-integration-audit.ts',
-      timestamp: Date.now(),
-      ...payload,
-    }),
-  }).catch(() => {})
-  // #endregion
+function logDebug(_payload: Record<string, unknown>) {
+  /* no-op */
 }
 
 /** completeSale mantığı — kasa = gelir, kâr = satış - maliyet */

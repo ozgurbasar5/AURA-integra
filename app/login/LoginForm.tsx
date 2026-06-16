@@ -45,10 +45,14 @@ export default function LoginForm() {
       .then(r => r.json())
       .then((data) => {
         if (!data.env?.ok) setConfigError(data.env.message)
-        else if (!data.matchesIntegra) {
+        else if (data.env.urlRef && data.env.anonRef && data.env.urlRef !== data.env.anonRef) {
           setConfigError(
-            `Yanlış Supabase projesi! Beklenen: dipyrdidkvljojkyaqmd (İNTEGRA), sizin: ${data.env.urlRef}. ` +
-            'Settings → API\'den URL + anon + service_role key\'i birlikte yapıştırın.'
+            `URL ve anon key farklı projelere ait (URL: ${data.env.urlRef}, anon: ${data.env.anonRef}). ` +
+            'Supabase → Settings → API bölümünden ikisini birlikte kopyalayın.'
+          )
+        } else if (!data.env.serviceRef) {
+          setConfigError(
+            'SUPABASE_SERVICE_ROLE_KEY eksik — giriş çalışır; admin/bayi oluşturma için service role key ekleyin.'
           )
         }
       })
