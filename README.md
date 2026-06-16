@@ -33,17 +33,41 @@ Multi-tenant SaaS ERP for technical service shops and dealer networks.
 
 ## Environment
 
+**Git push veritabanı ayarlarını taşımaz.** `.env.local` commit edilmez. Push sonrası canlı sitede (Vercel) bağlantı kopuyorsa → Vercel ortam değişkenleri eksiktir.
+
+### Lokal geliştirme
+
+```bash
+cp .env.example .env.local
+# Supabase → Settings → API: URL, anon key, service_role key → .env.local'e yapıştır
+npm run dev
+```
+
+Kontrol: `node scripts/verify-env.mjs` veya `/api/health/supabase?ping=1`
+
+### Vercel (Production) — push sonrası zorunlu
+
+Vercel → **Project → Settings → Environment Variables** — üç ortamda da ekleyin (Production, Preview, Development):
+
+| Değişken | Nereden |
+|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → anon public |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → service_role (gizli) |
+
+Deploy sonrası: `https://SITENIZ.vercel.app/api/health/supabase?ping=1` → `"ok": true` olmalı.
+
+Build, Vercel'de Supabase URL/anon eksikse **bilerek durur** (`next.config.mjs`) — boş deploy yerine hata mesajı verir.
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-NETGSM_USER=
+APP_ENCRYPTION_KEY=
+NETGSM_USERCODE=
 NETGSM_PASSWORD=
-NETGSM_HEADER=
-SMTP_EMAIL=
-SMTP_PASSWORD=
-GEMINI_API_KEY=
 CRON_SECRET=
+GEMINI_API_KEY=
 ```
 
 ## Scripts
@@ -51,6 +75,7 @@ CRON_SECRET=
 ```bash
 npm run dev
 npm run build
+node scripts/verify-env.mjs   # push öncesi lokal env kontrolü
 ```
 
 ## Public API
