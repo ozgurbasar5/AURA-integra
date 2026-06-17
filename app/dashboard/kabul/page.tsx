@@ -59,7 +59,7 @@ export default function KabulPage() {
     }
     setSaving(true)
     const jobNo = generateNextJobNo()
-    const created = await createServiceOrderRemote({
+    const { order: created, synced } = await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
       device_brand: form.device_brand,
@@ -89,7 +89,11 @@ export default function KabulPage() {
       status: 'Bekliyor',
       createdAt: new Date().toISOString(),
     })
-    toast.success(`${jobNo} oluşturuldu`)
+    if (synced) {
+      toast.success(`${created.job_no} oluşturuldu`)
+    } else {
+      toast.warning(`${created.job_no} yerelde oluşturuldu — portalda görünmeyebilir`)
+    }
     setSaving(false)
     setPreviewTab('fis')
   }

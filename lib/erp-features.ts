@@ -10,7 +10,7 @@ export const STORE_TO_PUBLIC_STATUS: Record<string, string> = {
   waiting_diagnosis: 'alindi',
   in_repair: 'tamir',
   customer_approval_pending: 'onay_bekleniyor',
-  ready_for_pickup: 'kalite_kontrol',
+  ready_for_pickup: 'teslime_hazir',
   delivered: 'teslim',
   cancelled: 'iptal',
   parts_waiting: 'teshis',
@@ -23,8 +23,26 @@ export const PUBLIC_STATUS_LABELS: Record<string, string> = {
   onay_bekleniyor: 'Müşteri Onayı Bekleniyor',
   tamir: 'Onarım Yapılıyor',
   kalite_kontrol: 'Kalite Kontrol',
+  teslime_hazir: 'Teslime Hazır',
   teslim: 'Teslim Edildi',
   iptal: 'İptal Edildi',
+}
+
+/** DB (Türkçe) → müşteri portal adımı — çift dönüşüm hatasını önler */
+export const DB_TO_PUBLIC_STATUS: Record<string, string> = {
+  alindi: 'alindi',
+  teshis: 'teshis',
+  onay_bekleniyor: 'onay_bekleniyor',
+  tamir: 'tamir',
+  kalite_kontrol: 'teslime_hazir',
+  teslim: 'teslim',
+  iptal: 'iptal',
+}
+
+export function mapDbStatusToPublic(status: string): string {
+  if (DB_TO_PUBLIC_STATUS[status]) return DB_TO_PUBLIC_STATUS[status]
+  const store = mapDbStatusToStore(status)
+  return mapStoreStatusToPublic(store)
 }
 
 export function mapStoreStatusToPublic(status: string): string {
@@ -81,13 +99,10 @@ export function renderTemplate(text: string, vars: Record<string, string | numbe
   return text.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? `{${key}}`))
 }
 
+import { buildPortalTrackingUrl } from './portal-url'
+
 export function buildTrackingUrl(jobNo: string, shopSlug?: string): string {
-  const q = new URLSearchParams({ q: jobNo })
-  if (shopSlug?.trim()) q.set('shop', shopSlug.trim())
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/takip?${q.toString()}`
-  }
-  return `/takip?${q.toString()}`
+  return buildPortalTrackingUrl(jobNo, shopSlug)
 }
 
 export function buildApprovalUrl(token: string): string {

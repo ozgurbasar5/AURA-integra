@@ -1,27 +1,18 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseGlobalOptions } from './fetch'
+import { getPublicSupabaseEnv, isPublicSupabaseConfigured, requirePublicSupabaseEnv } from './public-env'
 
-export function isSupabaseConfigured(): boolean {
-  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-}
+export { isPublicSupabaseConfigured as isSupabaseConfigured }
 
 export function createClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !key) {
-    throw new Error(
-      'Supabase yapılandırması eksik! .env.local dosyasına NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY ekleyin.'
-    )
-  }
-
-  return createBrowserClient(url, key, supabaseGlobalOptions)
+  const { url, anon } = requirePublicSupabaseEnv('Supabase istemci')
+  return createBrowserClient(url, anon, supabaseGlobalOptions)
 }
 
 /** SSR/build güvenli — env yoksa null döner */
 export function tryCreateClient(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) return null
+  if (!isPublicSupabaseConfigured()) return null
   try {
     return createClient()
   } catch {

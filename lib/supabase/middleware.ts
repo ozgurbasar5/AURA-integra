@@ -1,16 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseGlobalOptions } from './fetch'
+import { getPublicSupabaseEnv } from './public-env'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseKey) {
+  const env = getPublicSupabaseEnv()
+  if (!env) {
     return supabaseResponse
   }
+
+  const { url: supabaseUrl, anon: supabaseKey } = env
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     ...supabaseGlobalOptions,

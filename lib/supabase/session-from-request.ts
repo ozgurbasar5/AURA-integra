@@ -1,13 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import type { NextRequest } from 'next/server'
+import { getPublicSupabaseEnv } from './public-env'
 
 export type RequestUser = { id: string; email: string }
 
 /** API route — oturumu cookie'den okur (ağ çağrısı yapmaz) */
 export async function getUserFromRequest(request: NextRequest): Promise<RequestUser | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return null
+  const env = getPublicSupabaseEnv()
+  if (!env) return null
+
+  const { url, anon: key } = env
 
   try {
     const sb = createServerClient(url, key, {

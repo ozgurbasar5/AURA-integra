@@ -1,25 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  Wrench, Plus, Search, Loader2, ChevronRight, X,
+  Wrench, Plus, Search, Loader2, X,
 } from 'lucide-react'
 import { onStoreChange, type StoreServiceOrder } from '@/lib/store'
 import { loadServiceOrdersFromApi, createServiceOrderRemote } from '@/lib/service-order-bridge'
 import dynamic from 'next/dynamic'
+import AtolyeOrderTable, { type AtolyeTableOrder } from '@/components/atolye/AtolyeOrderTable'
+import { filterOrdersByTrackingQuery } from '@/lib/tracking-search'
 
 const AtolyeKanban = dynamic(() => import('@/components/atolye/AtolyeKanban'), { ssr: false })
-
-const STATUS: Record<string, { label: string; cls: string }> = {
-  waiting_diagnosis: { label: 'Bekliyor', cls: 'bg-slate-100 text-slate-700' },
-  in_repair: { label: 'Tamirde', cls: 'bg-sky-100 text-sky-800' },
-  customer_approval_pending: { label: 'Onay', cls: 'bg-amber-100 text-amber-800' },
-  ready_for_pickup: { label: 'Hazır', cls: 'bg-emerald-100 text-emerald-800' },
-  delivered: { label: 'Teslim', cls: 'bg-emerald-50 text-emerald-700' },
-  cancelled: { label: 'İptal', cls: 'bg-red-100 text-red-700' },
-}
 
 const FILTERS = [
   { key: '', label: 'Tümü' },
@@ -29,35 +21,7 @@ const FILTERS = [
   { key: 'delivered', label: 'Teslim' },
 ]
 
-interface OrderRow {
-  id: string
-  job_no: string
-  customer_name: string
-  customer_phone: string
-  device_brand: string
-  device_model: string
-  imei: string
-  status: string
-  estimated_cost: number
-  created_at: string
-}
-
-function fmt(n: number) {
-  return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 0 }).format(n)
-}
-
-function relTime(s: string) {
-  const m = Math.floor((Date.now() - new Date(s).getTime()) / 60000)
-  if (m < 60) return `${m} dk`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h} sa`
-  return `${Math.floor(h / 24)} gün`
-}
-
-function badge(status: string) {
-  const s = STATUS[status] || { label: status, cls: 'bg-slate-100 text-slate-600' }
-  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
-}
+interface OrderRow extends AtolyeTableOrder {}
 
 export default function AtolyePage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
@@ -65,7 +29,7 @@ export default function AtolyePage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [showModal, setShowModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('kanban')
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     customer_name: '', customer_phone: '', device_brand: 'Samsung',
@@ -84,7 +48,10 @@ export default function AtolyePage() {
       id: o.id, job_no: o.job_no, customer_name: o.customer_name,
       customer_phone: o.customer_phone, device_brand: o.device_brand,
       device_model: o.device_model, imei: o.imei || '',
-      status: o.status, estimated_cost: o.estimated_cost, created_at: o.created_at,
+      status: o.status, technician: o.technician,
+      estimated_cost: o.estimated_cost, actual_cost: o.actual_cost,
+      description: o.description, created_at: o.created_at,
+      updated_at: o.updated_at, eta: o.eta,
     }
   }
 
@@ -94,13 +61,10 @@ export default function AtolyePage() {
   }, [fetchOrders])
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return orders.filter(o => {
-      if (filter && o.status !== filter) return false
-      if (!q) return true
-      return [o.job_no, o.customer_name, o.customer_phone, o.device_brand, o.device_model, o.imei]
-        .some(v => v?.toLowerCase().includes(q))
-    })
+    const q = search.trim()
+    if (!q) return orders.filter(o => !filter || o.status === filter)
+    const hits = filterOrdersByTrackingQuery(orders, q)
+    return hits.filter(o => !filter || o.status === filter)
   }, [orders, search, filter])
 
   const counts = useMemo(() => ({
@@ -116,7 +80,7 @@ export default function AtolyePage() {
       return
     }
     setSaving(true)
-    await createServiceOrderRemote({
+    const result = await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
       device_brand: form.device_brand,
@@ -126,7 +90,11 @@ export default function AtolyePage() {
       estimated_cost: Number(form.estimated_cost) || 0,
       status: 'waiting_diagnosis',
     })
-    toast.success('Servis kaydı oluşturuldu')
+    if (result.synced) {
+      toast.success(`Servis kaydı oluşturuldu — ${result.order.job_no}`)
+    } else {
+      toast.warning(result.error || 'Yerel kayıt oluşturuldu; portal senkronu yok')
+    }
     setShowModal(false)
     setForm({ customer_name: '', customer_phone: '', device_brand: 'Samsung', device_model: '', imei: '', description: '', estimated_cost: '' })
     fetchOrders()
@@ -177,50 +145,17 @@ export default function AtolyePage() {
         ))}
       </div>
 
-      {viewMode === 'kanban' ? (
-        loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
-        ) : (
-          <AtolyeKanban orders={filtered} onRefresh={fetchOrders} />
-        )
+      {loading ? (
+        <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
+      ) : viewMode === 'kanban' ? (
+        <AtolyeKanban orders={filtered} onRefresh={fetchOrders} />
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 px-4 surface">
+          <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-sm text-slate-500">Kayıt bulunamadı</p>
+        </div>
       ) : (
-      <div className="surface overflow-hidden">
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">Kayıt bulunamadı</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {filtered.map(o => (
-              <Link
-                key={o.id}
-                href={`/dashboard/atolye/${o.id}`}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-sky-50/50 transition-colors group"
-              >
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-sky-100 transition-colors">
-                  <Wrench size={18} className="text-slate-500 group-hover:text-sky-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sm font-bold text-slate-900">{o.job_no}</span>
-                    {badge(o.status)}
-                  </div>
-                  <p className="text-sm text-slate-700 truncate mt-0.5">{o.customer_name} · {o.device_brand} {o.device_model}</p>
-                  {o.imei && o.imei !== '-' && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{o.imei}</p>}
-                </div>
-                <div className="text-right shrink-0 hidden sm:block">
-                  <p className="text-sm font-bold text-slate-900">{o.estimated_cost > 0 ? fmt(o.estimated_cost) : '—'}</p>
-                  <p className="text-[10px] text-slate-400">{relTime(o.created_at)} önce</p>
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-sky-500 shrink-0" />
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+        <AtolyeOrderTable orders={filtered} />
       )}
 
       {showModal && (

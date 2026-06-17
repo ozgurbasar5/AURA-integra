@@ -45,7 +45,7 @@ export function checkSupabaseEnv(): EnvCheck {
       urlRef,
       anonRef,
       serviceRef,
-      message: 'NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY zorunlu.',
+      message: 'NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY zorunlu. Lokal: .env.local | Vercel: Environment Variables + Redeploy.',
     }
   }
 

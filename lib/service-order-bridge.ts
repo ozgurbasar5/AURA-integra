@@ -90,7 +90,7 @@ export interface CreateServiceOrderInput {
 
 export async function createServiceOrderRemote(
   input: CreateServiceOrderInput
-): Promise<StoreServiceOrder> {
+): Promise<{ order: StoreServiceOrder; synced: boolean; error?: string }> {
   try {
     const res = await apiFetch('/api/service-orders', {
       method: 'POST',
@@ -106,20 +106,20 @@ export async function createServiceOrderRemote(
         status: input.status ?? 'waiting_diagnosis',
       }),
     })
-    if (res.ok) {
-      const json = (await res.json()) as { data?: DbRow }
-      if (json.data) {
-        const order = dbToStore(json.data)
-        upsertServiceOrder(order)
-        return order
-      }
+    const json = (await res.json().catch(() => ({}))) as { data?: DbRow; error?: string }
+    if (res.ok && json.data) {
+      const order = dbToStore(json.data)
+      upsertServiceOrder(order)
+      return { order, synced: true }
     }
-  } catch {
-    /* offline fallback */
+    const errMsg = json.error || `Sunucu hatası (${res.status})`
+    console.warn('[service-order-bridge] API create failed:', errMsg)
+  } catch (e) {
+    console.warn('[service-order-bridge] API create error:', e)
   }
 
   const jobNo = `SRV-${Date.now().toString().slice(-6)}`
-  return addServiceOrder({
+  const order = addServiceOrder({
     job_no: jobNo,
     customer_name: input.customer_name,
     customer_phone: input.customer_phone,
@@ -133,6 +133,11 @@ export async function createServiceOrderRemote(
     created_at: new Date().toISOString(),
     eta: null,
   })
+  return {
+    order,
+    synced: false,
+    error: 'Kayıt yalnızca yerelde oluşturuldu — müşteri portalında görünmez. Supabase bağlantısını kontrol edin.',
+  }
 }
 
 export interface UpdateServiceOrderPatch {

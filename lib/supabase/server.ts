@@ -1,19 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { supabaseGlobalOptions } from './fetch'
+import { requirePublicSupabaseEnv } from './public-env'
 
 export function createClient() {
   const cookieStore = cookies()
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { url, anon } = requirePublicSupabaseEnv('Supabase sunucu')
 
-  if (!url || !key) {
-    throw new Error(
-      'Supabase yapılandırması eksik! .env.local dosyasına NEXT_PUBLIC_SUPABASE_URL ve NEXT_PUBLIC_SUPABASE_ANON_KEY ekleyin.'
-    )
-  }
-
-  return createServerClient(url, key, {
+  return createServerClient(url, anon, {
     ...supabaseGlobalOptions,
     cookies: {
       getAll() {

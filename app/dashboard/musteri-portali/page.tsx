@@ -5,6 +5,7 @@ import { Users, MessageSquare, Shield, Copy, ExternalLink, Search, Plus, Send, X
 import { toast } from 'sonner'
 import { getStore, getCustomers, onStoreChange, type StoreCustomer, type NotificationLog } from '@/lib/store'
 import { getBusinessBranding } from '@/lib/business-branding'
+import { buildPortalLandingUrl } from '@/lib/portal-url'
 
 const SMS_TEMPLATES = [
   { id:'1', name:'Cihaz Teslim Alındı',      text:'Cihazınız teslim alındı. Takip kodu: {job_no}. Servis takip portali: {portal_link}' },
@@ -35,7 +36,7 @@ export default function MusteriPortaliPage() {
       setSmsLogs(getStore().notificationLogs.filter(l => l.channel === 'sms'))
       const brand = getBusinessBranding()
       const slug = getStore().notificationSettings.portal_slug
-      setPortalLink(slug ? `${window.location.origin}/takip?slug=${slug}` : `${window.location.origin}/takip`)
+      setPortalLink(slug ? buildPortalLandingUrl(slug) : `${window.location.origin}/takip`)
     }
     refresh()
     return onStoreChange(refresh)

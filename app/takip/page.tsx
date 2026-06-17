@@ -11,6 +11,7 @@ import {
   searchLocalServiceOrders, getLocalStatusHistory, type StoreServiceOrder,
 } from '@/lib/store'
 import { mapStoreStatusToPublic, PUBLIC_STATUS_LABELS, buildTrackingUrl } from '@/lib/erp-features'
+import { filterOrdersByTrackingQuery, trackingQueryMatchesOrder } from '@/lib/tracking-search'
 
 type ShopBranding = {
   shopName: string
@@ -153,7 +154,7 @@ export default function TakipPage() {
 
 function TakipContent() {
   const searchParams = useSearchParams()
-  const shopSlug = searchParams.get('shop') || ''
+  const shopSlug = searchParams.get('shop') || searchParams.get('slug') || ''
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState<OrderWithCustomer | null>(null)
@@ -249,8 +250,10 @@ function TakipContent() {
 
     try {
       const supabase = getSupabase()
-      // Query by order_no OR customer phone
-      const { data, error: qErr } = await supabase
+      const trimmedUpper = trimmed.toUpperCase()
+      let data: OrderWithCustomer | null = null
+
+      const { data: byExact, error: qErr } = await supabase
         .from('service_orders')
         .select(`
           *,
@@ -261,19 +264,40 @@ function TakipContent() {
             email
           )
         `)
-        .or(`order_no.ilike.${trimmed},customers.phone.ilike.%${trimmed}%`)
-        .limit(1)
-        .maybeSingle()
+        .or(`order_no.ilike.${trimmed},order_no.ilike.${trimmedUpper},imei.ilike.%${trimmed}%`)
+        .limit(5)
 
       if (qErr) throw qErr
 
+      const rows = byExact ?? []
+      const hit = rows.find(r =>
+        trackingQueryMatchesOrder(trimmed, r.order_no) ||
+        (r.imei && String(r.imei).includes(trimmed.replace(/\D/g, '').slice(-8))),
+      ) ?? rows[0]
+
+      if (hit) data = hit as OrderWithCustomer
+
+      if (!data) {
+        const { data: recent } = await supabase
+          .from('service_orders')
+          .select(`
+            *,
+            customers ( id, full_name, phone, email )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100)
+
+        const matched = filterOrdersByTrackingQuery(recent ?? [], trimmed)
+        if (matched[0]) data = matched[0] as OrderWithCustomer
+      }
+
       if (!data) {
         if (tryLocalSearch(trimmed)) return
-        setError('Kayıt bulunamadı. Takip kodu veya telefon numaranızı kontrol edin.')
+        setError('Kayıt bulunamadı. Servis no (SRV-2606-0001 veya 26060001), IMEI veya telefon deneyin.')
         return
       }
 
-      setOrder(data as OrderWithCustomer)
+      setOrder(data)
 
       const supabase2 = getSupabase()
       // Fetch status history

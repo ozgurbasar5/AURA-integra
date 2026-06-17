@@ -11,6 +11,11 @@ import { fileURLToPath } from 'url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
+if (process.env.SKIP_ENV_VERIFY === '1') {
+  console.log('SKIP_ENV_VERIFY=1 — env doğrulama atlandı (CI)')
+  process.exit(0)
+}
+
 function loadDotEnvLocal() {
   const path = join(root, '.env.local')
   if (!existsSync(path)) return {}

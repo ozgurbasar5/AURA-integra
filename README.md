@@ -57,7 +57,9 @@ Vercel → **Project → Settings → Environment Variables** — üç ortamda d
 
 Deploy sonrası: `https://SITENIZ.vercel.app/api/health/supabase?ping=1` → `"ok": true` olmalı.
 
-Build, Vercel'de Supabase URL/anon eksikse **bilerek durur** (`next.config.mjs`) — boş deploy yerine hata mesajı verir.
+Env değiştirdikten sonra **Deployments → son deploy → Redeploy** (sadece env kaydetmek yetmez).
+
+Build, Vercel'de Supabase env eksikse **bilerek durur** (`next.config.mjs` + `npm run build` içindeki `verify-env`). İstemci tarafında env, her istekte `layout` üzerinden enjekte edilir — Vercel'de doğru env varsa push sonrası bağlantı kopmaz.
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=

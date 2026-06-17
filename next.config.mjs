@@ -26,8 +26,9 @@ function assertVercelSupabaseEnv() {
   }
 
   if (!service || service.includes('placeholder') || service.includes('your-service')) {
-    console.warn(
-      '[AURA İntegra] UYARI: SUPABASE_SERVICE_ROLE_KEY Vercel\'de eksik — bayi oluşturma / login profil okuma çalışmayabilir.'
+    throw new Error(
+      '[AURA İntegra] SUPABASE_SERVICE_ROLE_KEY Vercel\'de eksik veya placeholder. ' +
+        'Login ve bayi işlemleri çalışmaz. Vercel → Settings → Environment Variables.'
     )
   }
 }

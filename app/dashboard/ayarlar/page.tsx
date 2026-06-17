@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop } from 'lucide-react'
+import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop, ExternalLink } from 'lucide-react'
 import { THEMES, type ThemeKey, applyTheme, getSavedTheme } from '@/lib/theme'
 import { getNotificationSettings, setNotificationSettings, type NotificationSettings } from '@/lib/store'
 import {
@@ -14,6 +14,14 @@ import {
   readLogoFile, saveBusinessBranding, syncBusinessBrandingToSupabase, fetchBusinessBrandingFromSupabase,
   type BusinessBranding,
 } from '@/lib/business-branding'
+import {
+  buildPortalLandingUrl,
+  getPortalFullUrl,
+  getPortalUrlPrefix,
+  isCustomPortalDomainConfigured,
+  normalizePortalSlug,
+  suggestPortalSlug,
+} from '@/lib/portal-url'
 import BrandLivePreview from '@/components/branding/BrandLivePreview'
 import LogoCropModal from '@/components/branding/LogoCropModal'
 import ColorModeToggle from '@/components/ColorModeToggle'
@@ -75,6 +83,18 @@ export default function AyarlarPage() {
   const [notifConfig, setNotifConfig] = useState({ netgsm_user: '', netgsm_pass: '', netgsm_header: '', smtp_email: '', whatsapp_phone: '' })
   const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null)
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
+  const [portalUrlPrefix, setPortalUrlPrefix] = useState('/portal/')
+
+  function handlePortalSlugChange(raw: string) {
+    const slug = normalizePortalSlug(raw)
+    setPortal(p => ({ ...p, slug }))
+    setAutoNotify(n => ({ ...n, portal_slug: slug }))
+    markBrandDirty()
+  }
+
+  function markBrandDirty() {
+    setBrandDirty(true)
+  }
 
   function toggleViewOpt(key: keyof Pick<ViewOptions, 'compact' | 'noAnim' | 'highContrast' | 'sidebarPersistCollapse'>) {
     setViewOpts(prev => {
@@ -97,6 +117,7 @@ export default function AyarlarPage() {
   }
 
   useEffect(() => {
+    setPortalUrlPrefix(getPortalUrlPrefix())
     setActiveTheme(getSavedTheme())
     setAutoNotify(getNotificationSettings())
     setNotifications(getNotificationPrefs())
@@ -174,9 +195,67 @@ export default function AyarlarPage() {
     toast.success(`${THEMES[key].name} teması uygulandı`)
   }
 
+  async function handleSavePortalSlug() {
+    const portalSlug = normalizePortalSlug(portal.slug || autoNotify.portal_slug)
+    if (!portalSlug) {
+      toast.error('Önce bir slug girin')
+      return
+    }
+    const ownCompany = (profile.company || autoNotify.shop_name || '').trim()
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/tenant/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portal_slug: portalSlug }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Slug kaydedilemedi')
+      savePortalSettings({ ...portal, slug: portalSlug })
+      setAutoNotify(n => ({ ...n, portal_slug: portalSlug }))
+      await handleSaveBranding(true)
+
+      const brandRes = await fetch(`/api/tenant/branding?slug=${encodeURIComponent(portalSlug)}`)
+      const brandJson = await brandRes.json().catch(() => ({}))
+      const resolvedShop = String(brandJson.shopName || brandJson.company_name || '').trim()
+
+      let verifyMsg = `Portal slug kaydedildi: ${portalSlug}`
+      if (ownCompany && resolvedShop && ownCompany.toLowerCase() !== resolvedShop.toLowerCase()) {
+        toast.warning(
+          `Slug kaydedildi ancak portal şu an "${resolvedShop}" bayisine yönleniyor. Siparişleriniz "${ownCompany}" hesabındaysa doğru hesapla giriş yapıp tekrar kaydedin.`,
+        )
+        return
+      }
+
+      const ordersRes = await fetch('/api/service-orders?limit=1', { credentials: 'same-origin' })
+      const ordersJson = await ordersRes.json().catch(() => ({}))
+      const sampleNo = ordersJson.data?.[0]?.order_no as string | undefined
+      if (sampleNo) {
+        const searchRes = await fetch(
+          `/api/public/portal/${encodeURIComponent(portalSlug)}/search?q=${encodeURIComponent(sampleNo)}`,
+        )
+        const searchJson = await searchRes.json().catch(() => ({}))
+        if (Array.isArray(searchJson.results) && searchJson.results.length > 0) {
+          verifyMsg = `Portal slug kaydedildi — test araması başarılı (${sampleNo})`
+        } else {
+          toast.warning(
+            `Slug kaydedildi fakat portal test araması kayıt bulamadı. Atölye kayıtlarının Supabase'e senkron olduğundan emin olun.`,
+          )
+          return
+        }
+      }
+
+      toast.success(verifyMsg)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Slug kaydı başarısız')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   async function handleSaveBranding(silent = false) {
     setSyncing(true)
-    const portalSlug = portal.slug || autoNotify.portal_slug
+    const portalSlug = normalizePortalSlug(portal.slug || autoNotify.portal_slug)
     saveBusinessBranding({
       shop_name: autoNotify.shop_name,
       shop_logo: autoNotify.shop_logo,
@@ -227,7 +306,7 @@ export default function AyarlarPage() {
           company_name: profile.company || autoNotify.shop_name,
           city: profile.city,
           tax_number: profile.tax_no,
-          portal_slug: portal.slug || autoNotify.portal_slug,
+          portal_slug: normalizePortalSlug(portal.slug || autoNotify.portal_slug),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -275,10 +354,6 @@ export default function AyarlarPage() {
     shopPhone: autoNotify.shop_phone?.trim() || '',
     shopAddress: autoNotify.shop_address?.trim() || '',
     shopLogo: autoNotify.shop_logo?.trim() || null,
-  }
-
-  function markBrandDirty() {
-    setBrandDirty(true)
   }
 
   async function applyLogoFile(file: File) {
@@ -431,21 +506,9 @@ export default function AyarlarPage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="label">Takip Sayfası Slug</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-[var(--text-muted)] shrink-0">/takip?shop=</span>
-                        <input
-                          className="input"
-                          placeholder="dukkan-adi"
-                          value={portal.slug}
-                          onChange={e => {
-                            setPortal(p => ({ ...p, slug: e.target.value }))
-                            setAutoNotify(n => ({ ...n, portal_slug: e.target.value }))
-                            markBrandDirty()
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-[var(--text-muted)] mt-1">Müşteri takip linkinde firma logosu ve iletişim bilgisi bu slug ile gelir.</p>
+                      <p className="text-[10px] text-[var(--text-muted)]">
+                        Müşteri portal linki için slug → <strong>Müşteri Portali Ayarları</strong> bölümünden düzenleyin.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -488,12 +551,78 @@ export default function AyarlarPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="label">Portal URL Slug</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[var(--text-muted)] bg-[var(--bg-muted)] border border-r-0 border-[var(--bg-border)] rounded-l-lg px-3 py-2.5">takip.auraintegra.com/</span>
-                      <input className="input rounded-l-none flex-1" value={portal.slug} onChange={e=>setPortal(p=>({...p,slug:e.target.value}))}/>
-                      <button onClick={()=>{navigator.clipboard?.writeText(`https://takip.auraintegra.com/${portal.slug}`);toast.success('Link kopyalandı')}}
-                        className="btn-secondary p-2.5"><Copy size={14}/></button>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="flex flex-1 min-w-0">
+                        <span className="text-xs sm:text-sm text-[var(--text-muted)] bg-[var(--bg-muted)] border border-r-0 border-[var(--bg-border)] rounded-l-lg px-3 py-2.5 shrink-0 max-w-[50%] truncate">
+                          {portalUrlPrefix}
+                        </span>
+                        <input
+                          className="input rounded-l-none flex-1 min-w-0"
+                          placeholder="dukkan-adi"
+                          value={portal.slug}
+                          onChange={e => handlePortalSlugChange(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        {!portal.slug && (autoNotify.shop_name || profile.company) && (
+                          <button
+                            type="button"
+                            onClick={() => handlePortalSlugChange(suggestPortalSlug(autoNotify.shop_name || profile.company))}
+                            className="btn-secondary px-3 py-2.5 text-xs whitespace-nowrap"
+                          >
+                            Öner
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={!portal.slug}
+                          onClick={() => {
+                            const url = getPortalFullUrl(portal.slug)
+                            void navigator.clipboard?.writeText(url)
+                            toast.success('Portal linki kopyalandı')
+                          }}
+                          className="btn-secondary p-2.5 disabled:opacity-40"
+                          title="Linki kopyala"
+                        >
+                          <Copy size={14} />
+                        </button>
+                        {portal.slug && (
+                          <a
+                            href={buildPortalLandingUrl(portal.slug)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-secondary p-2.5 inline-flex items-center"
+                            title="Portali aç"
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          disabled={!portal.slug || syncing}
+                          onClick={() => void handleSavePortalSlug()}
+                          className="btn-primary px-3 py-2.5 text-xs whitespace-nowrap disabled:opacity-50"
+                        >
+                          Slug Kaydet
+                        </button>
+                      </div>
                     </div>
+                    <p className="text-[10px] text-[var(--text-muted)] mt-2">
+                      Canlı link:{' '}
+                      <code className="text-[11px] break-all">
+                        {portal.slug ? getPortalFullUrl(portal.slug) : `${portalUrlPrefix}[slug]`}
+                      </code>
+                    </p>
+                    {!isCustomPortalDomainConfigured() && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                        Portal slug mutlaka Supabase&apos;e kaydedilmeli — <strong>Slug Kaydet</strong> butonuna basın.
+                        Kayıt olmadan şirket adıyla geçici eşleşme olur; başka bir bayi aynı isimdeyse sipariş bulunamaz
+                        (ör. <code>summit</code> slug&apos;ı, <code>dsadas</code> şirketindeki kayıtları göstermez).
+                      </p>
+                    )}
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                      Servis takip sayfası: <code>/takip?shop={portal.slug || 'slug'}</code> — slug kaydedildikten sonra marka bilgisi bu linkte görünür.
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[

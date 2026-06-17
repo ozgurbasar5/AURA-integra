@@ -1,4 +1,5 @@
 import { renderTemplate, buildTrackingUrl, buildApprovalUrl, generateToken, isQcComplete } from './erp-features'
+import { filterOrdersByTrackingQuery } from './tracking-search'
 import { SMS_TEMPLATES } from './constants'
 
 /**
@@ -2138,14 +2139,9 @@ export function setActiveBranchId(id: string): void {
 }
 
 export function searchLocalServiceOrders(query: string): StoreServiceOrder[] {
-  const q = query.trim().toLocaleLowerCase('tr-TR')
+  const q = query.trim()
   if (!q) return []
-  return loadStore().serviceOrders.filter(o =>
-    o.job_no.toLocaleLowerCase('tr-TR').includes(q) ||
-    o.customer_phone.includes(q) ||
-    o.customer_name.toLocaleLowerCase('tr-TR').includes(q) ||
-    (o.imei || '').includes(q),
-  )
+  return filterOrdersByTrackingQuery(loadStore().serviceOrders, q)
 }
 
 export function getLocalStatusHistory(orderId: string): StatusHistoryEntry[] {

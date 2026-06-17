@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkSupabaseEnv, EXPECTED_PROJECT_REF } from '@/lib/supabase/validate-env'
+import { getPublicSupabaseEnv } from '@/lib/supabase/public-env'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,16 +79,17 @@ export async function GET(request: NextRequest) {
   }
 
   if (request.nextUrl.searchParams.get('ping') === '1') {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const envPublic = getPublicSupabaseEnv()
+    const url = envPublic?.url ?? ''
     let dbStatus: number | 'timeout' | 'error' = 'error'
     let dbMs = 0
-    if (env.ok && url) {
+    if (env.ok && url && envPublic?.anon) {
       try {
         const t0 = Date.now()
         const res = await fetch(`${url}/rest/v1/subscription_plans?select=id&limit=1`, {
           headers: {
-            apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+            apikey: envPublic.anon,
+            Authorization: `Bearer ${envPublic.anon}`,
           },
           signal: AbortSignal.timeout(8000),
         })

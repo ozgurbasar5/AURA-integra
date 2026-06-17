@@ -89,7 +89,8 @@ const STATIC_DOCS: DocPage[] = [
 <p>Müşterileriniz, servis durumlarını istedikleri zaman sorgulayabilir.</p>
 <h3>Portal URL</h3>
 <p>Her bayinin kendine özel bir portal linki vardır:</p>
-<code style="background:#f1f5f9;padding:4px 8px;border-radius:4px;font-size:13px">takip.auraintegra.com/[bayi-slug]</code>
+<code style="background:#f1f5f9;padding:4px 8px;border-radius:4px;font-size:13px">integra.aurabilisim.net/portal/[bayi-slug]</code>
+<p style="font-size:12px;color:#64748b;margin-top:6px">Kısa URL için DNS: <code>takip.aurabilisim.net</code> → Vercel</p>
 <p style="margin-top:8px">Bayi slug, <strong>Ayarlar → Genel Bilgiler</strong> bölümünden değiştirilebilir.</p>
 <h3>Müşteri Sorgulama</h3>
 <p>Müşteri <strong>ad/soyad</strong> veya <strong>telefon numarası</strong> ile kayıtlı tüm cihazlarını görebilir.</p>
