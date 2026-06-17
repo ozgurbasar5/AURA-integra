@@ -47,7 +47,7 @@ export const NAV_ITEMS: NavItemDef[] = [
   { href: '/dashboard/siparisler', icon: ClipboardList, label: 'Müşteri Siparişleri', categoryId: 'satis-musteri', legacyGroup: 'YÖNETİM' },
   { href: '/dashboard/magaza', icon: Store, label: 'Mağaza', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/vitrin', icon: Store, label: 'Vitrin Cihazları', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
-  { href: '/dashboard/ikinci-el', icon: RefreshCw, label: 'İkinci El', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
+  { href: '/dashboard/vitrin', icon: RefreshCw, label: 'Vitrin / İkinci El', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/varliklar', icon: Building2, label: 'Varlık Yönetimi', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/kampanyalar', icon: Megaphone, label: 'Kampanyalar', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/firsatlar', icon: Tag, label: 'Fırsatlar', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },

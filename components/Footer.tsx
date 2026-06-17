@@ -61,9 +61,9 @@ export default function Footer() {
                 <p className="text-sm text-slate-500 leading-relaxed mb-6">Teknolojiniz için laboratuvar standartlarında onarım merkezi. <strong className="text-slate-300">Güvenilir, hızlı ve garantili</strong> çözümler üretiyoruz.</p>
                 
                 <div className="flex gap-4">
-                    <a href="#" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Instagram size={18}/></a>
-                    <a href="#" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Twitter size={18}/></a>
-                    <a href="#" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Facebook size={18}/></a>
+                    <a href="https://www.instagram.com/aurabilisim" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Instagram size={18}/></a>
+                    <a href="https://x.com/aurabilisim" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Twitter size={18}/></a>
+                    <a href="https://www.facebook.com/aurabilisim" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 hover:bg-cyan-600 hover:text-white transition-all"><Facebook size={18}/></a>
                 </div>
             </div>
             

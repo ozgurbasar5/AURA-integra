@@ -51,15 +51,32 @@ export default function DestekPage() {
       return
     }
     setSubmitting(true)
-    addSupportTicket({
-      subject: form.konu,
-      priority: form.oncelik as 'Düşük' | 'Normal' | 'Yüksek' | 'Acil',
-      description: form.aciklama,
-    })
-    toast.success('Destek talebiniz alındı! En kısa sürede dönüş yapacağız.')
-    setForm({ konu: '', oncelik: 'Normal', aciklama: '' })
-    setSubmitting(false)
-    refresh()
+    try {
+      const res = await fetch('/api/tenant/support', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: form.konu,
+          description: form.aciklama,
+          priority: form.oncelik,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gönderilemedi')
+      addSupportTicket({
+        subject: form.konu,
+        priority: form.oncelik as 'Düşük' | 'Normal' | 'Yüksek' | 'Acil',
+        description: form.aciklama,
+      })
+      toast.success('Destek talebiniz alındı! En kısa sürede dönüş yapacağız.')
+      setForm({ konu: '', oncelik: 'Normal', aciklama: '' })
+      refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gönderilemedi')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

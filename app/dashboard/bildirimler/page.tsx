@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   Bell, Search, CheckCheck, Trash2, Filter,
@@ -44,6 +44,32 @@ export default function BildirimlerPage() {
   const [tab, setTab] = useState<'logs' | 'templates' | 'settings'>('logs')
   const [showSendModal, setShowSendModal] = useState(false)
   const [sendForm, setSendForm] = useState<{ channel: NotificationLog['channel']; recipient: string; content: string; customer_name: string }>({ channel: 'sms', recipient: '', content: '', customer_name: '' })
+  const [triggers, setTriggers] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    fetch('/api/tenant/notification-config', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.triggers) setTriggers(json.triggers)
+        else {
+          const defaults: Record<string, boolean> = {}
+          Object.keys(TRIGGER_LABELS).forEach(k => { defaults[k] = true })
+          setTriggers(defaults)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  async function toggleTrigger(key: string) {
+    const next = { ...triggers, [key]: !triggers[key] }
+    setTriggers(next)
+    await fetch('/api/tenant/notification-config', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ triggers: next }),
+    })
+  }
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -222,7 +248,12 @@ export default function BildirimlerPage() {
                       <span className="w-5 h-5 rounded bg-green-50 flex items-center justify-center"><MessageCircle size={10} className="text-green-600" /></span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={triggers[key] !== false}
+                        onChange={() => void toggleTrigger(key)}
+                        className="sr-only peer"
+                      />
                       <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:bg-sky-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
                     </label>
                   </div>
@@ -242,7 +273,7 @@ export default function BildirimlerPage() {
             <div className="p-5 space-y-3">
               <div><label className="label">Kanal</label>
                 <select className="select" value={sendForm.channel} onChange={e => setSendForm(f => ({ ...f, channel: e.target.value as NotificationLog['channel'] }))}>
-                  {Object.entries(CHANNEL_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                  {Object.entries(CHANNEL_CONFIG).filter(([k]) => k === 'sms' || k === 'email').map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
               <div><label className="label">Alıcı *</label><input className="input" value={sendForm.recipient} onChange={e => setSendForm(f => ({ ...f, recipient: e.target.value }))} /></div>

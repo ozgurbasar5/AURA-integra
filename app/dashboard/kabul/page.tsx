@@ -59,7 +59,7 @@ export default function KabulPage() {
     }
     setSaving(true)
     const jobNo = generateNextJobNo()
-    const { order: created, synced } = await createServiceOrderRemote({
+    const { order: created, synced, error } = await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
       device_brand: form.device_brand,
@@ -68,6 +68,11 @@ export default function KabulPage() {
       description: [form.description, ...form.pre_checks].filter(Boolean).join('; '),
       status: 'waiting_diagnosis',
     })
+    if (!created) {
+      toast.error(error || 'Kayıt oluşturulamadı')
+      setSaving(false)
+      return
+    }
     const slug = getPortalSlug()
     const track = trackUrl(created.job_no, slug)
     const smsMsg = `${getBusinessBranding().shopName}: Cihazınız alındı. Takip: ${track}`

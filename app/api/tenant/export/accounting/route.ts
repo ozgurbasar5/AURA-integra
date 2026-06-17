@@ -19,10 +19,10 @@ export async function GET() {
   const [txRes, salesRes, invRes] = await Promise.all([
     auth.supabase
       .from('financial_transactions')
-      .select('date, type, category, amount, description, payment_method')
+      .select('transaction_date, type, category, amount, description, payment_method')
       .eq('tenant_id', auth.tenantId)
-      .gte('date', thirtyDaysAgo.toISOString().slice(0, 10))
-      .order('date'),
+      .gte('transaction_date', thirtyDaysAgo.toISOString().slice(0, 10))
+      .order('transaction_date'),
     auth.supabase
       .from('sales')
       .select('created_at, total, payment_method, customer_name')
@@ -40,7 +40,7 @@ export async function GET() {
   const lines = [
     'Tarih,Tür,Kategori,Açıklama,Tutar,Ödeme Yöntemi',
     ...(txRes.data ?? []).map(r =>
-      [r.date, r.type, r.category, `"${String(r.description ?? '').replace(/"/g, '""')}"`, r.amount, r.payment_method].join(',')
+      [r.transaction_date, r.type, r.category, `"${String(r.description ?? '').replace(/"/g, '""')}"`, r.amount, r.payment_method].join(',')
     ),
     '',
     'Satış Tarihi,Müşteri,Tutar,Ödeme',

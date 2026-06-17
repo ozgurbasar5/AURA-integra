@@ -114,6 +114,34 @@ export default function FaturaPage() {
     toast.success('Fatura gönderildi')
   }
 
+  function printInvoice(inv: InvoiceRecord) {
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(`<html><head><title>${inv.invoice_no}</title></head><body>
+      <h1>${TYPE_LABELS[inv.invoice_type] ?? inv.invoice_type}</h1>
+      <p>No: ${inv.invoice_no} — ${inv.invoice_date}</p>
+      <p>Müşteri: ${inv.customer_name}</p>
+      <p>Ara Toplam: ${formatCurrency(inv.subtotal)}</p>
+      <p>KDV: ${formatCurrency(inv.kdv_amount)}</p>
+      <p><strong>Toplam: ${formatCurrency(inv.total)}</strong></p>
+    </body></html>`)
+    w.document.close()
+    w.print()
+  }
+
+  async function downloadInvoicePdf(inv: InvoiceRecord) {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF()
+    doc.setFontSize(14)
+    doc.text(TYPE_LABELS[inv.invoice_type] ?? inv.invoice_type, 14, 20)
+    doc.setFontSize(10)
+    doc.text(`No: ${inv.invoice_no}`, 14, 30)
+    doc.text(`Tarih: ${inv.invoice_date}`, 14, 36)
+    doc.text(`Müşteri: ${inv.customer_name}`, 14, 42)
+    doc.text(`Toplam: ${formatCurrency(inv.total)}`, 14, 52)
+    doc.save(`${inv.invoice_no}.pdf`)
+  }
+
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
@@ -210,9 +238,8 @@ export default function FaturaPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Görüntüle"><Eye size={13} /></button>
-                        <button className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" title="Yazdır"><Printer size={13} /></button>
-                        <button className="p-1.5 rounded-lg hover:bg-sky-50 text-sky-600" title="PDF İndir"><Download size={13} /></button>
+                        <button type="button" onClick={() => printInvoice(inv)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600" title="Yazdır"><Printer size={13} /></button>
+                        <button type="button" onClick={() => void downloadInvoicePdf(inv)} className="p-1.5 rounded-lg hover:bg-sky-50 text-sky-600" title="PDF İndir"><Download size={13} /></button>
                         {inv.status === 'taslak' && (
                           <button onClick={() => sendInvoice(inv.id)}
                             className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600" title="Gönder"><Send size={13} /></button>

@@ -24,6 +24,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
 
+      - run: node scripts/check-migrations.mjs
+
+      - run: npm test
+
       - run: npm run build
         env:
           SKIP_ENV_VERIFY: '1'

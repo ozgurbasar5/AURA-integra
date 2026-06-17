@@ -30,6 +30,8 @@ import type {
   Branch,
   NotificationSettings,
   StoreServiceOrder,
+  ServiceExpense,
+  StatusHistoryEntry,
 } from './store'
 
 type Row = Record<string, unknown>
@@ -840,3 +842,54 @@ export function foreignDeviceToDb(d: ForeignDevice, tenantId: string): Row {
 }
 
 export { mapStoreStatusToDb }
+
+// ─── Service expenses & status history ───────────────────────────────────────
+
+export function serviceExpenseToStore(row: Row): ServiceExpense {
+  return {
+    id: String(row.id),
+    service_id: String(row.service_order_id),
+    source: (['part', 'labor', 'shipping', 'other'].includes(String(row.source))
+      ? String(row.source)
+      : 'other') as ServiceExpense['source'],
+    reference_id: row.reference_id ? String(row.reference_id) : undefined,
+    description: String(row.description ?? ''),
+    amount: Number(row.amount) || 0,
+    created_at: String(row.created_at ?? new Date().toISOString()),
+  }
+}
+
+export function serviceExpenseToDb(exp: ServiceExpense, tenantId: string): Row {
+  return {
+    id: exp.id.match(/^[0-9a-f-]{36}$/i) ? exp.id : undefined,
+    tenant_id: tenantId,
+    service_order_id: exp.service_id,
+    source: exp.source,
+    reference_id: exp.reference_id ?? null,
+    description: exp.description,
+    amount: exp.amount,
+    created_at: exp.created_at,
+  }
+}
+
+export function statusHistoryToStore(row: Row): StatusHistoryEntry {
+  return {
+    id: String(row.id),
+    service_order_id: String(row.order_id),
+    status: String(row.status),
+    note: row.note ? String(row.note) : undefined,
+    user: row.created_by ? String(row.created_by) : undefined,
+    created_at: String(row.created_at ?? new Date().toISOString()),
+  }
+}
+
+export function statusHistoryToDb(entry: StatusHistoryEntry, userId?: string): Row {
+  return {
+    id: entry.id.match(/^[0-9a-f-]{36}$/i) ? entry.id : undefined,
+    order_id: entry.service_order_id,
+    status: entry.status,
+    note: entry.note ?? null,
+    created_by: userId ?? null,
+    created_at: entry.created_at,
+  }
+}

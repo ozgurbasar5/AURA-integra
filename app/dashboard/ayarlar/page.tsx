@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop, ExternalLink } from 'lucide-react'
 import { THEMES, type ThemeKey, applyTheme, getSavedTheme } from '@/lib/theme'
 import { getNotificationSettings, setNotificationSettings, type NotificationSettings } from '@/lib/store'
@@ -39,10 +40,10 @@ const NOTIFICATION_SETTINGS = [
 ]
 
 const INTEGRATIONS = [
-  { id: 'whatsapp',  name: 'WhatsApp Business', icon: '💬', status: 'connected', desc: 'Müşteri mesajlaşma' },
+  { id: 'whatsapp',  name: 'WhatsApp Business', icon: '💬', status: 'coming', desc: 'Müşteri mesajlaşma' },
   { id: 'mikro',     name: 'Mikro Muhasebe',    icon: '📊', status: 'available', desc: 'Muhasebe entegrasyonu' },
   { id: 'logo',      name: 'Logo Tiger',         icon: '🐯', status: 'available', desc: 'ERP entegrasyonu' },
-  { id: 'nes',       name: 'NES Kargo',          icon: '📦', status: 'connected', desc: 'Kargo takip sistemi' },
+  { id: 'nes',       name: 'NES Kargo',          icon: '📦', status: 'available', desc: 'Kargo takip sistemi' },
   { id: 'iyzico',    name: 'İyzico',             icon: '💳', status: 'available', desc: 'Online ödeme altyapısı' },
   { id: 'n11',       name: 'n11 / Trendyol',     icon: '🛍️', status: 'coming',    desc: 'Marketplace entegrasyonu' },
 ]
@@ -84,6 +85,35 @@ export default function AyarlarPage() {
   const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null)
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
   const [portalUrlPrefix, setPortalUrlPrefix] = useState('/portal/')
+  const [subscription, setSubscription] = useState<{
+    plan: { name: string; price: number; max_users: number; features: string[] }
+    subscription_end: string | null
+    usage: { active_users: number; max_users: number }
+    payments: { id: string; amount: number; status: string; due_date: string; paid_at?: string; payment_method?: string }[]
+  } | null>(null)
+  const router = useRouter()
+
+  async function testIntegration(integrationId: string) {
+    const map: Record<string, string> = { nes: 'sms', mikro: 'smtp', logo: 'smtp', iyzico: 'smtp' }
+    const kind = map[integrationId]
+    if (!kind) {
+      toast.info('Bu entegrasyon henüz desteklenmiyor')
+      return
+    }
+    try {
+      const res = await fetch('/api/tenant/integrations/test', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integration: kind }),
+      })
+      const json = await res.json()
+      if (json.ok) toast.success(`${integrationId.toUpperCase()} bağlantı testi başarılı`)
+      else toast.error(json.error || json.message || 'Bağlantı testi başarısız')
+    } catch {
+      toast.error('Test isteği gönderilemedi')
+    }
+  }
 
   function handlePortalSlugChange(raw: string) {
     const slug = normalizePortalSlug(raw)
@@ -186,6 +216,10 @@ export default function AyarlarPage() {
       .then(json => {
         if (json.has_key && json.key_hint) setApiKeyPreview(json.key_hint)
       })
+      .catch(() => {})
+    fetch('/api/tenant/subscription', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => { if (json?.plan) setSubscription(json) })
       .catch(() => {})
   }, [])
 
@@ -942,14 +976,9 @@ export default function AyarlarPage() {
                         <div className="flex items-center gap-2">
                           <span className={`badge text-xs ${st.color}`}>{st.label}</span>
                           {int.status === 'available' && (
-                            <button onClick={()=>toast.info(`${int.name} entegrasyon kurulumu başlatılıyor...`)}
+                            <button onClick={() => void testIntegration(int.id)}
                               className="text-xs font-semibold transition-all" style={{ color: 'var(--accent)' }}>
-                              Kur
-                            </button>
-                          )}
-                          {int.status === 'connected' && (
-                            <button onClick={()=>toast.success('Bağlantı test edildi')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-                              <RefreshCw size={13}/>
+                              Test
                             </button>
                           )}
                         </div>
@@ -1046,15 +1075,30 @@ export default function AyarlarPage() {
                     <p className="text-xs text-[var(--text-muted)] mt-0.5">Abonelik durumu ve kullanım bilgileri</p>
                   </div>
                   <span className="badge text-sm font-bold px-3 py-1.5" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' }}>
-                    Profesyonel
+                    {subscription?.plan.name ?? 'Deneme'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
                   {[
-                    { label:'Aylık Ücret',    value:'₺1.490 + KDV' },
-                    { label:'Sonraki Ödeme',  value:'04 Temmuz 2026' },
-                    { label:'Aktif Kullanıcı', value:'3 / 5' },
+                    {
+                      label: 'Aylık Ücret',
+                      value: subscription?.plan.price
+                        ? `₺${subscription.plan.price.toLocaleString('tr-TR')} + KDV`
+                        : '—',
+                    },
+                    {
+                      label: 'Sonraki Ödeme',
+                      value: subscription?.subscription_end
+                        ? new Date(subscription.subscription_end).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : '—',
+                    },
+                    {
+                      label: 'Aktif Kullanıcı',
+                      value: subscription
+                        ? `${subscription.usage.active_users} / ${subscription.usage.max_users}`
+                        : '—',
+                    },
                   ].map(s => (
                     <div key={s.label} className="settings-panel rounded-xl p-4 text-center border border-[var(--bg-border)]">
                       <p className="text-lg font-black text-[var(--text-primary)]">{s.value}</p>
@@ -1065,7 +1109,7 @@ export default function AyarlarPage() {
 
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-[var(--text-secondary)]">Plan İçeriği</h4>
-                  {['Tüm modüller', '5 kullanıcı', 'Öncelikli destek', 'API erişimi', 'Özel raporlar'].map(f => (
+                  {(subscription?.plan.features?.length ? subscription.plan.features : ['Tüm modüller', 'Öncelikli destek', 'API erişimi']).map(f => (
                     <div key={f} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                       <Check size={14} style={{ color: 'var(--accent)' }}/>
                       {f}
@@ -1084,7 +1128,7 @@ export default function AyarlarPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-black text-[var(--text-primary)]">₺2.990<span className="text-sm font-normal text-[var(--text-muted)]">/ay</span></p>
-                    <button onClick={()=>toast.info('Yükseltme talebi oluşturuldu')}
+                    <button onClick={() => router.push('/dashboard/plan-yukselt')}
                       className="text-xs font-bold transition-all" style={{ color: 'var(--accent)' }}>
                       Yükselt →
                     </button>
@@ -1094,10 +1138,33 @@ export default function AyarlarPage() {
 
               <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-3">Fatura Geçmişi</h3>
-                <div className="flex flex-col items-center justify-center py-8 gap-2">
-                  <p className="text-sm text-[var(--text-muted)]">Henüz fatura kaydı yok</p>
-                  <p className="text-xs text-[var(--text-muted)] opacity-70">Ödemeler gerçekleştikçe burada görünecek</p>
-                </div>
+                {subscription?.payments?.length ? (
+                  <div className="space-y-2">
+                    {subscription.payments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-2 border-b border-[var(--bg-border)] last:border-0 text-sm">
+                        <div>
+                          <p className="font-medium text-[var(--text-primary)]">
+                            ₺{Number(p.amount).toLocaleString('tr-TR')}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {p.paid_at
+                              ? new Date(p.paid_at).toLocaleDateString('tr-TR')
+                              : new Date(p.due_date).toLocaleDateString('tr-TR')}
+                            {p.payment_method ? ` · ${p.payment_method}` : ''}
+                          </p>
+                        </div>
+                        <span className={`badge text-xs ${p.status === 'paid' ? 'badge-green' : 'badge-slate'}`}>
+                          {p.status === 'paid' ? 'Ödendi' : p.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 gap-2">
+                    <p className="text-sm text-[var(--text-muted)]">Henüz fatura kaydı yok</p>
+                    <p className="text-xs text-[var(--text-muted)] opacity-70">Ödemeler gerçekleştikçe burada görünecek</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

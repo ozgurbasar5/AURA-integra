@@ -75,7 +75,8 @@ export type PortalOrderHit = {
 export function mapDbOrderToPortalHit(row: Record<string, unknown>): PortalOrderHit {
   const dbStatus = String(row.status ?? 'alindi')
   const publicStatus = mapDbStatusToPublic(dbStatus)
-  const cust = row.customers as { full_name?: string; phone?: string } | null
+  const rawCust = row.customers as { full_name?: string; phone?: string } | { full_name?: string; phone?: string }[] | null
+  const cust = Array.isArray(rawCust) ? rawCust[0] : rawCust
 
   return {
     id: String(row.id),
@@ -95,11 +96,19 @@ export function mapDbOrderToPortalHit(row: Record<string, unknown>): PortalOrder
   }
 }
 
+function resolveCustomer(row: {
+  customers?: { full_name?: string; phone?: string } | { full_name?: string; phone?: string }[] | null
+}): { full_name?: string; phone?: string } | null {
+  const c = row.customers
+  if (Array.isArray(c)) return c[0] ?? null
+  return c ?? null
+}
+
 export function filterOrdersByTrackingQuery<T extends {
   order_no?: string | null
   job_no?: string | null
   imei?: string | null
-  customers?: { full_name?: string; phone?: string } | null
+  customers?: { full_name?: string; phone?: string } | { full_name?: string; phone?: string }[] | null
   customer_name?: string | null
   customer_phone?: string | null
 }>(
@@ -111,8 +120,9 @@ export function filterOrdersByTrackingQuery<T extends {
   const lower = q.toLowerCase()
 
   return rows.filter(row => {
-    const name = String(row.customer_name ?? row.customers?.full_name ?? '')
-    const phone = String(row.customer_phone ?? row.customers?.phone ?? '')
+    const cust = resolveCustomer(row)
+    const name = String(row.customer_name ?? cust?.full_name ?? '')
+    const phone = String(row.customer_phone ?? cust?.phone ?? '')
     const orderNo = row.order_no ?? row.job_no ?? ''
     if (name.toLowerCase().includes(lower)) return true
     if (trackingQueryMatchesOrder(q, orderNo)) return true

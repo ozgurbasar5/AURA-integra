@@ -33,7 +33,7 @@ export async function requireSuperAdmin(
     }
   }
 
-  if (isSuperAdminEmail(user.email)) {
+  if (process.env.NODE_ENV === 'development' && isSuperAdminEmail(user.email)) {
     return { authorized: true, userId: user.id }
   }
 
@@ -77,7 +77,7 @@ export async function requireSuperAdminFromCookies(): Promise<
       }
     }
 
-    if (isSuperAdminEmail(user.email)) {
+    if (process.env.NODE_ENV === 'development' && isSuperAdminEmail(user.email)) {
       return { authorized: true, userId: user.id }
     }
 

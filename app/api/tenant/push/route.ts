@@ -5,8 +5,8 @@ import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { canPushModule } from '@/lib/api-role-guard'
 import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
 import { getServiceClient } from '@/lib/supabase/service'
-import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceOrderToDb } from '@/lib/db-mappers'
-import type { StoreData } from '@/lib/store'
+import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceOrderToDb, serviceExpenseToDb, statusHistoryToDb } from '@/lib/db-mappers'
+import type { StoreData, ServiceExpense, StatusHistoryEntry } from '@/lib/store'
 
 type PushBody = {
   module: keyof StoreData | 'notificationSettings' | 'kasaBalance'
@@ -459,6 +459,26 @@ export async function POST(req: NextRequest) {
           return row
         })
         const { error } = await upsertRows(supabase, 'foreign_devices', rows)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        break
+      }
+      case 'serviceExpenses': {
+        const rows = (items as ServiceExpense[]).map(e => {
+          const row = serviceExpenseToDb(e, tenantId) as Record<string, unknown>
+          if (!isUuid(String(row.id ?? ''))) delete row.id
+          return row
+        })
+        const { error } = await upsertRows(supabase, 'service_expenses', rows)
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        break
+      }
+      case 'statusHistory': {
+        const rows = (items as StatusHistoryEntry[]).map(h => {
+          const row = statusHistoryToDb(h, userId) as Record<string, unknown>
+          if (!isUuid(String(row.id ?? ''))) delete row.id
+          return row
+        })
+        const { error } = await upsertRows(supabase, 'service_status_history', rows)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         break
       }

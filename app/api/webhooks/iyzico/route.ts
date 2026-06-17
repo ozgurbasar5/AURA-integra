@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
+import { activateTenantSubscription } from '@/lib/subscription-webhook'
 import { createHmac } from 'crypto'
 
 function verifyIyzicoSignature(body: string, signature: string | null): boolean {
@@ -42,12 +43,16 @@ export async function POST(req: NextRequest) {
   const tenantId = payload.tenant_id ?? metadata?.tenant_id
 
   if (tenantId && (eventType.includes('SUCCESS') || eventType === 'payment.success')) {
-    const { error } = await admin
-      .from('tenants')
-      .update({ status: 'active', last_activity_at: new Date().toISOString() })
-      .eq('id', String(tenantId))
-    if (error) {
-      return NextResponse.json({ error: error.message, event: eventType }, { status: 500 })
+    const amount = Number(payload.paidPrice ?? payload.price ?? 0)
+    const planId = metadata?.plan_id ? String(metadata.plan_id) : null
+    const result = await activateTenantSubscription(admin, String(tenantId), {
+      amount: amount || undefined,
+      planId,
+      provider: 'iyzico',
+      externalRef: String(payload.paymentId ?? eventType),
+    })
+    if (!result) {
+      return NextResponse.json({ error: 'Tenant güncellenemedi', event: eventType }, { status: 500 })
     }
   }
 

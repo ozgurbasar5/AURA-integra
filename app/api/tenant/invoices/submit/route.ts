@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canManageTenantSettings } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
+import { submitInvoiceToGib } from '@/lib/efatura/provider'
 
 /** e-Fatura GIB entegratörüne gönderim (stub — gerçek entegratör API'si buraya bağlanır) */
 export async function POST(req: NextRequest) {
@@ -50,20 +51,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Fatura bulunamadı' }, { status: 404 })
   }
 
-  const gibRef = `GIB-${Date.now()}-${invoice.invoice_no ?? invoice.id}`
+  const result = await submitInvoiceToGib({
+    invoice_no: String(invoice.invoice_no ?? invoice.id),
+    customer_name: String(invoice.customer_name ?? ''),
+    customer_vkn: invoice.customer_vkn ? String(invoice.customer_vkn) : null,
+    subtotal: Number(invoice.subtotal ?? 0),
+    tax_amount: Number(invoice.tax_amount ?? 0),
+    total: Number(invoice.total ?? 0),
+    invoice_date: String(invoice.invoice_date ?? new Date().toISOString().slice(0, 10)),
+    description: invoice.description ? String(invoice.description) : null,
+  })
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.message }, { status: 502 })
+  }
 
   await admin
     .from('invoices')
     .update({
       status: 'submitted',
-      gib_reference: gibRef,
+      gib_reference: result.gib_reference,
       submitted_at: new Date().toISOString(),
     })
     .eq('id', body.invoice_id)
 
   return NextResponse.json({
     ok: true,
-    gib_reference: gibRef,
-    message: 'Fatura GIB kuyruğuna alındı. Entegratör onayı bekleniyor.',
+    gib_reference: result.gib_reference,
+    provider: result.provider,
+    message: result.message,
   })
 }

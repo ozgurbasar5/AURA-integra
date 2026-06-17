@@ -109,10 +109,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   rows = filterOrdersByTrackingQuery(rows, q).slice(0, 10)
 
-  // #region agent log
-  fetch('http://127.0.0.1:7606/ingest/2904612a-02ec-4ed5-9e0b-19c54a65c5c5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b278b2'},body:JSON.stringify({sessionId:'b278b2',runId:'post-fix',location:'search/route.ts:result',message:'portal search complete',data:{slug:params.slug,query:q,tenantId:tenant.id,tenantCompany:tenant.company_name,portalSlug:tenant.portal_slug,resultCount:rows.length,orderNos:rows.map(r=>String(r.order_no??''))},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-
   return NextResponse.json({
     tenant: {
       name: tenant.company_name,

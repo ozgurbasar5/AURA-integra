@@ -1246,6 +1246,7 @@ export function addServiceExpense(
 
   saveStore(store)
   emitChange('service')
+  emitChange('serviceExpenses')
   return newExp
 }
 
@@ -1259,6 +1260,7 @@ export function updateServiceExpense(serviceId: string, expenseId: string, newAm
   exp.amount = newAmount
   saveStore(store)
   emitChange('service')
+  emitChange('serviceExpenses')
   return true
 }
 
@@ -1270,6 +1272,7 @@ export function removeServiceExpense(serviceId: string, expenseId: string): bool
   store.serviceExpenses[serviceId] = expenses.filter(e => e.id !== expenseId)
   saveStore(store)
   emitChange('service')
+  emitChange('serviceExpenses')
   return true
 }
 
@@ -1867,6 +1870,7 @@ export function clearDemoSeedOnce() {
 
 export function seedDemoDataIfEmpty() {
   if (typeof window === 'undefined') return
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== '1') return
   const store = loadStore()
   const isEmpty =
     store.customers.length === 0 &&

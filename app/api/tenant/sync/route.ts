@@ -28,6 +28,8 @@ import {
   supplierOrderToStore,
   personnelToStore,
   foreignDeviceToStore,
+  serviceExpenseToStore,
+  statusHistoryToStore,
 } from '@/lib/db-mappers'
 import type { StoreData } from '@/lib/store'
 import type { ServiceDelivery } from '@/lib/store'
@@ -82,13 +84,13 @@ export async function GET() {
       supabase.from('accounts').select('balance').eq('tenant_id', tid).eq('type', 'kasa').limit(1),
     ])
 
-    const queryErrors = [
+    const queryErrors: { table: string; err: string }[] = [
       { table: 'parts', err: partsRes.error?.message },
       { table: 'showcase_devices', err: showcaseRes.error?.message },
       { table: 'tenant_settings', err: settingsRes.error?.message },
       { table: 'service_orders', err: ordersRes.error?.message },
       { table: 'tenants', err: tenantRes.error?.message },
-    ].filter(e => e.err)
+    ].filter((e): e is { table: string; err: string } => Boolean(e.err))
 
     const [
       appointmentsRes,
@@ -100,6 +102,7 @@ export async function GET() {
       supplierRes,
       personnelRes,
       foreignDevicesRes,
+      serviceExpensesRes,
     ] = await Promise.all([
       supabase.from('appointments').select('*').eq('tenant_id', tid).order('appointment_date', { ascending: false }),
       supabase.from('warranties').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
@@ -110,12 +113,33 @@ export async function GET() {
       supabase.from('supplier_orders').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
       supabase.from('personnel_profiles').select('*').eq('tenant_id', tid).order('full_name'),
       supabase.from('foreign_devices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
+      supabase.from('service_expenses').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(500),
     ])
+
+    if (serviceExpensesRes.error) {
+      queryErrors.push({ table: 'service_expenses', err: serviceExpensesRes.error.message })
+    }
 
     const tenant = tenantRes.data as Record<string, unknown> | null
     const settingsJson = (settingsRes.data?.settings as Record<string, unknown>) ?? {}
 
     const serviceOrders = (ordersRes.data ?? []).map(r => serviceOrderToStore(r as Record<string, unknown>))
+    const orderIds = serviceOrders.map(o => o.id).filter(Boolean)
+
+    let statusHistoryRows: Record<string, unknown>[] = []
+    if (orderIds.length > 0) {
+      const statusHistoryRes = await supabase
+        .from('service_status_history')
+        .select('*')
+        .in('order_id', orderIds)
+        .order('created_at', { ascending: false })
+        .limit(1000)
+      if (statusHistoryRes.error) {
+        queryErrors.push({ table: 'service_status_history', err: statusHistoryRes.error.message })
+      } else {
+        statusHistoryRows = (statusHistoryRes.data ?? []) as Record<string, unknown>[]
+      }
+    }
     const transactions = (txRes.data ?? []).map(r => txToStore(r as Record<string, unknown>))
 
     const serviceDeliveries: Record<string, ServiceDelivery> = {}
@@ -140,6 +164,15 @@ export async function GET() {
         finance_tx_id: incomeTx?.id,
       }
     }
+
+    const serviceExpenses: Record<string, import('@/lib/store').ServiceExpense[]> = {}
+    for (const row of serviceExpensesRes.data ?? []) {
+      const exp = serviceExpenseToStore(row as Record<string, unknown>)
+      if (!serviceExpenses[exp.service_id]) serviceExpenses[exp.service_id] = []
+      serviceExpenses[exp.service_id].push(exp)
+    }
+
+    const statusHistory = statusHistoryRows.map(r => statusHistoryToStore(r))
 
     const payload: Partial<StoreData> = {
       stock: (partsRes.data ?? []).map(r => partToStock(r as Record<string, unknown>)),
@@ -172,9 +205,17 @@ export async function GET() {
       cashShifts: (cashShiftsRes.data ?? []).map(r => cashShiftToStore(r as Record<string, unknown>)),
       supplierOrders: (supplierRes.data ?? []).map(r => supplierOrderToStore(r as Record<string, unknown>)),
       foreignDevices: (foreignDevicesRes.data ?? []).map(r => foreignDeviceToStore(r as Record<string, unknown>)),
+      serviceExpenses,
+      statusHistory,
     }
 
-    return NextResponse.json({ ok: true, data: payload, synced_at: new Date().toISOString() })
+    return NextResponse.json({
+      ok: true,
+      data: payload,
+      synced_at: new Date().toISOString(),
+      partial: queryErrors.length > 0,
+      queryErrors: queryErrors.length ? queryErrors : undefined,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Sync hatası'
     return NextResponse.json({ error: message }, { status: 500 })

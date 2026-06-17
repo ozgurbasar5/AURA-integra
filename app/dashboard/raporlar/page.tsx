@@ -97,6 +97,37 @@ export default function RaporlarPage() {
   const stockItems = getStock().length
   const vatReport = buildVatReport(getTransactions(), getSales())
 
+  function exportExcel() {
+    import('xlsx').then(XLSX => {
+      const rows = getTransactions().map(t => ({
+        Tarih: t.date,
+        Tür: t.type,
+        Kategori: t.category,
+        Tutar: t.amount,
+        Açıklama: t.description ?? '',
+      }))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Finans')
+      XLSX.writeFile(wb, `aura-rapor-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast.success('Excel indirildi')
+    })
+  }
+
+  function exportPdf() {
+    import('jspdf').then(({ jsPDF }) => {
+      const doc = new jsPDF()
+      doc.setFontSize(12)
+      doc.text('AURA İntegra — Finans Özeti', 14, 16)
+      doc.setFontSize(10)
+      doc.text(`Gelir: ${formatCurrency(summary.totalGelir)}`, 14, 28)
+      doc.text(`Gider: ${formatCurrency(summary.totalGider)}`, 14, 34)
+      doc.text(`Net: ${formatCurrency(summary.netKar)}`, 14, 40)
+      doc.save(`aura-rapor-${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast.success('PDF indirildi')
+    })
+  }
+
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -107,7 +138,14 @@ export default function RaporlarPage() {
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">Gerçek verilerinizden oluşan işletme analizi</p>
         </div>
-        <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={exportExcel} className="btn-secondary text-xs flex items-center gap-1">
+            <Download size={14} /> Excel
+          </button>
+          <button type="button" onClick={exportPdf} className="btn-secondary text-xs flex items-center gap-1">
+            <FileText size={14} /> PDF
+          </button>
+          <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
           <button
             type="button"
             onClick={() => setTab('analitik')}
@@ -122,6 +160,7 @@ export default function RaporlarPage() {
           >
             <Wallet size={14} /> Gün Sonu (Vardiya)
           </button>
+        </div>
         </div>
       </div>
 

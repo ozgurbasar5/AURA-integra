@@ -89,33 +89,50 @@ export interface CreateServiceOrderInput {
 }
 
 export async function createServiceOrderRemote(
-  input: CreateServiceOrderInput
-): Promise<{ order: StoreServiceOrder; synced: boolean; error?: string }> {
-  try {
-    const res = await apiFetch('/api/service-orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_name: input.customer_name,
-        customer_phone: input.customer_phone,
-        device_brand: input.device_brand,
-        device_model: input.device_model,
-        imei: input.imei,
-        fault_description: input.description?.trim() || 'Arıza bildirimi',
-        estimated_cost: input.estimated_cost ?? 0,
-        status: input.status ?? 'waiting_diagnosis',
-      }),
-    })
-    const json = (await res.json().catch(() => ({}))) as { data?: DbRow; error?: string }
-    if (res.ok && json.data) {
-      const order = dbToStore(json.data)
-      upsertServiceOrder(order)
-      return { order, synced: true }
+  input: CreateServiceOrderInput,
+  options?: { allowLocalFallback?: boolean; maxRetries?: number },
+): Promise<{ order: StoreServiceOrder | null; synced: boolean; error?: string }> {
+  const maxRetries = options?.maxRetries ?? 2
+  const allowLocalFallback = options?.allowLocalFallback ?? false
+  let lastError = 'Supabase bağlantısı kurulamadı'
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await apiFetch('/api/service-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: input.customer_name,
+          customer_phone: input.customer_phone,
+          device_brand: input.device_brand,
+          device_model: input.device_model,
+          imei: input.imei,
+          fault_description: input.description?.trim() || 'Arıza bildirimi',
+          estimated_cost: input.estimated_cost ?? 0,
+          status: input.status ?? 'waiting_diagnosis',
+        }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { data?: DbRow; error?: string }
+      if (res.ok && json.data) {
+        const order = dbToStore(json.data)
+        upsertServiceOrder(order)
+        return { order, synced: true }
+      }
+      lastError = json.error || `Sunucu hatası (${res.status})`
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : 'Ağ hatası'
     }
-    const errMsg = json.error || `Sunucu hatası (${res.status})`
-    console.warn('[service-order-bridge] API create failed:', errMsg)
-  } catch (e) {
-    console.warn('[service-order-bridge] API create error:', e)
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 400 * (attempt + 1)))
+    }
+  }
+
+  if (!allowLocalFallback) {
+    return {
+      order: null,
+      synced: false,
+      error: `${lastError}. Kayıt oluşturulamadı — Supabase bağlantısını kontrol edin.`,
+    }
   }
 
   const jobNo = `SRV-${Date.now().toString().slice(-6)}`
@@ -136,7 +153,7 @@ export async function createServiceOrderRemote(
   return {
     order,
     synced: false,
-    error: 'Kayıt yalnızca yerelde oluşturuldu — müşteri portalında görünmez. Supabase bağlantısını kontrol edin.',
+    error: 'Kayıt yalnızca yerelde oluşturuldu — müşteri portalında görünmez.',
   }
 }
 

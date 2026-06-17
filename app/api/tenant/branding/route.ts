@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizePortalSlug } from '@/lib/portal-url'
 import { resolveTenantByPortalSlug } from '@/lib/portal-tenant'
-import { createClient } from '@/lib/supabase/server'
 import { getServiceClient } from '@/lib/supabase/service'
-import { isOwnerRole } from '@/lib/role-access'
-import { normalizeTenantRole } from '@/lib/tenant-roles'
+import { requireTenantAuth, requireTenantOwner } from '@/lib/supabase/tenant-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,21 +130,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(mapTenantRow(data as Record<string, unknown>))
   }
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireTenantAuth()
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+  if (!admin) return NextResponse.json({ error: 'Servis kullanılamıyor' }, { status: 503 })
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.tenant_id || !admin) {
-    return NextResponse.json({ error: 'Profil bulunamadı' }, { status: 403 })
-  }
-
-  const { data, error } = await selectTenantBranding(admin, { column: 'id', value: profile.tenant_id })
+  const { data, error } = await selectTenantBranding(admin, { column: 'id', value: auth.tenantId })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(mapTenantRow(data as Record<string, unknown>))
@@ -154,24 +142,8 @@ export async function GET(req: NextRequest) {
 
 /** PUT — authenticated tenant branding sync */
 export async function PUT(req: NextRequest) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id, role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.tenant_id) {
-    return NextResponse.json({ error: 'Profil bulunamadı' }, { status: 403 })
-  }
-
-  const userRole = normalizeTenantRole(profile.role)
-  if (!isOwnerRole(userRole)) {
-    return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gerekli' }, { status: 403 })
-  }
+  const auth = await requireTenantOwner()
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
   const admin = getServiceClient()
   if (!admin) {
@@ -179,7 +151,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json() as BrandingPayload
-  const { data, error } = await updateTenantBranding(admin, profile.tenant_id, body)
+  const { data, error } = await updateTenantBranding(admin, auth.tenantId, body)
 
   if (error) {
     return NextResponse.json(

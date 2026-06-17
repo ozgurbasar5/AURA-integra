@@ -22,12 +22,24 @@ export default function PlanYukseltPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  function requestUpgrade(target: PlanLevel) {
+  async function requestUpgrade(target: PlanLevel) {
     if (target <= currentLevel) {
       toast.info('Bu paket zaten aktif veya daha düşük seviyede')
       return
     }
-    toast.success(`${PLAN_TIERS.find(t => t.level === target)?.name} paketi için talep alındı. Yöneticiniz sizinle iletişime geçecek.`)
+    const tier = PLAN_TIERS.find(t => t.level === target)
+    const res = await fetch('/api/tenant/plan-upgrade', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_id: tier?.name, message: `${tier?.name} paketine yükseltme talebi` }),
+    })
+    const json = await res.json()
+    if (res.ok) {
+      toast.success(json.message || 'Talep alındı')
+    } else {
+      toast.error(json.error || 'Talep gönderilemedi')
+    }
   }
 
   if (loading) {

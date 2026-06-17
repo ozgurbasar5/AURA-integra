@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { getServiceClient } from '@/lib/supabase/service'
-import { isOwnerRole } from '@/lib/role-access'
-import { normalizeTenantRole } from '@/lib/tenant-roles'
+import { requireTenantOwner } from '@/lib/supabase/tenant-auth'
 import { normalizePortalSlug } from '@/lib/portal-url'
 
 export const dynamic = 'force-dynamic'
@@ -17,24 +15,8 @@ type ProfilePayload = {
 }
 
 export async function PUT(req: NextRequest) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id, role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.tenant_id) {
-    return NextResponse.json({ error: 'Profil bulunamadı' }, { status: 403 })
-  }
-
-  const userRole = normalizeTenantRole(profile.role)
-  if (!isOwnerRole(userRole)) {
-    return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gerekli' }, { status: 403 })
-  }
+  const auth = await requireTenantOwner()
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
   const admin = getServiceClient()
   if (!admin) {
@@ -61,7 +43,7 @@ export async function PUT(req: NextRequest) {
     const { error } = await admin
       .from('user_profiles')
       .update(profilePatch)
-      .eq('id', user.id)
+      .eq('id', auth.userId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -71,7 +53,7 @@ export async function PUT(req: NextRequest) {
         .from('tenants')
         .select('id, company_name')
         .eq('portal_slug', tenantPatch.portal_slug)
-        .neq('id', profile.tenant_id)
+        .neq('id', auth.tenantId)
         .maybeSingle()
       if (taken) {
         return NextResponse.json(
@@ -86,18 +68,8 @@ export async function PUT(req: NextRequest) {
     const { error } = await admin
       .from('tenants')
       .update(tenantPatch)
-      .eq('id', profile.tenant_id)
-    if (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7606/ingest/2904612a-02ec-4ed5-9e0b-19c54a65c5c5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b278b2'},body:JSON.stringify({sessionId:'b278b2',location:'profile/route.ts:updateError',message:'tenant patch failed',data:{tenantId:profile.tenant_id,portalSlug:tenantPatch.portal_slug??null,error:error.message},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-    // #region agent log
-    if (tenantPatch.portal_slug) {
-      fetch('http://127.0.0.1:7606/ingest/2904612a-02ec-4ed5-9e0b-19c54a65c5c5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b278b2'},body:JSON.stringify({sessionId:'b278b2',location:'profile/route.ts:slugSaved',message:'portal_slug saved',data:{tenantId:profile.tenant_id,portalSlug:tenantPatch.portal_slug},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-    }
-    // #endregion
+      .eq('id', auth.tenantId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })

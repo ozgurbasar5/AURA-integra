@@ -134,12 +134,9 @@ export default function MusterilerPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      if (data && data.length > 0) {
-        setCustomers(data as Customer[])
-      } else {
-        setCustomers(mapStoreCustomers())
-      }
+      setCustomers((data as Customer[]) ?? [])
     } catch {
+      toast.warning('Bulut verisi alınamadı — yerel kayıtlar gösteriliyor')
       setCustomers(mapStoreCustomers())
     } finally {
       setLoading(false)

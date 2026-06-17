@@ -90,6 +90,11 @@ export default function AtolyePage() {
       estimated_cost: Number(form.estimated_cost) || 0,
       status: 'waiting_diagnosis',
     })
+    if (!result.order) {
+      toast.error(result.error || 'Kayıt oluşturulamadı')
+      setSaving(false)
+      return
+    }
     if (result.synced) {
       toast.success(`Servis kaydı oluşturuldu — ${result.order.job_no}`)
     } else {

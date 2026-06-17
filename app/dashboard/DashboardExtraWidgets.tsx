@@ -221,6 +221,7 @@ export function QuickNotesWidget() {
     <div className="surface p-5">
       <h3 className="font-bold text-[var(--text-primary)] text-sm mb-3 flex items-center gap-1.5">
         <StickyNote size={15} className="text-amber-500" /> Hızlı Notlar
+        <span className="text-[10px] font-normal text-slate-400 ml-1">(yerel)</span>
       </h3>
       <div className="flex gap-2 mb-3">
         <input

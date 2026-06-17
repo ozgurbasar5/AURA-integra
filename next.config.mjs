@@ -31,6 +31,14 @@ function assertVercelSupabaseEnv() {
         'Login ve bayi işlemleri çalışmaz. Vercel → Settings → Environment Variables.'
     )
   }
+
+  const encKey = process.env.APP_ENCRYPTION_KEY ?? ''
+  if (!encKey || encKey.length < 32) {
+    throw new Error(
+      '[AURA İntegra] APP_ENCRYPTION_KEY Vercel production\'da zorunlu (min 32 karakter). ' +
+        'SMS şifreleri ve hassas alanlar güvenli saklanamaz.'
+    )
+  }
 }
 
 assertVercelSupabaseEnv()

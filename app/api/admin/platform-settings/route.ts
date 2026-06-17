@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/lib/admin-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireSuperAdmin(request)
+  if (!auth.authorized) return auth.error
+
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
 

@@ -10,6 +10,10 @@
 -- 5) supabase/migrations/20260615_platform_admin_features.sql — Platform ayarları, audit log
 -- 6) supabase/migrations/20260616_eod_foreign_devices.sql — Gün sonu snapshot, foreign_devices RLS
 -- 7) supabase/migrations/20260617_basvuru_monthly_text.sql — Başvuru aylık servis alanı TEXT
+-- 8) supabase/migrations/20260618_security_audit.sql — PII şifreleme, API key hash
+-- 9) supabase/migrations/20260619_fix_rls_recursion.sql — RLS recursion düzeltmesi
+-- 10) supabase/migrations/20260620_ensure_tenant_branding.sql — portal_slug, shop_address
+-- 11) supabase/migrations/20260621_documentation_seed.sql — Dokümantasyon seed
 --
 -- Sonra .env.local:
 --   NEXT_PUBLIC_SUPABASE_URL=https://dipyrdidkvljojkyaqmd.supabase.co

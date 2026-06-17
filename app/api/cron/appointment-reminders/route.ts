@@ -13,7 +13,11 @@ export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === 'production' && !secret) {
     return NextResponse.json({ error: 'CRON_SECRET yapılandırılmamış' }, { status: 503 })
   }
-  if (secret && authHeader !== `Bearer ${secret}`) {
+  if (!secret) {
+    if (process.env.CRON_ALLOW_DEV !== '1') {
+      return NextResponse.json({ error: 'CRON_SECRET gerekli (dev: CRON_ALLOW_DEV=1 ile geçici açılabilir)' }, { status: 503 })
+    }
+  } else if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

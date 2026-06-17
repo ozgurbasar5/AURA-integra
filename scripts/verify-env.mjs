@@ -59,3 +59,17 @@ if (placeholder.length) {
 }
 
 console.log('✓ Supabase env OK (URL + anon + service role)')
+
+const isVercelProd =
+  process.env.VERCEL === '1' &&
+  (process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production')
+
+if (isVercelProd) {
+  const encKey = get('APP_ENCRYPTION_KEY')
+  if (!encKey || encKey.length < 32) {
+    console.error('❌ APP_ENCRYPTION_KEY Vercel production\'da zorunlu (min 32 karakter)')
+    console.error('   SMS şifreleri ve hassas alanlar şifrelenmeden saklanır.')
+    process.exit(1)
+  }
+  console.log('✓ APP_ENCRYPTION_KEY OK')
+}

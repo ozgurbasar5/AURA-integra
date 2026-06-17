@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === 'production' && !bridgeSecret) {
     return NextResponse.json({ error: 'AURA_BRIDGE_SECRET yapılandırılmamış' }, { status: 503 })
   }
-  if (bridgeSecret && apiKey !== bridgeSecret) {
+  if (!bridgeSecret) {
+    if (process.env.AURA_BRIDGE_ALLOW_DEV !== '1') {
+      return NextResponse.json({ error: 'AURA_BRIDGE_SECRET gerekli' }, { status: 503 })
+    }
+  } else if (apiKey !== bridgeSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

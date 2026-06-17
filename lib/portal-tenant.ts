@@ -26,9 +26,6 @@ export async function resolveTenantByPortalSlug(
     .maybeSingle()
 
   if (bySlug) {
-    // #region agent log
-    fetch('http://127.0.0.1:7606/ingest/2904612a-02ec-4ed5-9e0b-19c54a65c5c5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b278b2'},body:JSON.stringify({sessionId:'b278b2',runId:'post-fix',location:'portal-tenant.ts:bySlug',message:'tenant resolved by portal_slug',data:{slug,tenantId:bySlug.id,companyName:bySlug.company_name},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return bySlug as PortalTenantRow
   }
 
@@ -43,10 +40,6 @@ export async function resolveTenantByPortalSlug(
     const fromCompany = suggestPortalSlug(t.company_name || '')
     return fromCompany === slug || normalizePortalSlug(t.company_name || '') === slug
   })
-
-  // #region agent log
-  fetch('http://127.0.0.1:7606/ingest/2904612a-02ec-4ed5-9e0b-19c54a65c5c5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b278b2'},body:JSON.stringify({sessionId:'b278b2',location:'portal-tenant.ts:companyFallback',message:match?'tenant resolved by company name':'tenant not found',data:{slug,matchTenantId:match?.id??null,matchCompany:match?.company_name??null,scannedCount:tenants.length},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
 
   return match ?? null
 }

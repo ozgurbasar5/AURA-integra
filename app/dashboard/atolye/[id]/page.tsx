@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Printer, MessageCircle, Phone, User, Wrench,
-  Package, Loader2, CheckCircle2, Plus, Trash2, X, Lock, EyeOff, Eye,
+  Package, Loader2, CheckCircle2, Plus, Trash2, X, Lock, EyeOff, Eye, FileText,
 } from 'lucide-react'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
 import { getBusinessBranding } from '@/lib/business-branding'
@@ -15,10 +15,11 @@ import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
 import {
   updateServiceStatus, updateServiceOrder,
   addServiceExpense, removeServiceExpense, getServiceExpenses, getServiceProfitPreview,
-  getStock, usePartsForService, getPersonnel,
+  getStock, usePartsForService, getPersonnel, getStatusHistory,
   deliverService, getServiceDelivery, canDeliverService,
   type StoreServiceOrder,
 } from '@/lib/store'
+import ExpertiseModal from '@/components/atolye/ExpertiseModal'
 import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
 import { fetchServiceOrderById, updateServiceOrderRemote } from '@/lib/service-order-bridge'
 import { useUserRole } from '@/lib/role-context'
@@ -60,8 +61,10 @@ export default function AtolyeDetailPage() {
   const [compatible, setCompatible] = useState<ReturnType<typeof getCompatibleParts>>([])
   const [showWaPreview, setShowWaPreview] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [showExpertise, setShowExpertise] = useState(false)
   const [technician, setTechnician] = useState<string>('')
   const personnel = getPersonnel().filter(p => p.is_active)
+  const statusTimeline = getStatusHistory(id)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -225,6 +228,9 @@ export default function AtolyeDetailPage() {
           <p className="text-sm text-slate-500 mt-0.5">{order.device_brand} {order.device_model}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button type="button" onClick={() => setShowExpertise(true)} className="btn-secondary btn-sm">
+            <FileText size={14} /> Ekspertiz
+          </button>
           <button type="button" onClick={() => setShowWaPreview(true)} className="btn-secondary btn-sm">
             <Eye size={14} /> WA Önizle
           </button>
@@ -377,6 +383,24 @@ export default function AtolyeDetailPage() {
             </div>
           </div>
 
+          {statusTimeline.length > 0 && (
+            <div className="surface p-5">
+              <h2 className="text-sm font-bold text-slate-900 mb-3">Durum Geçmişi</h2>
+              <ol className="space-y-2 max-h-48 overflow-y-auto">
+                {statusTimeline.map(entry => (
+                  <li key={entry.id} className="text-xs border-l-2 border-sky-400 pl-3 py-0.5">
+                    <span className="font-bold text-[var(--text-primary)]">{STATUSES[entry.status]?.label ?? entry.status}</span>
+                    {entry.note && <span className="text-[var(--text-muted)]"> — {entry.note}</span>}
+                    <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                      {new Date(entry.created_at).toLocaleString('tr-TR')}
+                      {entry.user ? ` · ${entry.user}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {compatible.length > 0 && (
             <div className="surface p-5">
               <h2 className="text-sm font-bold text-slate-900 mb-2">Uyumlu Stok</h2>
@@ -473,6 +497,13 @@ export default function AtolyeDetailPage() {
       message={buildWaMessage()}
       phone={order.customer_phone}
       waUrl={waUrl()}
+    />
+
+    <ExpertiseModal
+      open={showExpertise}
+      onClose={() => setShowExpertise(false)}
+      jobNo={order.job_no}
+      customerName={order.customer_name}
     />
     </>
   )

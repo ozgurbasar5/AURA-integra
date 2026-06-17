@@ -149,12 +149,15 @@ export default function DokumantasyonPage() {
       try {
         const { data, error } = await (supabase.from('documentation_pages') as any)
           .select('*')
-          .eq('published', true)
-          .order('module')
+          .eq('is_published', true)
           .order('sort_order')
         if (!error && data && data.length > 0) {
-          setDocs(data as DocPage[])
-          setSelected(data[0])
+          const mapped = (data as Array<DocPage & { category?: string }>).map(d => ({
+            ...d,
+            module: d.module ?? d.category ?? 'genel',
+          }))
+          setDocs(mapped)
+          setSelected(mapped[0])
         }
       } catch { /* use static */ }
     }

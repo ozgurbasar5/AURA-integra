@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   Users, Search, Plus, X, Wrench, Clock, CheckCircle, MapPin, CalendarDays, Target, TrendingUp
 } from 'lucide-react'
 import PageHeader from '@/components/dashboard/PageHeader'
 import { useStoreSlice } from '@/hooks/useStoreSlice'
-import { getPersonnel, setPersonnel, addPersonnel, type PersonnelMember } from '@/lib/store'
+import { getPersonnel, setPersonnel, addPersonnel, getServiceOrders, type PersonnelMember } from '@/lib/store'
 import { formatDate } from '@/lib/validators'
 import { ROLES } from '@/lib/constants'
 
@@ -27,13 +27,51 @@ export default function PersonelPage() {
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
-  const filtered = staff.filter(s => {
+  const orders = useMemo(() => getServiceOrders(), [staff, mounted])
+
+  const kpiByTechnician = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    const monthStart = new Date()
+    monthStart.setDate(1)
+    const monthKey = monthStart.toISOString().slice(0, 7)
+    const map = new Map<string, { today: number; month: number; hours: number[] }>()
+    for (const o of orders) {
+      const tech = o.technician?.trim()
+      if (!tech) continue
+      if (!map.has(tech)) map.set(tech, { today: 0, month: 0, hours: [] })
+      const row = map.get(tech)!
+      if (o.status === 'delivered' && o.delivered_at) {
+        if (o.delivered_at.startsWith(today)) row.today++
+        if (o.delivered_at.startsWith(monthKey)) row.month++
+        const created = new Date(o.created_at).getTime()
+        const delivered = new Date(o.delivered_at).getTime()
+        if (delivered > created) row.hours.push((delivered - created) / 3600000)
+      }
+    }
+    return map
+  }, [orders])
+
+  const staffWithKpi = useMemo(() => staff.map(s => {
+    const kpi = kpiByTechnician.get(s.full_name)
+    if (!kpi) return s
+    const avgHours = kpi.hours.length
+      ? kpi.hours.reduce((a, b) => a + b, 0) / kpi.hours.length
+      : s.avg_repair_time_hours
+    return {
+      ...s,
+      completed_today: kpi.today || s.completed_today,
+      completed_month: kpi.month || s.completed_month,
+      avg_repair_time_hours: Math.round(avgHours * 10) / 10,
+    }
+  }), [staff, kpiByTechnician])
+
+  const filtered = staffWithKpi.filter(s => {
     if (search && !s.full_name.toLowerCase().includes(search.toLowerCase())) return false
     if (roleFilter && s.role !== roleFilter) return false
     return true
   })
 
-  const technicians = staff.filter(s => s.role === 'teknisyen' && s.is_active)
+  const technicians = staffWithKpi.filter(s => s.role === 'teknisyen' && s.is_active)
   const avgRepairTime = technicians.length > 0 ? technicians.reduce((s, t) => s + t.avg_repair_time_hours, 0) / technicians.length : 0
 
   function handleSave() {
@@ -62,7 +100,7 @@ export default function PersonelPage() {
           { label: 'Toplam Personel', val: staff.length, bg: 'bg-sky-50', color: 'text-sky-600', icon: Users },
           { label: 'Aktif Teknisyen', val: technicians.length, bg: 'bg-blue-50', color: 'text-blue-600', icon: Wrench },
           { label: 'Ort. Tamir Süresi', val: `${avgRepairTime.toFixed(1)} sa`, bg: 'bg-amber-50', color: 'text-amber-600', icon: Clock },
-          { label: 'Bugün Tamamlanan', val: staff.reduce((s, t) => s + t.completed_today, 0), bg: 'bg-emerald-50', color: 'text-emerald-600', icon: CheckCircle },
+          { label: 'Bugün Tamamlanan', val: staffWithKpi.reduce((s, t) => s + t.completed_today, 0), bg: 'bg-emerald-50', color: 'text-emerald-600', icon: CheckCircle },
         ].map(m => (
           <div key={m.label} className="card p-4 hover:shadow-md transition-all">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${m.bg} mb-2`}><m.icon size={14} className={m.color} /></div>

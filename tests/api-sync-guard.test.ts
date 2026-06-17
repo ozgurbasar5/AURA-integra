@@ -1,0 +1,26 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+
+vi.mock('@/lib/supabase/tenant-auth', () => ({
+  requireTenantAuth: vi.fn(),
+}))
+
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { GET } from '@/app/api/tenant/sync/route'
+
+describe('sync route auth', () => {
+  beforeEach(() => {
+    vi.mocked(requireTenantAuth).mockReset()
+  })
+
+  it('GET returns 401 when unauthenticated', async () => {
+    vi.mocked(requireTenantAuth).mockResolvedValue({
+      ok: false,
+      status: 401,
+      message: 'Oturum gerekli',
+    } as never)
+
+    const res = await GET()
+    expect(res.status).toBe(401)
+  })
+})

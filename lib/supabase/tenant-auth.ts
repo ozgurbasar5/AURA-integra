@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { isOwnerRole } from '@/lib/role-access'
+import { normalizeTenantRole } from '@/lib/tenant-roles'
 
 export type TenantAuth =
   | {
@@ -43,6 +45,16 @@ export async function requireTenantAuth(): Promise<TenantAuth> {
     tenantId: profile.tenant_id,
     role: profile.role,
   }
+}
+
+export async function requireTenantOwner(): Promise<TenantAuth> {
+  const auth = await requireTenantAuth()
+  if (!auth.ok) return auth
+  const role = normalizeTenantRole(auth.role)
+  if (!isOwnerRole(role)) {
+    return { ok: false, status: 403, message: 'Bu işlem için yönetici yetkisi gerekli' }
+  }
+  return auth
 }
 
 export function isUuid(id: string): boolean {

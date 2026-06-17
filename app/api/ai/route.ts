@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       content: 'AI asistan yapılandırılmamış. GEMINI_API_KEY ortam değişkenini ekleyin.',
       result: 'AI asistan yapılandırılmamış.',
+      configured: false,
     })
   }
 
@@ -61,7 +62,7 @@ Telefon/tablet/bilgisayar tamir atölyeleri için uzman gibi davran.`
     const result = await chat.sendMessage(lastUser.content)
     const text = result.response.text()
 
-    return NextResponse.json({ content: text, result: text })
+    return NextResponse.json({ content: text, result: text, configured: true })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI hatası'
     return NextResponse.json({ content: `Üzgünüm, şu an yanıt veremiyorum: ${msg}`, result: msg }, { status: 500 })
