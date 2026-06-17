@@ -96,6 +96,10 @@ export default function DashboardPage() {
     setLoading(false)
   }, [])
 
+  const syncOrdersFromStore = useCallback(() => {
+    setOrders(getServiceOrders().map(mapOrder))
+  }, [])
+
   useEffect(() => {
     setMounted(true)
     setShopName(getBusinessBranding().shopName)
@@ -107,12 +111,10 @@ export default function DashboardPage() {
       .catch(() => {})
     return onStoreChange(m => {
       refresh()
-      if (!m || m === 'service' || m === 'settings') {
-        fetchOrders()
-        if (m === 'settings') setShopName(getBusinessBranding().shopName)
-      }
+      if (m === 'service') syncOrdersFromStore()
+      if (m === 'settings') setShopName(getBusinessBranding().shopName)
     })
-  }, [refresh, fetchOrders])
+  }, [refresh, fetchOrders, syncOrdersFromStore])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -208,7 +210,7 @@ export default function DashboardPage() {
       {hasFinance && !isTechnician && <DashboardMiniChart />}
 
       {/* Metrikler */}
-      <div className={`grid gap-3 ${isTechnician ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'}`}>
+      <div className={`grid gap-3 ${isTechnician ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'}`} data-tour="dashboard-metrikler">
         {isTechnician ? (
           <>
             <StatCard label="Tamirde" value={String(pipelineCounts[1]?.count ?? 0)} icon={Wrench} color="sky" href="/dashboard/atolye" />
@@ -258,7 +260,7 @@ export default function DashboardPage() {
       )}
 
       {hasService && (
-        <form onSubmit={handleSearch} className="relative max-w-xl">
+        <form onSubmit={handleSearch} className="relative max-w-xl" data-tour="servis-arama">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input
             className="input pl-11 py-3 rounded-2xl"

@@ -52,7 +52,7 @@ export async function loadServiceOrdersFromApi(limit = 100): Promise<StoreServic
     const json = (await res.json()) as { data?: DbRow[] }
     if (!json.data?.length) return getServiceOrders()
     const orders = json.data.map(dbToStore)
-    replaceServiceOrders(orders)
+    replaceServiceOrders(orders, { silent: true })
     return orders
   } catch {
     return getServiceOrders()

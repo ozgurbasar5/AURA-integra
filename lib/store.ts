@@ -1,6 +1,15 @@
 import { renderTemplate, buildTrackingUrl, buildApprovalUrl, generateToken, isQcComplete } from './erp-features'
 import { filterOrdersByTrackingQuery } from './tracking-search'
 import { SMS_TEMPLATES } from './constants'
+import {
+  getStoreStorageKey,
+  getStoreVersionKey,
+  computeKasaFromTransactions,
+  purgeTenantStore,
+  setActiveTenantId,
+} from './tenant-store'
+
+export { setActiveTenantId, purgeTenantStore } from './tenant-store'
 
 /**
  * ServisSoft Merkezi Veri Store'u
@@ -578,7 +587,10 @@ export interface StoreData {
 // ─── Events ────────────────────────────────────────────────────────────────────
 
 const STORE_CHANGE_EVENT = 'servissoft-store-change'
-const STORAGE_KEY = 'servissoft_store'
+
+function syncKasaBakiye(store: StoreData) {
+  store.kasaBakiye = computeKasaFromTransactions(store.transactions)
+}
 
 function emitChange(module: string) {
   if (typeof window !== 'undefined') {
@@ -596,8 +608,7 @@ export function onStoreChange(callback: (module: string) => void): () => void {
 
 // ─── Boş Başlangıç ──────────────────────────────────────────────────────────
 
-const STORE_VERSION = 9 // v9: vitrin cihazları + portal_slug + QR alanları
-const VERSION_KEY = 'servissoft_store_version'
+const STORE_VERSION = 10 // v10: tenant-scoped storage + kasa from transactions
 
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   auto_sms: true,
@@ -605,7 +616,7 @@ const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   on_status_change: true,
   on_delivery: true,
   require_qc_on_delivery: true,
-  shop_address: 'Merkez Mağaza',
+  shop_address: '',
   shop_phone: '0850 000 00 00',
   shop_name: 'AURA İntegra',
   shop_logo: '',
@@ -718,20 +729,20 @@ function ensureStoreShape(parsed: Partial<StoreData>): StoreData {
 function loadStore(): StoreData {
   if (typeof window === 'undefined') return EMPTY_STORE
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const savedVersion = parseInt(localStorage.getItem(VERSION_KEY) || '0', 10)
+    const raw = localStorage.getItem(getStoreStorageKey())
+    const savedVersion = parseInt(localStorage.getItem(getStoreVersionKey()) || '0', 10)
 
     if (raw) {
       const parsed = ensureStoreShape(JSON.parse(raw) as Partial<StoreData>)
       if (savedVersion < STORE_VERSION) {
-        localStorage.setItem(VERSION_KEY, STORE_VERSION.toString())
+        localStorage.setItem(getStoreVersionKey(), STORE_VERSION.toString())
         saveStore(parsed)
       }
       return parsed
     }
 
     if (savedVersion < STORE_VERSION) {
-      localStorage.setItem(VERSION_KEY, STORE_VERSION.toString())
+      localStorage.setItem(getStoreVersionKey(), STORE_VERSION.toString())
     }
   } catch { /* ignore parse errors */ }
   return EMPTY_STORE
@@ -759,7 +770,7 @@ function migrateSale(s: Sale): Sale {
 
 function saveStore(data: StoreData) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  localStorage.setItem(getStoreStorageKey(), JSON.stringify(data))
 }
 
 // ─── SALE CALCULATION ENGINE ───────────────────────────────────────────────────
@@ -816,10 +827,11 @@ export function hydrateStoreFromRemote(data: Partial<StoreData>): void {
     if (preserveIfEmpty.includes(key) && typeof val === 'object' && val !== null && !Array.isArray(val) && Object.keys(val as object).length === 0) {
       continue
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line -- legacy store dynamic key assignment
     ;(store as any)[key] = val
   }
   saveStore(store)
+  syncKasaBakiye(store)
   emitChange('all')
 }
 export function getStock(): StockItem[] { return loadStore().stock }
@@ -846,11 +858,17 @@ export function getServiceOrders(): StoreServiceOrder[] {
 }
 
 /** API senkronizasyonu — tüm servis listesini değiştir */
-export function replaceServiceOrders(orders: StoreServiceOrder[]): void {
+export function replaceServiceOrders(
+  orders: StoreServiceOrder[],
+  opts?: { silent?: boolean },
+): void {
   const store = loadStore()
+  const prev = JSON.stringify(store.serviceOrders)
+  const next = JSON.stringify(orders)
+  if (prev === next) return
   store.serviceOrders = orders
   saveStore(store)
-  emitChange('service')
+  if (!opts?.silent) emitChange('service')
 }
 
 /** Tek kayıt ekle veya güncelle */
@@ -1055,6 +1073,25 @@ export function addStockItem(item: Omit<StockItem, 'id'>): StockItem {
   return newItem
 }
 
+export function replaceStock(items: StockItem[], opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  const prev = JSON.stringify(store.stock)
+  const next = JSON.stringify(items)
+  if (prev === next) return
+  store.stock = items
+  saveStore(store)
+  if (!opts?.silent) emitChange('stock')
+}
+
+export function upsertStockItem(item: StockItem, opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  const idx = store.stock.findIndex(s => s.id === item.id)
+  if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...item }
+  else store.stock.push(item)
+  saveStore(store)
+  if (!opts?.silent) emitChange('stock')
+}
+
 export function updateStockQty(id: string, newQty: number) {
   const store = loadStore()
   const idx = store.stock.findIndex(s => s.id === id)
@@ -1098,8 +1135,30 @@ export function addTransaction(tx: Omit<FinanceTransaction, 'id'>): FinanceTrans
   const store = loadStore()
   const newTx: FinanceTransaction = { ...tx, id: uid('ft') }
   store.transactions.push(newTx)
-  if (tx.type === 'gelir') store.kasaBakiye += tx.amount
-  else store.kasaBakiye -= tx.amount
+  syncKasaBakiye(store)
+  saveStore(store)
+  emitChange('finance')
+  return newTx
+}
+
+/** Sunucu tarafı işlem — kasa RPC tek kaynak */
+export async function addTransactionViaApi(
+  tx: Omit<FinanceTransaction, 'id'>,
+): Promise<FinanceTransaction> {
+  const res = await fetch('/api/tenant/transactions', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction: tx }),
+  })
+  const json = await res.json() as { error?: string; transaction_id?: string; kasa_balance?: number }
+  if (!res.ok) throw new Error(json.error || 'İşlem kaydedilemedi')
+
+  const store = loadStore()
+  const newTx: FinanceTransaction = { ...tx, id: json.transaction_id ?? uid('ft') }
+  store.transactions.push(newTx)
+  if (json.kasa_balance != null) store.kasaBakiye = json.kasa_balance
+  else syncKasaBakiye(store)
   saveStore(store)
   emitChange('finance')
   return newTx
@@ -1119,7 +1178,7 @@ export function recordServiceRevenue(orderNo: string, customerName: string, labo
       customer_name: customerName,
       order_no: orderNo,
     })
-    store.kasaBakiye += laborCost
+    syncKasaBakiye(store)
   }
   saveStore(store)
   emitChange('finance')
@@ -1182,7 +1241,85 @@ export function completeSale(
     date: new Date().toISOString(),
     customer_name: customerName,
   })
-  store.kasaBakiye += sale.total_with_vat
+  syncKasaBakiye(store)
+
+  saveStore(store)
+  emitChange('stock')
+  emitChange('finance')
+  emitChange('sales')
+  return sale
+}
+
+/** POS satış — sunucu tarafı atomik stok + kasa */
+export async function completeSaleViaApi(
+  items: CartItem[],
+  customerName: string,
+  paymentMethod: string,
+  vatRate: number = 20,
+): Promise<Sale> {
+  const store = loadStore()
+  const enriched = items.map(i => ({
+    ...i,
+    cost_price: store.stock.find(s => s.id === i.stock_id)?.buy_price ?? 0,
+  }))
+
+  const res = await fetch('/api/tenant/sales', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: enriched,
+      customer_name: customerName,
+      payment_method: paymentMethod,
+      vat_rate: vatRate,
+    }),
+  })
+  const json = await res.json() as {
+    error?: string
+    sale_id?: string
+    total_with_vat?: number
+    kasa_balance?: number
+  }
+  if (!res.ok) throw new Error(json.error || 'Satış tamamlanamadı')
+
+  for (const item of items) {
+    const stockItem = store.stock.find(s => s.id === item.stock_id)
+    if (stockItem) stockItem.stock_qty -= item.qty
+  }
+
+  const subtotal = items.reduce((s, i) => s + i.unit_price * i.qty, 0)
+  let sale: Sale = {
+    id: json.sale_id ?? uid('sale'),
+    date: new Date().toISOString(),
+    customer_name: customerName,
+    items,
+    subtotal,
+    cost_price: 0,
+    gross_profit: 0,
+    expenses: [],
+    expense_total: 0,
+    net_profit: 0,
+    profit_margin: 0,
+    vat_rate: vatRate,
+    vat_amount: 0,
+    total_with_vat: json.total_with_vat ?? 0,
+    payment_method: paymentMethod,
+  }
+  sale = recalculateSale(sale, store)
+  store.sales.push(sale)
+
+  store.transactions.push({
+    id: uid('ft'),
+    type: 'gelir',
+    description: `POS Satış — ${items.map(i => i.name).join(', ')}`,
+    category: 'Satış',
+    amount: sale.total_with_vat,
+    payment_method: paymentMethod,
+    date: new Date().toISOString(),
+    customer_name: customerName,
+  })
+  if (json.kasa_balance != null) store.kasaBakiye = json.kasa_balance
+  else syncKasaBakiye(store)
 
   saveStore(store)
   emitChange('stock')
@@ -1349,7 +1486,6 @@ export function deliverService(
     order_no: jobNo,
     service_id: serviceId,
   })
-  store.kasaBakiye += serviceFee
 
   // If there are expenses, also record them as gider
   if (totalExpense > 0) {
@@ -1364,8 +1500,8 @@ export function deliverService(
       order_no: jobNo,
       service_id: serviceId,
     })
-    store.kasaBakiye -= totalExpense
   }
+  syncKasaBakiye(store)
 
   // Save delivery record
   const delivery: ServiceDelivery = {
@@ -1451,6 +1587,33 @@ export function undoServiceDelivery(serviceId: string): boolean {
 
 // ─── STOCK PURCHASE ────────────────────────────────────────────────────────────
 
+export function applyRemoteStockReceive(
+  stockItem: StockItem,
+  qty: number,
+  totalCost: number,
+  kasaBalance?: number,
+): void {
+  const store = loadStore()
+  const idx = store.stock.findIndex(s => s.id === stockItem.id)
+  if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...stockItem }
+  else store.stock.push(stockItem)
+
+  store.transactions.push({
+    id: uid('ft'),
+    type: 'gider',
+    description: `Stok alımı — ${stockItem.name} (${qty} adet)`,
+    category: 'Tedarikçi',
+    amount: totalCost,
+    payment_method: 'havale',
+    date: new Date().toISOString(),
+  })
+  if (kasaBalance != null) store.kasaBakiye = kasaBalance
+  else syncKasaBakiye(store)
+  saveStore(store)
+  emitChange('stock')
+  emitChange('finance')
+}
+
 export function receiveStock(stockId: string, qty: number, totalCost: number, supplier: string) {
   const store = loadStore()
   const item = store.stock.find(s => s.id === stockId)
@@ -1462,10 +1625,10 @@ export function receiveStock(stockId: string, qty: number, totalCost: number, su
     description: `Stok alımı — ${item?.name || 'Bilinmeyen'} (${qty} adet)`,
     category: 'Tedarikçi',
     amount: totalCost,
-    payment_method: 'eft',
+    payment_method: 'havale',
     date: new Date().toISOString(),
   })
-  store.kasaBakiye -= totalCost
+  syncKasaBakiye(store)
 
   saveStore(store)
   emitChange('stock')
@@ -1475,8 +1638,8 @@ export function receiveStock(stockId: string, qty: number, totalCost: number, su
 /** Reset store to defaults */
 export function resetStore() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(STORAGE_KEY)
-  localStorage.setItem(VERSION_KEY, STORE_VERSION.toString())
+  purgeTenantStore()
+  localStorage.setItem(getStoreVersionKey(), STORE_VERSION.toString())
   emitChange('stock')
   emitChange('finance')
   emitChange('sales')
@@ -1571,7 +1734,7 @@ export function recordPurchase(input: Omit<Purchase, 'id' | 'created_at' | 'tota
     date: new Date().toISOString(),
   })
   const pm = (input.payment_method || '').toLocaleLowerCase('tr-TR')
-  if (pm.includes('nakit')) store.kasaBakiye -= total_cost
+  if (pm.includes('nakit')) syncKasaBakiye(store)
 
   saveStore(store)
   emitChange('purchases')

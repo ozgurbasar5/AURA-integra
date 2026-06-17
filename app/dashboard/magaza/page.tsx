@@ -240,11 +240,12 @@ export default function MagazaPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="magaza-baslik"
         icon={ShoppingBag}
         title="Mağaza"
         description="Ürün vitrini ve stok yönetimi"
         actions={
-          <button onClick={openAdd} className="btn-primary text-sm flex items-center gap-1.5">
+          <button data-tour="magaza-urun-ekle-btn" onClick={openAdd} className="btn-primary text-sm flex items-center gap-1.5">
             <Plus size={14} /> Ürün Ekle
           </button>
         }
@@ -326,7 +327,7 @@ export default function MagazaPage() {
         </div>
       ) : viewMode === 'grid' ? (
         /* ── Grid View ─────────────────────────────────────────────────── */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div data-tour="magaza-urun-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {paged.map(product => (
             <div
               key={product.id}

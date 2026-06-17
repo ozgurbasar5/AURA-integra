@@ -1,4 +1,4 @@
-import { encryptSecret, decryptSecret } from './secrets-crypto'
+import { encryptSecret, decryptSecret, EncryptionKeyMissingError } from './secrets-crypto'
 
 const PII_PREFIX = 'pii:v1:'
 
@@ -9,7 +9,7 @@ function piiKeyAvailable(): boolean {
 /** Encrypt phone/VKN for DB storage (app-layer; phone_enc column optional) */
 export function encryptPii(value: string | undefined | null): string | null {
   if (!value) return null
-  if (!piiKeyAvailable()) return value
+  if (!piiKeyAvailable()) throw new EncryptionKeyMissingError()
   return `${PII_PREFIX}${encryptSecret(value).replace(/^enc:v1:/, '')}`
 }
 
@@ -32,3 +32,5 @@ export function maskVkn(vkn: string): string {
   if (vkn.length < 4) return '****'
   return `${vkn.slice(0, 2)}****${vkn.slice(-2)}`
 }
+
+export { EncryptionKeyMissingError }

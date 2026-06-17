@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Search, Menu, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { purgeTenantStore, setActiveTenantId } from '@/lib/store'
 import { PLAN_LEVEL_LABELS, type PlanLevel } from '@/lib/plan-tiers'
 import { isOwnerRole } from '@/lib/role-access'
 import { normalizeTenantRole } from '@/lib/tenant-roles'
@@ -24,6 +25,7 @@ import {
 import SidebarCategory from '@/components/layout/SidebarCategory'
 import SidebarNavLink from '@/components/layout/SidebarNavLink'
 import { useViewOptions } from '@/hooks/useViewOptions'
+import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
 
 const ROLE_LABELS: Record<string, { label: string; bg: string }> = {
   super_admin:  { label: 'Süper Admin', bg: 'bg-red-500/20 text-red-300' },
@@ -73,11 +75,13 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
 
   useEffect(() => {
     const updateBadges = () => {
-      const store = getStore()
-      setBadges({
-        stok: store.stock.filter(s => s.stock_qty <= s.min_stock).length,
-        atolye: store.serviceOrders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
-      })
+      try {
+        const store = getStore()
+        setBadges({
+          stok: store.stock.filter(s => s.stock_qty <= s.min_stock).length,
+          atolye: store.serviceOrders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
+        })
+      } catch { /* store okuma hatası sidebar'ı çökertmesin */ }
     }
     setBrand(getBusinessBranding())
     updateBadges()
@@ -98,6 +102,21 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
     }
     return buildClassicSections(normalizedRole, planLevel)
   }, [viewOpts.sidebarMode, normalizedRole, planLevel])
+
+  useEffect(() => {
+    const onPrepareTour = () => {
+      setCollapsed(false)
+      setMobileOpen(false)
+      setExpandedCategories(sections.map(s => s.id))
+    }
+    const onMobileTour = () => setMobileOpen(true)
+    window.addEventListener(TOUR_PREPARE_EVENT, onPrepareTour)
+    window.addEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobileTour)
+    return () => {
+      window.removeEventListener(TOUR_PREPARE_EVENT, onPrepareTour)
+      window.removeEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobileTour)
+    }
+  }, [sections])
 
   const activeSectionId = useMemo(
     () => findSectionForPath(sections, pathname),
@@ -131,6 +150,7 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   }
 
   const handleLogout = async () => {
+    purgeTenantStore()
     await supabase.auth.signOut()
     router.push('/login')
   }
@@ -244,6 +264,7 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
             <button
               type="button"
               onClick={onOpenSearch}
+              data-tour="servis-arama"
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-500 text-xs hover:bg-white/10 hover:text-slate-300 transition-colors text-left"
             >
               <Search size={13} />

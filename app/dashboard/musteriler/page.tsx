@@ -303,7 +303,7 @@ export default function MusterilerPage() {
     <div className="space-y-6 pb-8">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div data-tour="musteri-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Users size={20} className="text-sky-600" /> Müşteri Yönetimi
@@ -317,7 +317,7 @@ export default function MusterilerPage() {
           <button className="btn-secondary text-xs flex items-center gap-1.5">
             <Upload size={13} /> İçe Aktar
           </button>
-          <button onClick={() => { setEditingId(null); setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true) }}
+          <button data-tour="musteri-yeni-btn" onClick={() => { setEditingId(null); setForm(EMPTY_FORM); setFormErrors({}); setShowModal(true) }}
             className="btn-primary text-sm flex items-center gap-1.5">
             <UserPlus size={14} /> Yeni Müşteri
           </button>
@@ -325,7 +325,7 @@ export default function MusterilerPage() {
       </div>
 
       {/* Metrik Kartlar */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div data-tour="musteri-metrikler" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Toplam', val: stats.total, icon: Users, bg: 'bg-slate-50', color: 'text-slate-600' },
           { label: 'Bireysel', val: stats.bireysel, icon: User, bg: 'bg-blue-50', color: 'text-blue-600' },
@@ -345,7 +345,7 @@ export default function MusterilerPage() {
       </div>
 
       {/* Filtre Bar */}
-      <div className="card p-3 flex flex-wrap items-center gap-3">
+      <div data-tour="musteri-arama" className="card p-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -373,7 +373,7 @@ export default function MusterilerPage() {
       </div>
 
       {/* Müşteri Tablosu */}
-      <div className="card overflow-hidden">
+      <div data-tour="musteri-tablo" className="card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={24} className="animate-spin text-sky-500" />
@@ -622,7 +622,7 @@ export default function MusterilerPage() {
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={() => setSelectedCustomer(null)} />
-          <div className="w-full max-w-md bg-white shadow-2xl overflow-y-auto animate-slide-in-right">
+          <div data-tour="musteri-detay" className="w-full max-w-md bg-white shadow-2xl overflow-y-auto animate-slide-in-right">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="font-bold text-slate-900">Müşteri Detayı</h3>
               <button onClick={() => setSelectedCustomer(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>

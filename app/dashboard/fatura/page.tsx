@@ -145,10 +145,11 @@ export default function FaturaPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="fatura-baslik"
         icon={FileText}
         title="E-Fatura & E-Arşiv"
         description="GİB uyumlu fatura yönetimi"
-        actions={<button onClick={() => setShowNewModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Fatura</button>}
+        actions={<button data-tour="fatura-yeni-btn" onClick={() => setShowNewModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Fatura</button>}
       />
 
       {/* Metrikler */}
@@ -193,7 +194,7 @@ export default function FaturaPage() {
       </div>
 
       {/* Fatura Listesi */}
-      <div className="card overflow-hidden">
+      <div data-tour="fatura-tablo" className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

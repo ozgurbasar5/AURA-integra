@@ -2,8 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop, ExternalLink } from 'lucide-react'
-import { THEMES, type ThemeKey, applyTheme, getSavedTheme } from '@/lib/theme'
+import { THEMES, type ThemeKey } from '@/lib/theme'
+import {
+  getUiAppearance, saveUiAppearance, applyUiAppearance,
+  SIDEBAR_STYLE_LABELS, RADIUS_LABELS,
+  type SidebarStyle, type RadiusScale,
+} from '@/lib/ui-appearance'
+import ThemeLivePreview from '@/components/settings/ThemeLivePreview'
+import { resetSetupWizard } from '@/components/help/SetupWizard'
+import { requestTourRestart } from '@/lib/onboarding/tour-events'
 import { getNotificationSettings, setNotificationSettings, type NotificationSettings } from '@/lib/store'
 import {
   getNotificationPrefs, saveNotificationPrefs, DEFAULT_NOTIFICATION_PREFS,
@@ -82,6 +91,8 @@ export default function AyarlarPage() {
   const [showCrop, setShowCrop] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [notifConfig, setNotifConfig] = useState({ netgsm_user: '', netgsm_pass: '', netgsm_header: '', smtp_email: '', whatsapp_phone: '' })
+  const [uiAppearance, setUiAppearance] = useState(() => getUiAppearance())
+  const [smsTesting, setSmsTesting] = useState(false)
   const [apiKeyPreview, setApiKeyPreview] = useState<string | null>(null)
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
   const [portalUrlPrefix, setPortalUrlPrefix] = useState('/portal/')
@@ -148,7 +159,8 @@ export default function AyarlarPage() {
 
   useEffect(() => {
     setPortalUrlPrefix(getPortalUrlPrefix())
-    setActiveTheme(getSavedTheme())
+    setActiveTheme(getUiAppearance().theme)
+    setUiAppearance(getUiAppearance())
     setAutoNotify(getNotificationSettings())
     setNotifications(getNotificationPrefs())
     setPortal(prev => ({ ...prev, ...getPortalSettings() }))
@@ -225,8 +237,48 @@ export default function AyarlarPage() {
 
   function handleThemeChange(key: ThemeKey) {
     setActiveTheme(key)
-    applyTheme(key)
+    const next = saveUiAppearance({ ...uiAppearance, theme: key })
+    setUiAppearance(next)
+    applyUiAppearance(next)
     toast.success(`${THEMES[key].name} teması uygulandı`)
+  }
+
+  function handleSidebarStyle(style: SidebarStyle) {
+    const next = saveUiAppearance({ ...uiAppearance, sidebarStyle: style })
+    setUiAppearance(next)
+    applyUiAppearance(next)
+    toast.success(`${SIDEBAR_STYLE_LABELS[style].label} panel stili`)
+  }
+
+  function handleRadiusScale(scale: RadiusScale) {
+    const next = saveUiAppearance({ ...uiAppearance, radiusScale: scale })
+    setUiAppearance(next)
+    applyUiAppearance(next)
+  }
+
+  function handleCustomAccent(hex: string) {
+    const next = saveUiAppearance({ ...uiAppearance, customAccent: hex || null })
+    setUiAppearance(next)
+    applyUiAppearance(next)
+  }
+
+  async function testSmsConnection() {
+    setSmsTesting(true)
+    try {
+      const res = await fetch('/api/tenant/integrations/test', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integration: 'sms' }),
+      })
+      const json = await res.json()
+      if (json.ok) toast.success('Test SMS profil telefonunuza gönderildi')
+      else toast.error(json.error || 'SMS testi başarısız — Netgsm bilgilerini kontrol edin')
+    } catch {
+      toast.error('Test isteği gönderilemedi')
+    } finally {
+      setSmsTesting(false)
+    }
   }
 
   async function handleSavePortalSlug() {
@@ -430,7 +482,7 @@ export default function AyarlarPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
+      <div data-tour="ayarlar-baslik" className="mb-6">
         <h1 className="text-xl font-bold text-[var(--text-primary)]">Ayarlar</h1>
         <p className="text-[var(--text-secondary)] text-sm mt-0.5">Hesap, tema, bildirim ve entegrasyon ayarları</p>
       </div>
@@ -438,7 +490,7 @@ export default function AyarlarPage() {
       <div className="flex flex-col md:flex-row gap-4 md:gap-5">
         {/* Sidebar / mobil yatay sekmeler */}
         <div className="md:w-48 flex-shrink-0">
-          <nav className="mobile-scroll-tabs md:block md:space-y-0.5 md:overflow-visible md:mx-0 md:px-0">
+          <nav data-tour="ayarlar-sekmeler" className="mobile-scroll-tabs md:block md:space-y-0.5 md:overflow-visible md:mx-0 md:px-0">
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex-shrink-0 md:w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
@@ -460,7 +512,7 @@ export default function AyarlarPage() {
           {/* ── GENEL ──────────────────────────────────────────────────────── */}
           {tab === 'genel' && (
             <div className="space-y-4">
-              <div className="card p-5">
+              <div data-tour="ayarlar-genel-marka" className="card p-5">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center">
                     <Building2 size={20} className="text-sky-600 dark:text-sky-400" />
@@ -699,7 +751,7 @@ export default function AyarlarPage() {
                 </div>
                 <ColorModeToggle />
               </div>
-              <div className="card p-5">
+              <div data-tour="ayarlar-tema-secim" className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Tema Rengi</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-5">Panel renk temasını seçin. Tüm butonlar, vurgular ve aktif menü bu rengi kullanır.</p>
 
@@ -730,25 +782,70 @@ export default function AyarlarPage() {
                   ))}
                 </div>
 
-                <div className="mt-5 p-4 rounded-xl border settings-preview-box border-[var(--bg-border)] bg-[var(--bg-muted)]">
-                  <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">Önizleme</p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: 'var(--accent)' }}>
-                      Birincil Buton
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <label className="text-sm text-[var(--text-secondary)]">Özel vurgu rengi (opsiyonel):</label>
+                  <input
+                    type="color"
+                    value={uiAppearance.customAccent || THEMES[activeTheme].accent}
+                    onChange={e => handleCustomAccent(e.target.value)}
+                    className="w-10 h-10 rounded-lg border border-[var(--bg-border)] cursor-pointer"
+                  />
+                  {uiAppearance.customAccent && (
+                    <button type="button" onClick={() => handleCustomAccent('')} className="text-xs text-[var(--accent)] font-semibold">
+                      Sıfırla
                     </button>
-                    <button className="px-4 py-2 rounded-lg text-sm font-semibold border-2" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>
-                      İkincil Buton
-                    </button>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-text)' }}>
-                      Badge Örneği
-                    </span>
-                    <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--accent)' }}>
-                      <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }}/>
-                      Aktif gösterge
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
+
+              <div className="card p-5">
+                <h3 className="font-semibold text-[var(--text-primary)] mb-1">Sol Panel Stili</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">Sidebar rengi ve genel panel görünümü tema ile birlikte değişir.</p>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {(Object.keys(SIDEBAR_STYLE_LABELS) as SidebarStyle[]).map(style => (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() => handleSidebarStyle(style)}
+                      className={`p-4 rounded-xl border-2 text-left transition-all ${
+                        uiAppearance.sidebarStyle === style
+                          ? 'border-[var(--accent)] bg-[var(--accent-light)]'
+                          : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{SIDEBAR_STYLE_LABELS[style].label}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">{SIDEBAR_STYLE_LABELS[style].desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card p-5">
+                <h3 className="font-semibold text-[var(--text-primary)] mb-1">Köşe Yuvarlaklığı</h3>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {(Object.keys(RADIUS_LABELS) as RadiusScale[]).map(scale => (
+                    <button
+                      key={scale}
+                      type="button"
+                      onClick={() => handleRadiusScale(scale)}
+                      className={`px-4 py-2 text-sm font-semibold border-2 transition-all ${
+                        uiAppearance.radiusScale === scale
+                          ? 'border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent-text)]'
+                          : 'border-[var(--bg-border)] text-[var(--text-secondary)]'
+                      }`}
+                    >
+                      {RADIUS_LABELS[scale]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <ThemeLivePreview
+                theme={activeTheme}
+                sidebarStyle={uiAppearance.sidebarStyle}
+                radiusScale={uiAppearance.radiusScale}
+                customAccent={uiAppearance.customAccent}
+              />
 
               <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Menü Düzeni</h3>
@@ -835,6 +932,35 @@ export default function AyarlarPage() {
                   ))}
                 </div>
               </div>
+
+              <div className="card p-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Panel turunu tekrar başlat</p>
+                  <p className="text-xs text-[var(--text-muted)]">Hızlı kabul, atölye, stok ve diğer modülleri canlı arayüzde adım adım gösterir</p>
+                </div>
+                <button
+                  data-tour="ayarlar-tur-tekrar-btn"
+                  type="button"
+                  onClick={() => { requestTourRestart(); toast.success('Panel turu başlatıldı') }}
+                  className="btn-secondary text-sm"
+                >
+                  Turu Tekrar Başlat
+                </button>
+              </div>
+
+              <div className="card p-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">Kurulum sihirbazını tekrar aç</p>
+                  <p className="text-xs text-[var(--text-muted)]">Marka, SMS ve kasa adımlarını yeniden gösterir</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { resetSetupWizard(); toast.success('Kurulum sihirbazı açıldı') }}
+                  className="btn-secondary text-sm"
+                >
+                  Sihirbazı Aç
+                </button>
+              </div>
             </div>
           )}
 
@@ -845,7 +971,7 @@ export default function AyarlarPage() {
               <p className="text-sm text-[var(--text-secondary)] mb-5">Hangi olaylar için bildirim almak istediğinizi seçin.</p>
               <div className="space-y-3">
                 {NOTIFICATION_SETTINGS.map(s => (
-                  <div key={s.id} className="flex items-center justify-between py-3 border-b border-[var(--bg-border)] last:border-0">
+                  <div key={s.id} data-tour={s.id === 'sms_service' ? 'ayarlar-bildirim-toggle' : undefined} className="flex items-center justify-between py-3 border-b border-[var(--bg-border)] last:border-0">
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">{s.label}</p>
                       <p className="text-xs text-[var(--text-muted)]">{s.desc}</p>
@@ -958,7 +1084,7 @@ export default function AyarlarPage() {
           {/* ── ENTEGRASYONLAR ─────────────────────────────────────────────── */}
           {tab === 'entegrasyon' && (
             <div className="space-y-4">
-              <div className="card p-5">
+              <div data-tour="ayarlar-entegrasyonlar" className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Entegrasyonlar</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-5">Harici servis ve yazılımlarla bağlantı kurun.</p>
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -1029,6 +1155,17 @@ export default function AyarlarPage() {
                 >
                   Bildirim Ayarlarını Kaydet
                 </button>
+                <button
+                  type="button"
+                  onClick={() => void testSmsConnection()}
+                  disabled={smsTesting}
+                  className="btn-secondary text-sm ml-2"
+                >
+                  {smsTesting ? 'Gönderiliyor...' : 'SMS Test Gönder'}
+                </button>
+                <Link href="/dashboard/nasil-calisir" className="ml-3 text-sm text-sky-600 font-semibold hover:underline">
+                  SMS kurulum rehberi →
+                </Link>
                 <a href="/api/tenant/export/accounting" className="ml-3 text-sm text-sky-600 font-semibold hover:underline">
                   Muhasebe CSV İndir →
                 </a>

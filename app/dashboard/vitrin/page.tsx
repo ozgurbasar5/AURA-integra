@@ -102,12 +102,13 @@ function VitrinContent() {
     <>
     <PageShell className="no-print">
       <PageHeader
+        data-tour="vitrin-baslik"
         eyebrow="Mağaza"
         title="Vitrin Cihazları"
         description="2. el alım-satım, vitrin durumu, kozmetik/pil bilgisi ve barkod etiketi."
         icon={Store}
         actions={
-          <button type="button" onClick={() => setShowForm(true)} className="btn-primary btn-sm flex items-center gap-2">
+          <button data-tour="vitrin-cihaz-ekle-btn" type="button" onClick={() => setShowForm(true)} className="btn-primary btn-sm flex items-center gap-2">
             <Plus size={14} /> Cihaz Ekle
           </button>
         }
@@ -144,7 +145,7 @@ function VitrinContent() {
       </div>
 
       {tab === 'vitrin' && vitrin.length > 0 && (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div data-tour="vitrin-kart-grid" className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {vitrin.filter(d => !search.trim() || filtered.some(f => f.id === d.id)).map(d => (
             <DeviceCard key={d.id} d={d} onPrint={() => printDevice(d)} onSold={() => { markSecondHandSold(d.id); refresh() }}
               onToggleShowcase={() => { updateSecondHandDevice(d.id, { showcase: !d.showcase }); refresh() }} />

@@ -1,0 +1,75 @@
+/**
+ * Stok — Supabase parts API ↔ localStorage cache
+ */
+
+import { partToStock } from './db-mappers'
+import {
+  getStock,
+  replaceStock,
+  upsertStockItem,
+  applyRemoteStockReceive,
+  type StockItem,
+} from './store'
+
+type PartRow = Record<string, unknown>
+
+export async function loadStockFromApi(): Promise<StockItem[]> {
+  try {
+    const res = await fetch('/api/tenant/parts', { credentials: 'same-origin' })
+    if (!res.ok) return getStock()
+    const json = (await res.json()) as { items?: PartRow[] }
+    if (!json.items) return getStock()
+    const items = json.items.map(r => partToStock(r))
+    replaceStock(items, { silent: true })
+    return items
+  } catch {
+    return getStock()
+  }
+}
+
+export async function addStockItemViaApi(
+  item: Omit<StockItem, 'id'>,
+): Promise<StockItem> {
+  const res = await fetch('/api/tenant/parts', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item),
+  })
+  const json = await res.json() as { error?: string; item?: PartRow }
+  if (!res.ok) throw new Error(json.error || 'Parça eklenemedi')
+
+  const stockItem = partToStock(json.item ?? {})
+  upsertStockItem(stockItem, { silent: true })
+  return stockItem
+}
+
+export async function receiveStockViaApi(
+  stockId: string,
+  qty: number,
+  totalCost: number,
+  supplier: string,
+  itemName: string,
+): Promise<void> {
+  const res = await fetch('/api/tenant/stock/receive', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      part_id: stockId,
+      qty,
+      total_cost: totalCost,
+      supplier,
+      item_name: itemName,
+    }),
+  })
+  const json = await res.json() as { error?: string; item?: PartRow; kasa_balance?: number }
+  if (!res.ok) throw new Error(json.error || 'Stok girişi başarısız')
+
+  const stockItem = json.item
+    ? partToStock(json.item)
+    : getStock().find(s => s.id === stockId)
+  if (stockItem) {
+    applyRemoteStockReceive(stockItem, qty, totalCost, json.kasa_balance)
+  }
+}

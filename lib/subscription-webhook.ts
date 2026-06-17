@@ -1,5 +1,11 @@
-import { extendSubscriptionEnd } from '@/lib/subscription'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { extendSubscriptionEnd } from '@/lib/subscription'
+
+export function stripeAmountToMajor(obj: Record<string, unknown>): number {
+  if (obj.amount_total != null) return Number(obj.amount_total) / 100
+  if (obj.amount_paid != null) return Number(obj.amount_paid) / 100
+  return 0
+}
 
 export async function activateTenantSubscription(
   admin: SupabaseClient,
@@ -13,6 +19,28 @@ export async function activateTenantSubscription(
   },
 ): Promise<{ subscription_end: string } | null> {
   const periodDays = opts.periodDays ?? 30
+  const externalRef = opts.externalRef?.trim()
+
+  if (externalRef) {
+    const { data: existingPayment } = await admin
+      .from('tenant_payments')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('payment_method', opts.provider)
+      .eq('external_ref', externalRef)
+      .maybeSingle()
+
+    if (existingPayment?.id) {
+      const { data: tenant } = await admin
+        .from('tenants')
+        .select('subscription_end')
+        .eq('id', tenantId)
+        .single()
+      if (tenant?.subscription_end) {
+        return { subscription_end: tenant.subscription_end }
+      }
+    }
+  }
 
   const { data: tenant } = await admin
     .from('tenants')
@@ -30,11 +58,21 @@ export async function activateTenantSubscription(
     due_date: new Date().toISOString().slice(0, 10),
     paid_at: new Date().toISOString(),
     payment_method: opts.provider,
-    notes: opts.externalRef ? `${opts.provider}:${opts.externalRef}` : opts.provider,
+    external_ref: externalRef ?? null,
+    notes: externalRef ? `${opts.provider}:${externalRef}` : opts.provider,
   })
 
   if (payErr) {
+    if (payErr.message.includes('idx_tenant_payments_external_ref') || payErr.code === '23505') {
+      const { data: current } = await admin
+        .from('tenants')
+        .select('subscription_end')
+        .eq('id', tenantId)
+        .single()
+      return current?.subscription_end ? { subscription_end: current.subscription_end } : null
+    }
     console.error('[subscription-webhook] tenant_payments insert failed:', payErr.message)
+    return null
   }
 
   const { error } = await admin

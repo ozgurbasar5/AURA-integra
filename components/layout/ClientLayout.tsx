@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Lock } from 'lucide-react'
 import TenantSidebar from './TenantSidebar'
+import SidebarErrorBoundary from './SidebarErrorBoundary'
 import DashboardHeader from './DashboardHeader'
 import ThemeProvider from '@/components/ThemeProvider'
 import GlobalSearchModal, { useGlobalSearchShortcut } from '@/components/search/GlobalSearchModal'
@@ -15,6 +16,8 @@ import { isRouteAllowed, ROUTE_MIN_LEVEL, PLAN_LEVEL_LABELS, type PlanLevel } fr
 import { isRouteAllowedForRole } from '@/lib/role-access'
 import { PlanProvider } from '@/lib/plan-context'
 import { RoleProvider } from '@/lib/role-context'
+import SetupWizard from '@/components/help/SetupWizard'
+import OnboardingTourTrigger from '@/components/dashboard/OnboardingTourTrigger'
 
 interface Props {
   tenant: {
@@ -24,7 +27,7 @@ interface Props {
     subscription_end?: string
     status?: string
   }
-  user: { full_name: string; email: string; role: string }
+  user: { full_name: string; email: string; role: string; onboarding_completed: boolean }
   children: React.ReactNode
 }
 
@@ -55,12 +58,12 @@ export default function ClientLayout({ tenant, user, children }: Props) {
       <RoleProvider role={user.role}>
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       {showAi && <AuraAI />}
+      <SetupWizard />
+      <OnboardingTourTrigger onboardingCompleted={user.onboarding_completed} />
       <div className="flex h-screen bg-[var(--bg-base)] overflow-hidden">
-        {mounted ? (
+        <SidebarErrorBoundary>
           <TenantSidebar tenant={tenant} user={user} onOpenSearch={openSearch} />
-        ) : (
-          <aside className="hidden lg:flex flex-col shrink-0 w-[250px] sidebar-dark border-r border-white/5" />
-        )}
+        </SidebarErrorBoundary>
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
           <main className="flex-1 overflow-y-auto">

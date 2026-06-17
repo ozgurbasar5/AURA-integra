@@ -2,17 +2,28 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync }
 
 const ENC_PREFIX = 'enc:v1:'
 
+export class EncryptionKeyMissingError extends Error {
+  constructor() {
+    super('ENCRYPTION_KEY_MISSING')
+    this.name = 'EncryptionKeyMissingError'
+  }
+}
+
 function deriveKey(): Buffer | null {
   const secret = process.env.APP_ENCRYPTION_KEY
   if (!secret || secret.length < 16) return null
   return scryptSync(secret, 'aura-integra-v1', 32)
 }
 
+export function isEncryptionKeyConfigured(): boolean {
+  return deriveKey() !== null
+}
+
 /** Reversible encryption for API secrets (Netgsm password etc.) */
 export function encryptSecret(plain: string): string {
   if (!plain) return plain
   const key = deriveKey()
-  if (!key) return plain
+  if (!key) throw new EncryptionKeyMissingError()
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', key, iv)
   const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])

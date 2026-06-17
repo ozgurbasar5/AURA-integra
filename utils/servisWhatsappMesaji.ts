@@ -1,4 +1,6 @@
 import type { BusinessBranding } from '@/lib/business-branding'
+import { resolveShopDisplayLine } from '@/lib/business-branding'
+import { WA } from '@/lib/whatsapp-emojis'
 
 export type ServisWhatsappInput = {
   customer: string
@@ -31,8 +33,9 @@ export function buildServisWhatsappMessage(
   const code = (i.tracking_code || '-').trim()
   const st = (i.status || 'Bekliyor').trim()
   const shop = branding.shopName || DEFAULT_BRAND.shopName
-  const phoneLine = branding.shopPhone ? `\n${String.fromCodePoint(0x1F4DE)} *Tel:* ${branding.shopPhone}` : ''
-  const addressLine = branding.shopAddress ? `\n${String.fromCodePoint(0x1F4CD)} *Adres:* ${branding.shopAddress}` : ''
+  const location = resolveShopDisplayLine(branding)
+  const phoneLine = branding.shopPhone ? `\n${WA.phone} *Tel:* ${branding.shopPhone}` : ''
+  const addressLine = location ? `\n${WA.pin} *Şube:* ${location}` : ''
 
   const price =
     i.price != null && String(i.price).trim() !== ''
@@ -41,17 +44,17 @@ export function buildServisWhatsappMessage(
 
   const issueTrim = (i.issue || '').trim()
   const issueBlock = issueTrim
-    ? `\n${String.fromCodePoint(0x1F4CB)} *Bildirilen sorun:*\n_${issueTrim}_\n`
+    ? `\n${WA.clipboard} *Bildirilen sorun:*\n_${issueTrim}_\n`
     : ''
 
   const intro =
     `Sayın *${name}*,\n\n` +
     `*${shop}* teknik servis kaydınız güncellendi.\n\n` +
-    `${String.fromCodePoint(0x1F4E6)} *Cihaz:* ${device}\n` +
-    `${String.fromCodePoint(0x1F4C4)} *Takip no:* ${code}\n` +
-    (i.serial_no ? `${String.fromCodePoint(0x1F522)} *Seri / IMEI:* ${i.serial_no}\n` : '') +
-    `${String.fromCodePoint(0x1F4CA)} *Güncel durum:* *${st}*\n` +
-    `${String.fromCodePoint(0x1F4B0)} *Tutar bilgisi:* ${price}\n` +
+    `${WA.package} *Cihaz:* ${device}\n` +
+    `${WA.page} *Takip no:* ${code}\n` +
+    (i.serial_no ? `${WA.hash} *Seri / IMEI:* ${i.serial_no}\n` : '') +
+    `${WA.chart} *Güncel durum:* *${st}*\n` +
+    `${WA.money} *Tutar bilgisi:* ${price}\n` +
     issueBlock
 
   let body = ''
@@ -60,8 +63,8 @@ export function buildServisWhatsappMessage(
     case 'Teslim Edildi':
       body =
         `Cihazınızın servis süreci *tamamlanmış* ve teslim edilmiştir.\n\n` +
-        (i.partsLine ? `${String.fromCodePoint(0x1F527)} *Parça / işlem:*\n${i.partsLine}\n\n` : '') +
-        (i.notes ? `${String.fromCodePoint(0x1F4DD)} *Servis notu:*\n${i.notes}\n\n` : '') +
+        (i.partsLine ? `${WA.wrench} *Parça / işlem:*\n${i.partsLine}\n\n` : '') +
+        (i.notes ? `${WA.memo} *Servis notu:*\n${i.notes}\n\n` : '') +
         (i.warrantyLine ? `${i.warrantyLine}\n\n` : '') +
         `Cihazınızı servisimizden teslim alabilir veya durum hakkında bize yazabilirsiniz.\n`
       break
@@ -69,7 +72,7 @@ export function buildServisWhatsappMessage(
     case 'Hazır':
       body =
         `Onarım tamamlandı; cihazınız *teslime hazır*.\n\n` +
-        (i.notes ? `${String.fromCodePoint(0x1F4DD)} *Not:* ${i.notes}\n\n` : '') +
+        (i.notes ? `${WA.memo} *Not:* ${i.notes}\n\n` : '') +
         `Teslim için bize yazabilirsiniz.\n`
       break
     case 'Tamirde':

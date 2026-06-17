@@ -10,10 +10,18 @@ function fmtDt(iso: string) {
   return new Date(iso).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+const TYPE_LABELS: Record<string, string> = {
+  gelir: 'Gelir',
+  gider: 'Gider',
+  stok: 'Stok Alım',
+  servis: 'Servis Teslim',
+  pos: 'POS Satış',
+}
+
 export function ShiftEndReport({ report }: { report: ShiftReport }) {
   const diff = report.cash.difference
   return (
-    <div className="shift-eod-report bg-white text-slate-900 p-8 max-w-2xl mx-auto print:p-4">
+    <div className="shift-eod-report bg-white text-slate-900 p-8 max-w-3xl mx-auto print:p-4">
       <div className="text-center border-b border-slate-200 pb-4 mb-6">
         <h1 className="text-xl font-black">{report.meta.shop_name}</h1>
         <p className="text-sm text-slate-500 mt-1">Gün Sonu / Vardiya Raporu</p>
@@ -23,11 +31,18 @@ export function ShiftEndReport({ report }: { report: ShiftReport }) {
         <p className="text-xs text-slate-500">Kasiyer: {report.meta.opened_by}{report.meta.closed_by ? ` → ${report.meta.closed_by}` : ''}</p>
       </div>
 
+      <section className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+        <div className="rounded-lg bg-emerald-50 p-2"><p className="text-slate-500">Toplam Gelir</p><p className="font-bold text-emerald-700">{fmt(report.summary.total_gelir)}</p></div>
+        <div className="rounded-lg bg-red-50 p-2"><p className="text-slate-500">Toplam Gider</p><p className="font-bold text-red-700">{fmt(report.summary.total_gider)}</p></div>
+        <div className="rounded-lg bg-sky-50 p-2"><p className="text-slate-500">Net Kâr</p><p className="font-bold text-sky-700">{fmt(report.summary.net_kar)}</p></div>
+        <div className="rounded-lg bg-slate-50 p-2"><p className="text-slate-500">Cebe Kalan</p><p className="font-bold">{fmt(report.summary.net_cebe)}</p></div>
+      </section>
+
       <section className="mb-6">
         <h2 className="text-xs font-bold uppercase text-slate-500 mb-3">Kasa Mutabakatı</h2>
         <table className="w-full text-sm">
           <tbody>
-            <tr><td className="py-1 text-slate-600">Açılış bakiyesi</td><td className="py-1 text-right font-semibold">{fmt(report.cash.opening_balance)}</td></tr>
+            <tr><td className="py-1 text-slate-600">Açılış bakiyesi (sabah kasa)</td><td className="py-1 text-right font-semibold">{fmt(report.cash.opening_balance)}</td></tr>
             <tr><td className="py-1 text-slate-600">Nakit giriş</td><td className="py-1 text-right">{fmt(report.cash.nakit_giris)}</td></tr>
             <tr><td className="py-1 text-slate-600">Nakit gider</td><td className="py-1 text-right">−{fmt(report.cash.nakit_cikis)}</td></tr>
             <tr className="border-t"><td className="py-2 font-bold">Beklenen nakit</td><td className="py-2 text-right font-bold">{fmt(report.cash.expected_cash)}</td></tr>
@@ -43,19 +58,52 @@ export function ShiftEndReport({ report }: { report: ShiftReport }) {
         <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">Diğer</p><p className="font-bold">{fmt(report.payments.diger)}</p></div>
       </section>
 
-      <section className="mb-6 grid grid-cols-3 gap-3 text-center text-sm">
-        <div><p className="text-2xl font-black">{report.operations.new_orders}</p><p className="text-xs text-slate-500">Yeni kabul</p></div>
-        <div><p className="text-2xl font-black">{report.operations.repaired}</p><p className="text-xs text-slate-500">Tamir</p></div>
-        <div><p className="text-2xl font-black">{report.operations.delivered}</p><p className="text-xs text-slate-500">Teslim</p></div>
+      <section className="mb-6 grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-sm">
+        <div><p className="text-xl font-black">{report.operations.new_orders}</p><p className="text-[10px] text-slate-500">Yeni kabul</p></div>
+        <div><p className="text-xl font-black">{report.operations.repaired}</p><p className="text-[10px] text-slate-500">Tamir</p></div>
+        <div><p className="text-xl font-black">{report.operations.delivered}</p><p className="text-[10px] text-slate-500">Teslim</p></div>
+        <div><p className="text-xl font-black">{report.pos.count}</p><p className="text-[10px] text-slate-500">POS fiş</p></div>
+        <div><p className="text-xl font-black">{report.service.delivered_count}</p><p className="text-[10px] text-slate-500">Servis gelir</p></div>
+        <div><p className="text-xl font-black">{report.stock.receipts}</p><p className="text-[10px] text-slate-500">Stok giriş</p></div>
       </section>
 
-      <section className="mb-6 text-sm">
-        <p><strong>POS:</strong> {report.pos.count} fiş · Ciro {fmt(report.pos.revenue)} · Net kâr {fmt(report.pos.profit)}</p>
+      <section className="mb-6 text-sm space-y-1">
+        <p><strong>POS:</strong> {report.pos.count} fiş · Ciro {fmt(report.pos.revenue)} · Maliyet {fmt(report.pos.cost)} · Net kâr {fmt(report.pos.profit)}</p>
+        <p><strong>Servis:</strong> {report.service.delivered_count} teslim · Gelir {fmt(report.service.revenue)}</p>
+        <p><strong>Stok:</strong> {report.stock.receipts} giriş · Maliyet {fmt(report.stock.total_cost)}</p>
       </section>
+
+      {report.lines.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-xs font-bold uppercase text-slate-500 mb-2">İşlem Detayı</h2>
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="text-left p-2">Saat</th>
+                  <th className="text-left p-2">Tür</th>
+                  <th className="text-left p-2">Açıklama</th>
+                  <th className="text-right p-2">Tutar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.lines.map((l, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className="p-2 whitespace-nowrap">{fmtDt(l.time)}</td>
+                    <td className="p-2">{TYPE_LABELS[l.type] ?? l.type}</td>
+                    <td className="p-2 max-w-xs truncate" title={l.description}>{l.description}</td>
+                    <td className="p-2 text-right font-mono">{fmt(l.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {report.expenses.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-bold uppercase text-slate-500 mb-2">Giderler</h2>
+          <h2 className="text-xs font-bold uppercase text-slate-500 mb-2">Gider Kategorileri</h2>
           {report.expenses.map(e => (
             <div key={e.category} className="flex justify-between text-sm py-0.5">
               <span>{e.category}</span><span>{fmt(e.amount)}</span>

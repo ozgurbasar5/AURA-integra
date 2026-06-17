@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs'
+
 /** @type {import('next').NextConfig} */
 
 /** Vercel deploy: env yoksa build'i durdur (push sonrası boş DB bağlantısını önler) */
@@ -52,7 +54,14 @@ const nextConfig = {
   },
   experimental: {
     forceSwcTransforms: false,
+    instrumentationHook: true,
   },
 }
 
-export default nextConfig
+export default process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, {
+      silent: true,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+    })
+  : nextConfig

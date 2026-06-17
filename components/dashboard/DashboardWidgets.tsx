@@ -24,7 +24,7 @@ export function DashboardHero({
   const today = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-gradient-to-br from-sky-600 via-sky-700 to-indigo-800 text-white shadow-xl shadow-sky-900/20">
+    <section className="relative overflow-hidden rounded-3xl border border-[var(--accent)]/20 hero-themed text-white shadow-xl" data-tour="dashboard-hero">
       <div className="absolute inset-0 opacity-30 pointer-events-none">
         <div className="absolute -top-20 -right-16 w-56 h-56 rounded-full bg-white/20 blur-3xl" />
         <div className="absolute bottom-0 left-1/4 w-40 h-40 rounded-full bg-cyan-400/20 blur-2xl" />
@@ -53,6 +53,20 @@ type QuickActionDef = {
   minPlan?: number
 }
 
+/** Önemli modüller önce gelsin — slice(0,6) kasa/raporları dışarıda bırakmasın */
+const QUICK_ACTION_PRIORITY = [
+  '/dashboard/kabul',
+  '/dashboard/atolye',
+  '/dashboard/stok',
+  '/dashboard/kasa',
+  '/dashboard/raporlar',
+] as const
+
+function priorityKey(href: string): number {
+  const idx = QUICK_ACTION_PRIORITY.indexOf(href as (typeof QUICK_ACTION_PRIORITY)[number])
+  return idx === -1 ? 50 : idx
+}
+
 const ACTION_DEFS: QuickActionDef[] = [
   { href: '/dashboard/kabul', label: 'Hızlı Kabul', icon: ClipboardCheck, roles: ['owner', 'satis', 'kasiyer'], color: 'from-emerald-500 to-teal-600' },
   { href: '/dashboard/satis', label: 'Satış & POS', icon: ShoppingCart, roles: ['owner', 'satis', 'kasiyer'], color: 'from-sky-500 to-blue-600' },
@@ -78,10 +92,12 @@ export function QuickActionGrid({
   const items = ACTION_DEFS.filter(a => {
     if (a.minPlan && planLevel < a.minPlan) return false
     return a.roles.includes(roleKey)
-  }).slice(0, 6)
+  })
+    .sort((a, b) => priorityKey(a.href) - priorityKey(b.href))
+    .slice(0, 6)
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" data-tour="dashboard-hizli-islemler">
       {items.map(a => {
         const Icon = a.icon
         return (
@@ -115,7 +131,7 @@ export function ServicePipeline({
   if (total === 0) return null
 
   return (
-    <div className="surface p-4">
+    <div className="surface p-4" data-tour="dashboard-servis-akisi">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
           <Sparkles size={15} className="text-sky-500" /> Servis Akışı

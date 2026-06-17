@@ -68,6 +68,8 @@ export interface TenantPayment {
   due_date: string
   paid_at?: string
   status: PaymentStatus
+  payment_method?: string
+  external_ref?: string
   notes?: string
   created_at: string
   // Joined

@@ -74,35 +74,24 @@ export function savePortalSettings(settings: PortalSettings) {
   localStorage.setItem(PORTAL_PREFS_KEY, JSON.stringify(settings))
 }
 
+export const DEFAULT_VIEW_OPTIONS: ViewOptions = {
+  compact: false,
+  noAnim: false,
+  highContrast: false,
+  sidebarMode: 'classic',
+  sidebarPersistCollapse: false,
+}
+
 export function getViewOptions(): ViewOptions {
   if (typeof window === 'undefined') {
-    return {
-      compact: false,
-      noAnim: false,
-      highContrast: false,
-      sidebarMode: 'classic',
-      sidebarPersistCollapse: false,
-    }
+    return { ...DEFAULT_VIEW_OPTIONS }
   }
   try {
     const raw = localStorage.getItem(VIEW_OPTS_KEY)
-    const defaults: ViewOptions = {
-      compact: false,
-      noAnim: false,
-      highContrast: false,
-      sidebarMode: 'classic',
-      sidebarPersistCollapse: false,
-    }
-    if (!raw) return defaults
-    return { ...defaults, ...JSON.parse(raw) }
+    if (!raw) return { ...DEFAULT_VIEW_OPTIONS }
+    return { ...DEFAULT_VIEW_OPTIONS, ...JSON.parse(raw) }
   } catch {
-    return {
-      compact: false,
-      noAnim: false,
-      highContrast: false,
-      sidebarMode: 'classic',
-      sidebarPersistCollapse: false,
-    }
+    return { ...DEFAULT_VIEW_OPTIONS }
   }
 }
 

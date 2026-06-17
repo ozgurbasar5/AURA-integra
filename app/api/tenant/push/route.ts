@@ -2,17 +2,17 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
-import { canPushModule } from '@/lib/api-role-guard'
+import { canPushModule, isKnownPushModule } from '@/lib/api-role-guard'
 import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
 import { getServiceClient } from '@/lib/supabase/service'
-import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceOrderToDb, serviceExpenseToDb, statusHistoryToDb } from '@/lib/db-mappers'
+import { deepMergeSettings } from '@/lib/tenant-store'
+import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceExpenseToDb, statusHistoryToDb } from '@/lib/db-mappers'
 import type { StoreData, ServiceExpense, StatusHistoryEntry } from '@/lib/store'
 
 type PushBody = {
-  module: keyof StoreData | 'notificationSettings' | 'kasaBalance'
+  module: keyof StoreData | 'notificationSettings'
   items?: unknown[]
   settings?: Record<string, unknown>
-  balance?: number
 }
 
 async function upsertRows(
@@ -42,40 +42,35 @@ export async function POST(req: NextRequest) {
 
   try {
     const moduleKey = String(body.module)
+    if (!isKnownPushModule(moduleKey)) {
+      return NextResponse.json({ error: `Bilinmeyen modül: ${moduleKey}` }, { status: 400 })
+    }
     if (!canPushModule(role, moduleKey)) {
       return NextResponse.json({ error: 'Bu modül için yazma yetkiniz yok' }, { status: 403 })
     }
 
-    if (body.module === 'kasaBalance' && body.balance != null) {
-      const balance = Number(body.balance)
-      const { data: existing } = await supabase
-        .from('accounts')
-        .select('id')
+    if (body.module === 'notificationSettings' && body.settings) {
+      const admin = getServiceClient()
+      if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
+
+      const { data: existing } = await admin
+        .from('tenant_settings')
+        .select('settings')
         .eq('tenant_id', tenantId)
-        .eq('type', 'kasa')
-        .limit(1)
         .maybeSingle()
 
-      if (existing?.id) {
-        const { error } = await supabase.from('accounts').update({ balance }).eq('id', existing.id)
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      } else {
-        const { error } = await supabase.from('accounts').insert({
-          tenant_id: tenantId,
-          name: 'Kasa',
-          type: 'kasa',
-          balance,
-          currency: 'TRY',
-        })
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      }
-      return NextResponse.json({ ok: true })
-    }
+      const incoming = { ...body.settings } as Record<string, unknown>
+      // Logo branding API üzerinden — büyük base64 push'u 500'e düşürebilir
+      delete incoming.shop_logo
 
-    if (body.module === 'notificationSettings' && body.settings) {
-      const { error } = await supabase.from('tenant_settings').upsert({
+      const merged = deepMergeSettings(
+        (existing?.settings as Record<string, unknown>) ?? {},
+        incoming,
+      )
+
+      const { error } = await admin.from('tenant_settings').upsert({
         tenant_id: tenantId,
-        settings: body.settings,
+        settings: merged,
         updated_at: new Date().toISOString(),
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -442,16 +437,6 @@ export async function POST(req: NextRequest) {
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         break
       }
-      case 'serviceOrders': {
-        const rows = (items as StoreData['serviceOrders']).map(o => {
-          const row = serviceOrderToDb(o, tenantId, userId) as Record<string, unknown>
-          if (!isUuid(String(row.id ?? ''))) delete row.id
-          return row
-        })
-        const { error } = await upsertRows(supabase, 'service_orders', rows)
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        break
-      }
       case 'foreignDevices': {
         const rows = (items as StoreData['foreignDevices']).map(d => {
           const row = foreignDeviceToDb(d, tenantId) as Record<string, unknown>
@@ -483,7 +468,7 @@ export async function POST(req: NextRequest) {
         break
       }
       default:
-        return NextResponse.json({ ok: true, skipped: true, module: body.module })
+        return NextResponse.json({ error: `Bilinmeyen modül: ${body.module}` }, { status: 400 })
     }
 
     return NextResponse.json({ ok: true })

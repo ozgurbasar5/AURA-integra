@@ -16,6 +16,14 @@ if (process.env.SKIP_ENV_VERIFY === '1') {
   process.exit(0)
 }
 
+function parseEnvValue(raw) {
+  const v = raw.trim()
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    return v.slice(1, -1).trim()
+  }
+  return v
+}
+
 function loadDotEnvLocal() {
   const path = join(root, '.env.local')
   if (!existsSync(path)) return {}
@@ -25,7 +33,7 @@ function loadDotEnvLocal() {
     if (!t || t.startsWith('#')) continue
     const i = t.indexOf('=')
     if (i < 1) continue
-    out[t.slice(0, i).trim()] = t.slice(i + 1).trim()
+    out[t.slice(0, i).trim()] = parseEnvValue(t.slice(i + 1))
   }
   return out
 }
@@ -66,10 +74,10 @@ const isVercelProd =
 
 if (isVercelProd) {
   const encKey = get('APP_ENCRYPTION_KEY')
-  if (!encKey || encKey.length < 32) {
-    console.warn('⚠ APP_ENCRYPTION_KEY eksik — build devam ediyor (SMS şifreleri düz metin saklanır)')
-    console.warn('   Vercel → Environment Variables → APP_ENCRYPTION_KEY (min 32 karakter)')
-  } else {
-    console.log('✓ APP_ENCRYPTION_KEY OK')
+  if (!encKey || encKey.length < 16) {
+    console.error('❌ APP_ENCRYPTION_KEY eksik veya çok kısa (min 16 karakter)')
+    console.error('   Vercel → Environment Variables → APP_ENCRYPTION_KEY')
+    process.exit(1)
   }
+  console.log('✓ APP_ENCRYPTION_KEY OK')
 }

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionUser, resolveSuperAdminAccess } from '@/lib/supabase/auth-helpers'
 
 const AdminSidebar = dynamic(() => import('@/components/layout/AdminSidebar'), { ssr: false })
+const AdminOnboardingTour = dynamic(() => import('@/components/admin/AdminOnboardingTour'), { ssr: false })
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -32,6 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <div className="page-wrapper">{children}</div>
           </main>
         </div>
+        <AdminOnboardingTour />
       </div>
     )
   } catch (err: unknown) {

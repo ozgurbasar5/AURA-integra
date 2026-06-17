@@ -9,6 +9,7 @@ import {
   hydrateStoreFromRemote,
   seedDemoDataIfEmpty,
 } from './store'
+import { setActiveTenantId } from './tenant-store'
 import {
   setSyncSyncing,
   setSyncSynced,
@@ -57,6 +58,21 @@ let pendingModuleKey: string | null = null
 let syncing = false
 let autoSyncEnabled = false
 let flushListenersAttached = false
+let syncInitStarted = false
+
+function settingsForPush(settings: StoreData['notificationSettings']): Record<string, unknown> {
+  const copy = { ...settings } as Record<string, unknown>
+  delete copy.shop_logo
+  return copy
+}
+
+function isMissingSchemaError(message: string): boolean {
+  return /does not exist|could not find the table|schema cache|column.*does not exist/i.test(message)
+}
+
+function isPermissionError(message: string): boolean {
+  return /permission denied|42501/i.test(message)
+}
 
 export async function hydrateFromSupabase(): Promise<boolean> {
   if (typeof window === 'undefined') return false
@@ -68,22 +84,51 @@ export async function hydrateFromSupabase(): Promise<boolean> {
       return false
     }
     const json = await res.json() as {
+      tenantId?: string
       data?: Partial<StoreData>
       partial?: boolean
       queryErrors?: { table: string; err: string }[]
     }
+    if (json.tenantId) setActiveTenantId(json.tenantId)
     if (json.data) {
       syncing = true
       hydrateStoreFromRemote(json.data)
       syncing = false
       setSyncSynced()
       if (json.partial && json.queryErrors?.length) {
-        const tables = json.queryErrors.map(e => e.table).join(', ')
-        setSyncError(`Kısmi senkron: ${tables}`)
+        const schemaMissing = json.queryErrors.filter(e => isMissingSchemaError(e.err))
+        const permErrors = json.queryErrors.filter(e => isPermissionError(e.err))
+        const otherErrors = json.queryErrors.filter(
+          e => !isMissingSchemaError(e.err) && !isPermissionError(e.err),
+        )
+
         try {
           const { toast } = await import('sonner')
-          toast.warning(`Bazı veriler yüklenemedi: ${tables}`)
+          if (schemaMissing.length) {
+            const tables = schemaMissing.map(e => e.table).join(', ')
+            toast.warning(
+              `Şema eksik/hatalı: ${tables}. Supabase SQL Editor'da 20260622_repair_sync_tables.sql çalıştırın.`,
+              { id: 'sync-schema-missing', duration: 12000 },
+            )
+          }
+          if (permErrors.length) {
+            const tables = permErrors.map(e => e.table).join(', ')
+            toast.warning(
+              `Tablo izni yok: ${tables}. Supabase SQL Editor'da 20260623_grant_erp_tables.sql çalıştırın.`,
+              { id: 'sync-permission', duration: 12000 },
+            )
+          }
+          if (otherErrors.length) {
+            const tables = otherErrors.map(e => e.table).join(', ')
+            toast.warning(`Bazı veriler yüklenemedi: ${tables}`, { id: 'sync-partial' })
+          }
         } catch { /* no sonner */ }
+
+        if (schemaMissing.length) {
+          setSyncError(`Eksik tablo: ${schemaMissing.map(e => e.table).join(', ')}`)
+        } else if (otherErrors.length) {
+          setSyncError(`Kısmi senkron: ${otherErrors.map(e => e.table).join(', ')}`)
+        }
       }
       return true
     }
@@ -93,23 +138,9 @@ export async function hydrateFromSupabase(): Promise<boolean> {
   return false
 }
 
-async function pushKasaBalance() {
-  if (syncing) return
-  try {
-    const store = getStore()
-    await fetch('/api/tenant/push', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module: 'kasaBalance', balance: store.kasaBakiye }),
-    })
-  } catch {
-    /* offline */
-  }
-}
-
 async function pushModule(module: keyof StoreData | 'notificationSettings') {
   if (syncing) return
+  if (module === 'serviceOrders') return
   incrementPending()
   try {
     const store = getStore()
@@ -118,7 +149,7 @@ async function pushModule(module: keyof StoreData | 'notificationSettings') {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'notificationSettings', settings: store.notificationSettings }),
+        body: JSON.stringify({ module: 'notificationSettings', settings: settingsForPush(store.notificationSettings) }),
       })
       if (!res.ok) setSyncError('Ayarlar kaydedilemedi')
       return
@@ -164,9 +195,6 @@ export async function flushPendingPush(): Promise<void> {
   pendingModuleKey = null
   const mapped = MODULE_MAP[moduleKey] ?? (moduleKey as keyof StoreData)
   await pushModule(mapped)
-  if (['finance', 'transactions', 'sales', 'cash', 'cashShifts'].includes(moduleKey)) {
-    await pushKasaBalance()
-  }
 }
 
 function schedulePush(moduleKey: string) {
@@ -175,7 +203,7 @@ function schedulePush(moduleKey: string) {
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(() => {
     void flushPendingPush()
-  }, 2500)
+  }, 4000)
 }
 
 function attachFlushListeners() {
@@ -187,7 +215,7 @@ function attachFlushListeners() {
       const mapped = MODULE_MAP[pendingModuleKey] ?? pendingModuleKey
       let body: string
       if (mapped === 'notificationSettings') {
-        body = JSON.stringify({ module: 'notificationSettings', settings: store.notificationSettings })
+        body = JSON.stringify({ module: 'notificationSettings', settings: settingsForPush(store.notificationSettings) })
       } else if (mapped === 'serviceExpenses') {
         body = JSON.stringify({ module: 'serviceExpenses', items: Object.values(store.serviceExpenses).flat() })
       } else {
@@ -205,6 +233,8 @@ function attachFlushListeners() {
 /** Dashboard açılışında çağır — önce çek, sonra dinlemeye başla */
 export async function initTenantDataSync(): Promise<void> {
   if (typeof window === 'undefined') return
+  if (syncInitStarted) return
+  syncInitStarted = true
   await hydrateFromSupabase()
   seedDemoDataIfEmpty()
   if (autoSyncEnabled) return

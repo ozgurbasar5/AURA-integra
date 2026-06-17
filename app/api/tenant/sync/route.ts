@@ -102,7 +102,6 @@ export async function GET() {
       supplierRes,
       personnelRes,
       foreignDevicesRes,
-      serviceExpensesRes,
     ] = await Promise.all([
       supabase.from('appointments').select('*').eq('tenant_id', tid).order('appointment_date', { ascending: false }),
       supabase.from('warranties').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
@@ -113,18 +112,40 @@ export async function GET() {
       supabase.from('supplier_orders').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
       supabase.from('personnel_profiles').select('*').eq('tenant_id', tid).order('full_name'),
       supabase.from('foreign_devices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('service_expenses').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(500),
     ])
-
-    if (serviceExpensesRes.error) {
-      queryErrors.push({ table: 'service_expenses', err: serviceExpensesRes.error.message })
-    }
 
     const tenant = tenantRes.data as Record<string, unknown> | null
     const settingsJson = (settingsRes.data?.settings as Record<string, unknown>) ?? {}
 
     const serviceOrders = (ordersRes.data ?? []).map(r => serviceOrderToStore(r as Record<string, unknown>))
     const orderIds = serviceOrders.map(o => o.id).filter(Boolean)
+
+    let serviceExpensesRes: { data: Record<string, unknown>[] | null; error: { message: string } | null } = {
+      data: [],
+      error: null,
+    }
+    if (orderIds.length > 0) {
+      const byTenant = await supabase
+        .from('service_expenses')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('created_at', { ascending: false })
+        .limit(500)
+      if (byTenant.error?.message?.includes('tenant_id')) {
+        serviceExpensesRes = await supabase
+          .from('service_expenses')
+          .select('*')
+          .in('service_order_id', orderIds)
+          .order('created_at', { ascending: false })
+          .limit(500)
+      } else {
+        serviceExpensesRes = byTenant
+      }
+    }
+
+    if (serviceExpensesRes.error) {
+      queryErrors.push({ table: 'service_expenses', err: serviceExpensesRes.error.message })
+    }
 
     let statusHistoryRows: Record<string, unknown>[] = []
     if (orderIds.length > 0) {
@@ -211,6 +232,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
+      tenantId: tid,
       data: payload,
       synced_at: new Date().toISOString(),
       partial: queryErrors.length > 0,

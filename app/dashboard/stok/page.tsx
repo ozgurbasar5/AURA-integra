@@ -9,11 +9,14 @@ import {
 import { PART_CATEGORIES } from '@/lib/constants'
 import { formatCurrency } from '@/lib/validators'
 import {
-  getStock, getFinanceSummary, addStockItem, receiveStock, onStoreChange,
+  getStock, getFinanceSummary, onStoreChange,
   type StockItem
 } from '@/lib/store'
+import {
+  loadStockFromApi, addStockItemViaApi, receiveStockViaApi,
+} from '@/lib/stock-bridge'
 import BarcodeLabelSheet from '@/components/labels/BarcodeLabelSheet'
-import { stockLabelFromItem } from '@/lib/barcode-labels'
+import { stockLabelFromItem, generateStockBarcode } from '@/lib/barcode-labels'
 
 export default function StokPage() {
   const [stock, setStockData] = useState<StockItem[]>([])
@@ -29,7 +32,7 @@ export default function StokPage() {
   const [printLabels, setPrintLabels] = useState<ReturnType<typeof stockLabelFromItem>[] | null>(null)
 
   // Add part form
-  const [newPart, setNewPart] = useState({ name: '', barcode: '', category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
+  const [newPart, setNewPart] = useState({ name: '', barcode: generateStockBarcode(), category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
 
   const refresh = useCallback(() => {
     setStockData(getStock())
@@ -38,7 +41,7 @@ export default function StokPage() {
 
   useEffect(() => {
     setMounted(true)
-    refresh()
+    void loadStockFromApi().then(() => refresh())
     const unsub = onStoreChange((mod) => {
       if (mod === 'stock' || mod === 'finance') refresh()
     })
@@ -56,47 +59,57 @@ export default function StokPage() {
 
   const categories = [...new Set(stock.map(p => p.category))]
 
-  const handleAddPart = () => {
+  const handleAddPart = async () => {
     if (!newPart.name.trim()) {
       toast.error('Parça adı zorunlu')
       return
     }
-    // Satış fiyatı girilmediyse alış fiyatına eşitle (sonradan düzenlenebilir)
     const buyPrice = parseFloat(newPart.buy_price) || 0
     const sellPrice = newPart.sell_price ? parseFloat(newPart.sell_price) : buyPrice
-    addStockItem({
-      name: newPart.name.trim(),
-      barcode: newPart.barcode || `BRK${Date.now()}`,
-      category: newPart.category,
-      compatible_brands: [],
-      stock_qty: 0,
-      min_stock: parseInt(newPart.min_stock) || 5,
-      buy_price: buyPrice,
-      sell_price: sellPrice,
-      supplier: newPart.supplier.trim(),
-    })
-    toast.success(`"${newPart.name}" parça eklendi`)
-    setShowAddModal(false)
-    setNewPart({ name: '', barcode: '', category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
+    try {
+      const created = await addStockItemViaApi({
+        name: newPart.name.trim(),
+        barcode: newPart.barcode || generateStockBarcode(),
+        category: newPart.category,
+        compatible_brands: [],
+        stock_qty: 0,
+        min_stock: parseInt(newPart.min_stock) || 5,
+        buy_price: buyPrice,
+        sell_price: sellPrice,
+        supplier: newPart.supplier.trim(),
+      })
+      setPrintLabels([stockLabelFromItem(created)])
+      toast.success(`"${newPart.name}" parça eklendi`)
+      setShowAddModal(false)
+      setNewPart({ name: '', barcode: generateStockBarcode(), category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
+      refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Parça eklenemedi')
+    }
   }
 
-  const handleReceiveStock = () => {
+  const handleReceiveStock = async () => {
     if (!selectedItem || !receiveQty) return
     const qty = parseInt(receiveQty)
     if (qty <= 0) { toast.error('Geçerli bir adet girin'); return }
     const totalCost = qty * selectedItem.buy_price
-    receiveStock(selectedItem.id, qty, totalCost, selectedItem.supplier)
-    toast.success(`${qty} adet "${selectedItem.name}" stoğa eklendi. Maliyet: ${formatCurrency(totalCost)} → Finansa gider olarak yansıdı ✅`)
-    setShowReceiveModal(false)
-    setSelectedItem(null)
-    setReceiveQty('')
+    try {
+      await receiveStockViaApi(selectedItem.id, qty, totalCost, selectedItem.supplier, selectedItem.name)
+      toast.success(`${qty} adet "${selectedItem.name}" stoğa eklendi. Maliyet: ${formatCurrency(totalCost)} → Finansa gider olarak yansıdı ✅`)
+      setShowReceiveModal(false)
+      setSelectedItem(null)
+      setReceiveQty('')
+      refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Stok girişi başarısız')
+    }
   }
 
   return (
     <>
     <div className="space-y-6 pb-8 no-print">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-tour="stok-baslik">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Package size={20} className="text-sky-600" /> Stok & Yedek Parça
@@ -104,7 +117,10 @@ export default function StokPage() {
           <p className="text-slate-400 text-sm mt-0.5">Stok değişiklikleri otomatik olarak finansa yansır</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowAddModal(true)}
+          <a href="/dashboard/stok/sayim" data-tour="stok-sayim-link" className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-all">
+            Stok Sayım
+          </a>
+          <button onClick={() => setShowAddModal(true)} data-tour="stok-yeni-parca-btn"
             className="flex items-center gap-1.5 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-xl transition-all">
             <Plus size={14} /> Yeni Parça
           </button>
@@ -112,7 +128,7 @@ export default function StokPage() {
       </div>
 
       {/* Metrics — CANLI VERİ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-tour="stok-metrikler">
         {[
           { label: 'Toplam Çeşit', val: summary.totalStockItems.toString(), icon: Package, bg: 'from-sky-500 to-purple-600' },
           { label: 'Toplam Adet', val: summary.totalStockQty.toLocaleString('tr-TR'), icon: BarChart3, bg: 'from-blue-500 to-cyan-600' },
@@ -133,7 +149,7 @@ export default function StokPage() {
       </div>
 
       {/* Filters */}
-      <div className="card p-3 flex flex-wrap items-center gap-3">
+      <div className="card p-3 flex flex-wrap items-center gap-3" data-tour="stok-filtreler">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -156,7 +172,7 @@ export default function StokPage() {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden" data-tour="stok-tablo">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -211,7 +227,7 @@ export default function StokPage() {
                         >
                           <Printer size={14} />
                         </button>
-                        <button onClick={() => { setSelectedItem(p); setShowReceiveModal(true) }}
+                        <button onClick={() => { setSelectedItem(p); setShowReceiveModal(true) }} data-tour="stok-giris-btn"
                           className="px-2 py-1 text-[10px] font-bold bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors">
                           + Giriş
                         </button>
@@ -243,8 +259,11 @@ export default function StokPage() {
                     {PART_CATEGORIES.map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
-                <div><label className="label">Barkod</label>
-                  <input className="input" placeholder="Otomatik" value={newPart.barcode} onChange={e => setNewPart(p => ({ ...p, barcode: e.target.value }))} />
+                <div><label className="label">Barkod (otomatik)</label>
+                  <div className="flex gap-2">
+                    <input className="input font-mono text-xs bg-slate-50" readOnly value={newPart.barcode} />
+                    <button type="button" className="btn-secondary text-xs shrink-0" onClick={() => setNewPart(p => ({ ...p, barcode: generateStockBarcode() }))}>Yenile</button>
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">

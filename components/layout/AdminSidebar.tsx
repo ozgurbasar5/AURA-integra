@@ -2,21 +2,48 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   Zap, ClipboardList, LogOut, Users, BookOpen, Menu, X,
+  Shield, Webhook,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
 
-const NAV = [
-  { href: '/admin',                          icon: LayoutDashboard, label: 'Komuta Merkezi' },
-  { href: '/admin/bayiler',                  icon: Building2,       label: 'Bayi Yönetimi' },
-  { href: '/admin/bayiler/kullanicilari',    icon: Users,           label: 'Bayi Kullanıcıları' },
-  { href: '/admin/basvurular',               icon: ClipboardList,   label: 'Başvurular' },
-  { href: '/admin/odemeler',                 icon: CreditCard,      label: 'Ödemeler' },
-  { href: '/admin/dokumantasyon',            icon: BookOpen,        label: 'Dokümantasyon' },
-  { href: '/admin/ayarlar',                  icon: Settings,        label: 'Ayarlar' },
+const SECTIONS = [
+  {
+    id: 'buyume',
+    label: 'Büyüme',
+    items: [
+      { href: '/admin/basvurular', icon: ClipboardList, label: 'Başvurular' },
+      { href: '/admin/bayiler', icon: Building2, label: 'Bayi Yönetimi' },
+      { href: '/admin/bayiler/kullanicilari', icon: Users, label: 'Bayi Kullanıcıları' },
+    ],
+  },
+  {
+    id: 'gelir',
+    label: 'Gelir',
+    items: [
+      { href: '/admin/odemeler', icon: CreditCard, label: 'Ödemeler' },
+    ],
+  },
+  {
+    id: 'operasyon',
+    label: 'Operasyon',
+    items: [
+      { href: '/admin/operasyon/audit', icon: Shield, label: 'Denetim Kayıtları' },
+      { href: '/admin/operasyon/webhook', icon: Webhook, label: 'Webhook Hataları' },
+    ],
+  },
+  {
+    id: 'sistem',
+    label: 'Sistem',
+    items: [
+      { href: '/admin/dokumantasyon', icon: BookOpen, label: 'Dokümantasyon' },
+      { href: '/admin/ayarlar', icon: Settings, label: 'Ayarlar' },
+    ],
+  },
 ]
 
 interface Props {
@@ -29,6 +56,17 @@ export default function AdminSidebar({ user }: Props) {
   const supabase = createClient()
   const initials = (user.full_name || user.email).charAt(0).toUpperCase()
 
+  useEffect(() => {
+    const onPrepare = () => setMobileOpen(true)
+    const onMobile = () => setMobileOpen(true)
+    window.addEventListener(TOUR_PREPARE_EVENT, onPrepare)
+    window.addEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobile)
+    return () => {
+      window.removeEventListener(TOUR_PREPARE_EVENT, onPrepare)
+      window.removeEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobile)
+    }
+  }, [])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     window.location.href = '/login'
@@ -37,27 +75,39 @@ export default function AdminSidebar({ user }: Props) {
   function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     return (
       <>
-        <p className="px-3 py-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest">Yönetim</p>
-        {NAV.map(({ href, icon: Icon, label }) => {
-          const exact = href === '/admin'
-          const active = exact ? pathname === href : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px] lg:min-h-0 ${
-                active ? 'bg-sky-500/15 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-sky-400 rounded-r-full" />
-              )}
-              <Icon size={17} className={active ? 'text-sky-400' : 'text-slate-500'} />
-              {label}
-            </Link>
-          )
-        })}
+        <Link
+          href="/admin"
+          onClick={onNavigate}
+          data-tour-nav="/admin"
+          className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px] lg:min-h-0 mb-2 ${
+            pathname === '/admin' ? 'bg-sky-500/15 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard size={17} className={pathname === '/admin' ? 'text-sky-400' : 'text-slate-500'} />
+          Komuta Merkezi
+        </Link>
+        {SECTIONS.map(section => (
+          <div key={section.id} className="mb-3">
+            <p className="px-3 py-1.5 text-[10px] font-bold text-slate-600 uppercase tracking-widest">{section.label}</p>
+            {section.items.map(({ href, icon: Icon, label }) => {
+              const active = pathname === href || (href !== '/admin' && pathname.startsWith(href))
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  data-tour-nav={href}
+                  className={`relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all min-h-[40px] lg:min-h-0 ${
+                    active ? 'bg-sky-500/15 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Icon size={16} className={active ? 'text-sky-400' : 'text-slate-500'} />
+                  {label}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
       </>
     )
   }
@@ -77,7 +127,7 @@ export default function AdminSidebar({ user }: Props) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
           <NavLinks onNavigate={onNavigate} />
         </nav>
 
@@ -116,20 +166,9 @@ export default function AdminSidebar({ user }: Props) {
       </button>
 
       {mobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          onClick={() => setMobileOpen(false)}
-        >
-          <div
-            className="w-[min(280px,100vw)] h-full sidebar-dark shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white z-10 safe-top"
-              aria-label="Menüyü kapat"
-            >
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)}>
+          <div className="w-[min(280px,100vw)] h-full sidebar-dark shadow-2xl" onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white z-10 safe-top" aria-label="Menüyü kapat">
               <X size={18} />
             </button>
             <SidebarInner onNavigate={() => setMobileOpen(false)} />

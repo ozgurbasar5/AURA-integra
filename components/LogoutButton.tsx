@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { purgeTenantStore } from '@/lib/store'
 import { LogOut } from 'lucide-react'
 
 interface LogoutButtonProps {
@@ -13,6 +14,7 @@ export default function LogoutButton({ compact = false }: LogoutButtonProps) {
   const supabase = createClient()
 
   async function handleLogout() {
+    purgeTenantStore()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()

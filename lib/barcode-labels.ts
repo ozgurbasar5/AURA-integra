@@ -9,6 +9,12 @@ export interface LabelLine {
   price?: string
 }
 
+export function generateStockBarcode(prefix = 'AURA'): string {
+  const ts = Date.now().toString(36).toUpperCase()
+  const rnd = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `${prefix}-${ts}-${rnd}`
+}
+
 export function stockScanUrl(barcode: string): string {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   return `${base}/dashboard/satis?scan=${encodeURIComponent(barcode)}`

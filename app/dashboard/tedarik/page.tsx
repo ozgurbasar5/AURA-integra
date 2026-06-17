@@ -70,12 +70,13 @@ export default function TedarikPage() {
   return (
     <PageShell>
       <PageHeader
+        data-tour="tedarik-baslik"
         eyebrow="Tedarik"
         title="Parça Siparişleri"
         description="Servis kayıtlarına bağlı tedarikçi siparişleri ve parça bekleme takibi."
         icon={Truck}
         actions={
-          <button type="button" onClick={() => setShowForm(true)} className="btn-primary btn-sm flex items-center gap-2">
+          <button data-tour="tedarik-yeni-btn" type="button" onClick={() => setShowForm(true)} className="btn-primary btn-sm flex items-center gap-2">
             <Plus size={14} /> Yeni Sipariş
           </button>
         }
@@ -84,7 +85,7 @@ export default function TedarikPage() {
       {orders.length === 0 ? (
         <PageCard><EmptyState icon={Truck} title="Sipariş yok" description="Parça bekleyen servisler için tedarikçi siparişi oluşturun." /></PageCard>
       ) : (
-        <PageCard noPadding>
+        <PageCard data-tour="tedarik-liste" noPadding>
           <div className="divide-y divide-slate-100">
             {orders.map(o => (
               <div key={o.id} className="px-5 py-4 flex flex-wrap items-center gap-4">

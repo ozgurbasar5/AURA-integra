@@ -132,14 +132,15 @@ export default function KabulPage() {
         title="Kasa Kabul"
         description="Tablet/kasa ekranı — 30 saniyede servis kaydı açın."
         icon={ClipboardCheck}
+        data-tour="kabul-baslik"
       />
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <PageCard title="Yeni Kabul">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <PageCard title="Yeni Kabul" data-tour="kabul-form">
+          <form onSubmit={handleSubmit} className="space-y-4" data-tour="kabul-musteri-alanlari">
             <input className="input text-lg py-3" placeholder="Müşteri adı *" required value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} />
             <input className="input text-lg py-3 font-mono" placeholder="Telefon *" required value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3" data-tour="kabul-cihaz-alanlari">
               <select className="input" value={form.device_brand} onChange={e => setForm(f => ({ ...f, device_brand: e.target.value }))}>
                 {['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Oppo', 'Diğer'].map(b => <option key={b}>{b}</option>)}
               </select>
@@ -147,7 +148,7 @@ export default function KabulPage() {
             </div>
             <input className="input font-mono" placeholder="IMEI" value={form.imei} onChange={e => setForm(f => ({ ...f, imei: e.target.value }))} />
             <textarea className="input resize-none" rows={3} placeholder="Arıza / not" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-            <div>
+            <div data-tour="kabul-on-kontrol">
               <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Ön kontrol</p>
               <div className="flex flex-wrap gap-2">
                 {PRE_CHECKS.map(c => (
@@ -162,13 +163,13 @@ export default function KabulPage() {
                 ))}
               </div>
             </div>
-            <button type="submit" disabled={saving} className="btn-primary w-full py-4 text-base rounded-2xl">
+            <button type="submit" disabled={saving} data-tour="kabul-kayit-btn" className="btn-primary w-full py-4 text-base rounded-2xl">
               {saving ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Kaydı Oluştur & Atölyeye Git'}
             </button>
           </form>
         </PageCard>
 
-        <PageCard title="Son Kayıt & Önizleme">
+        <PageCard title="Son Kayıt & Önizleme" data-tour="kabul-onizleme">
           {lastJob && lastPrint ? (
             <div className="space-y-4">
               <div className="text-center py-4 border-b border-slate-100">

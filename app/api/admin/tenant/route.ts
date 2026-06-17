@@ -6,6 +6,7 @@ import {
   extendSubscriptionEnd,
   toDateString,
 } from '@/lib/subscription'
+import { writeAuditLog } from '@/lib/audit-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -163,12 +164,24 @@ export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireSuperAdmin(request)
     if (!auth.authorized) return auth.error
+    const actorId = auth.userId
 
     const admin = getAdminClient()
     const body = await request.json()
-    const { id, action, ...updates } = body
+    const { id, action, admin_note, ...updates } = body
+    const note = typeof admin_note === 'string' ? admin_note.trim() : ''
 
     if (!id) return NextResponse.json({ error: 'ID gerekli' }, { status: 400 })
+
+    async function auditTenantChange(actionName: string, meta?: Record<string, unknown>) {
+      await writeAuditLog({
+        actorId,
+        action: actionName,
+        targetType: 'tenant',
+        targetId: id,
+        metadata: { ...(meta ?? {}), ...(note ? { note } : {}) },
+      })
+    }
 
     // Hızlı durum aksiyonları
     if (action === 'activate') {
@@ -202,6 +215,7 @@ export async function PATCH(request: NextRequest) {
         )
       }
 
+      await auditTenantChange('tenant_activate', { subscription_end: newEnd })
       return NextResponse.json({ success: true, data })
     }
 
@@ -213,6 +227,7 @@ export async function PATCH(request: NextRequest) {
         .select()
         .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      await auditTenantChange('tenant_deactivate')
       return NextResponse.json({ success: true, data })
     }
 
@@ -224,6 +239,7 @@ export async function PATCH(request: NextRequest) {
         .select()
         .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      await auditTenantChange('tenant_suspend')
       return NextResponse.json({ success: true, data })
     }
 
@@ -241,10 +257,15 @@ export async function PATCH(request: NextRequest) {
         .select()
         .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      await auditTenantChange('tenant_renew_trial', { subscription_end: trialEnd })
       return NextResponse.json({ success: true, data })
     }
 
     // Genel güncelleme
+    if (Object.keys(updates).length > 0 && note.length < 3) {
+      return NextResponse.json({ error: 'Abonelik/durum değişikliği için admin notu zorunlu (min 3 karakter)' }, { status: 400 })
+    }
+
     const patchPayload = { ...updates, updated_at: new Date().toISOString() }
 
     const { data, error } = await admin
@@ -271,6 +292,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    await auditTenantChange('tenant_update', updates)
     return NextResponse.json({ success: true, data })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Sunucu hatası'

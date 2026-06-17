@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import {
   Wrench, Plus, Search, Loader2, X,
 } from 'lucide-react'
-import { onStoreChange, type StoreServiceOrder } from '@/lib/store'
+import { onStoreChange, getServiceOrders, type StoreServiceOrder } from '@/lib/store'
 import { loadServiceOrdersFromApi, createServiceOrderRemote } from '@/lib/service-order-bridge'
 import dynamic from 'next/dynamic'
 import AtolyeOrderTable, { type AtolyeTableOrder } from '@/components/atolye/AtolyeOrderTable'
@@ -57,7 +57,11 @@ export default function AtolyePage() {
 
   useEffect(() => {
     fetchOrders()
-    return onStoreChange(m => { if (m === 'service') fetchOrders() })
+    return onStoreChange(m => {
+      if (m === 'service') {
+        setOrders(getServiceOrders().map(mapStore))
+      }
+    })
   }, [fetchOrders])
 
   const filtered = useMemo(() => {
@@ -108,18 +112,18 @@ export default function AtolyePage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div data-tour="atolye-baslik" className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">Teknik Servis</p>
           <h1 className="text-2xl font-black text-slate-900">Atölye</h1>
           <p className="text-sm text-slate-500 mt-1">{counts.active} aktif · {counts.repair} tamirde · {counts.ready} teslime hazır</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex rounded-xl border border-slate-200 overflow-hidden">
+          <div data-tour="atolye-gorunum" className="flex rounded-xl border border-slate-200 overflow-hidden">
             <button type="button" onClick={() => setViewMode('kanban')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'kanban' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Kanban</button>
             <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'list' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Liste</button>
           </div>
-          <button type="button" onClick={() => setShowModal(true)} className="btn-primary">
+          <button data-tour="atolye-yeni-servis-btn" type="button" onClick={() => setShowModal(true)} className="btn-primary">
             <Plus size={16} /> Yeni Servis
           </button>
         </div>
@@ -135,7 +139,7 @@ export default function AtolyePage() {
         />
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      <div data-tour="atolye-filtreler" className="flex gap-2 flex-wrap">
         {FILTERS.map(f => (
           <button
             key={f.key}
@@ -150,6 +154,7 @@ export default function AtolyePage() {
         ))}
       </div>
 
+      <div data-tour="atolye-icerik">
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
       ) : viewMode === 'kanban' ? (
@@ -162,6 +167,7 @@ export default function AtolyePage() {
       ) : (
         <AtolyeOrderTable orders={filtered} />
       )}
+      </div>
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>

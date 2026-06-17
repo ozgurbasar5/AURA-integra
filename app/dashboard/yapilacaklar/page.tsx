@@ -174,7 +174,7 @@ export default function YapilacaklarPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div data-tour="todo-baslik" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <ClipboardList className="text-sky-400" size={28} />
@@ -253,7 +253,7 @@ export default function YapilacaklarPage() {
       </div>
 
       {/* ── Task List ── */}
-      <div className="space-y-3">
+      <div data-tour="todo-liste" className="space-y-3">
         {filtered.length === 0 && (
           <div className="text-center py-20 text-slate-500">
             <ListTodo size={48} className="mx-auto mb-4 opacity-40" />

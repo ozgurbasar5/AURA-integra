@@ -126,10 +126,11 @@ export default function BildirimlerPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="bildirim-baslik"
         icon={Bell}
         title="Bildirim Merkezi"
         description="SMS, e-posta, WhatsApp ve push bildirim yönetimi"
-        actions={<button onClick={() => setShowSendModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Bildirim Gönder</button>}
+        actions={<button data-tour="bildirim-gonder-btn" onClick={() => setShowSendModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Bildirim Gönder</button>}
       />
 
       {/* Metrikler */}
@@ -151,7 +152,7 @@ export default function BildirimlerPage() {
       </div>
 
       {/* Sekmeler */}
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+      <div data-tour="bildirim-sekmeler" className="flex gap-1 bg-slate-100 rounded-xl p-1">
         {([
           { key: 'logs' as const, label: 'Gönderim Geçmişi', icon: Send },
           { key: 'templates' as const, label: 'SMS Şablonları', icon: MessageCircle },
@@ -180,7 +181,7 @@ export default function BildirimlerPage() {
             <span className="text-xs text-slate-400 ml-auto">{filtered.length} kayıt</span>
           </div>
 
-          <div className="card overflow-hidden">
+          <div data-tour="bildirim-log-listesi" className="card overflow-hidden">
             <div className="divide-y divide-slate-50">
               {filtered.map(l => {
                 const ch = CHANNEL_CONFIG[l.channel]

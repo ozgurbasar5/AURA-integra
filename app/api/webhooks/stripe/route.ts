@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
-import { activateTenantSubscription } from '@/lib/subscription-webhook'
+import { activateTenantSubscription, stripeAmountToMajor } from '@/lib/subscription-webhook'
+import { logWebhookFailure } from '@/lib/webhook-failure-log'
+import { captureException } from '@/lib/sentry'
 import { createHmac, timingSafeEqual } from 'crypto'
 
 function verifyStripeSignature(rawBody: string, signatureHeader: string | null): boolean {
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
     tenantId &&
     (eventType === 'checkout.session.completed' || eventType === 'invoice.payment_succeeded')
   ) {
-    const amount = Number(obj.amount_total ?? obj.amount_paid ?? 0) / (obj.amount_total ? 100 : 1)
+    const amount = stripeAmountToMajor(obj)
     const planId = metadata?.plan_id ? String(metadata.plan_id) : null
     const result = await activateTenantSubscription(admin, String(tenantId), {
       amount: amount || undefined,
@@ -71,7 +73,33 @@ export async function POST(req: NextRequest) {
       externalRef: String(obj.id ?? eventType),
     })
     if (!result) {
+      await logWebhookFailure(admin, {
+        provider: 'stripe',
+        eventType,
+        externalRef: String(obj.id ?? eventType),
+        tenantId: String(tenantId),
+        errorMessage: 'Tenant güncellenemedi',
+        payload,
+      })
       return NextResponse.json({ error: 'Tenant güncellenemedi', event: eventType }, { status: 500 })
+    }
+  }
+
+  if (eventType === 'invoice.payment_failed' && tenantId) {
+    const { error: overdueErr } = await admin
+      .from('tenants')
+      .update({ status: 'payment_overdue', last_activity_at: new Date().toISOString() })
+      .eq('id', String(tenantId))
+
+    if (overdueErr) {
+      await captureException(overdueErr, { eventType, tenantId })
+      await logWebhookFailure(admin, {
+        provider: 'stripe',
+        eventType,
+        tenantId: String(tenantId),
+        errorMessage: overdueErr.message,
+        payload,
+      })
     }
   }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import ColorModeToggle from '@/components/ColorModeToggle'
 import { useUserRole } from '@/lib/role-context'
-import { Bell, Cloud, CloudOff, Loader2, Search } from 'lucide-react'
+import { Bell, Cloud, CloudOff, Loader2, Search, HelpCircle } from 'lucide-react'
 import Link from 'next/link'
 import { getSyncState, subscribeSyncState, type SyncState } from '@/lib/sync-status'
 
@@ -66,6 +66,7 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
           <button
             type="button"
             onClick={onOpenSearch}
+            data-tour="servis-arama"
             className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl border border-[var(--bg-border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
             title="Hızlı arama"
             aria-label="Hızlı arama"
@@ -73,6 +74,13 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
             <Search size={17} />
           </button>
         )}
+        <Link
+          href="/dashboard/nasil-calisir"
+          className="w-9 h-9 flex items-center justify-center rounded-xl border border-[var(--bg-border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-sky-600 transition-colors"
+          title="Nasıl çalışır?"
+        >
+          <HelpCircle size={17} />
+        </Link>
         <ColorModeToggle />
         <Link
           href="/dashboard/bildirimler"

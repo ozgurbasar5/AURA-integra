@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
-import { canPushModule } from '@/lib/api-role-guard'
+import { canWriteTenantData } from '@/lib/api-role-guard'
 import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
 
 async function resolveBridgeTenantId(
@@ -99,7 +99,7 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
-  if (!canPushModule(auth.role, 'serviceOrders')) {
+  if (!canWriteTenantData(auth.role)) {
     return NextResponse.json({ error: 'Yetkiniz yok' }, { status: 403 })
   }
 

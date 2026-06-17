@@ -68,6 +68,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Profil bulunamadı.' }, { status: 403 })
     }
 
+    if (profile.role === 'super_admin') {
+      return NextResponse.json({ error: 'Süper admin tenant API kullanamaz' }, { status: 403 })
+    }
+
+    if (!profile.tenant_id) {
+      return NextResponse.json({ error: 'Geçerli bir tenant bulunamadı.' }, { status: 403 })
+    }
+
     const searchParams = req.nextUrl.searchParams
     const statusParam = searchParams.get('status')
     const status = statusParam ? normalizeStatus(statusParam) : null
@@ -95,10 +103,7 @@ export async function GET(req: NextRequest) {
       )
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
-
-    if (profile.role !== 'super_admin' && profile.tenant_id) {
-      query = query.eq('tenant_id', profile.tenant_id)
-    }
+      .eq('tenant_id', profile.tenant_id)
 
     if (status) {
       query = query.eq('status', status)

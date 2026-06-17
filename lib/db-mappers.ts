@@ -3,6 +3,7 @@
  */
 
 import { mapDbStatusToStore, mapStoreStatusToDb } from './erp-features'
+import { normalizePaymentMethod } from './payment-method'
 import { decryptPii, encryptPii } from './pii-crypto'
 import type {
   StockItem,
@@ -113,8 +114,17 @@ export function customerToDb(c: StoreCustomer, tenantId: string): Row {
   // hassas alanlar (vkn, tc_no) anahtar mevcutsa şifrelenir.
   const phone = c.phone.replace(/\s/g, '')
   const usePiiEnc = Boolean(process.env.APP_ENCRYPTION_KEY && process.env.APP_ENCRYPTION_KEY.length >= 16)
-  const vknEnc = encryptPii(c.vkn ?? null)
-  const tcEnc = encryptPii(c.tc_no ?? null)
+  let vknEnc: string | null = null
+  let tcEnc: string | null = null
+  if (usePiiEnc) {
+    try {
+      vknEnc = encryptPii(c.vkn ?? null)
+      tcEnc = encryptPii(c.tc_no ?? null)
+    } catch {
+      vknEnc = null
+      tcEnc = null
+    }
+  }
   return {
     id: c.id.match(/^[0-9a-f-]{36}$/i) ? c.id : undefined,
     tenant_id: tenantId,
@@ -163,7 +173,7 @@ export function txToDb(t: FinanceTransaction, tenantId: string, userId?: string)
     tenant_id: tenantId,
     type: t.type,
     amount: t.amount,
-    payment_method: t.payment_method,
+    payment_method: normalizePaymentMethod(t.payment_method),
     category: t.category,
     description: t.description,
     transaction_date: t.date,
@@ -429,7 +439,7 @@ export function defaultNotificationSettings(tenant?: Row): NotificationSettings 
     on_status_change: true,
     on_delivery: true,
     require_qc_on_delivery: true,
-    shop_address: tenant?.address ? String(tenant.address) : 'Merkez Mağaza',
+    shop_address: tenant?.address ? String(tenant.address) : '',
     shop_phone: tenant?.phone ? String(tenant.phone) : '0850 000 00 00',
     shop_name: String(tenant?.shop_name ?? tenant?.company_name ?? 'AURA İntegra'),
     shop_logo: tenant?.shop_logo ? String(tenant.shop_logo) : '',

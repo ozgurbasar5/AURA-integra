@@ -29,14 +29,21 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  // getSession() → cookie'den okur, network call YAPMAZ (getUser() gibi değil)
-  const { data: { session } } = await supabase.auth.getSession()
-
   const { pathname, searchParams } = request.nextUrl
   const isAuthPage = pathname.startsWith('/login')
   const isAdminPage = pathname.startsWith('/admin')
   const isDashboardPage = pathname.startsWith('/dashboard')
   const isApiRoute = pathname.startsWith('/api/')
+
+  // getSession() → cookie'den okur; geçersiz refresh token'da sessiz çıkış
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+  if (sessionError?.message?.includes('refresh_token') || sessionError?.code === 'refresh_token_not_found') {
+    await supabase.auth.signOut()
+    if (isAdminPage || isDashboardPage) {
+      return NextResponse.redirect(new URL('/login?error=session_expired', request.url))
+    }
+  }
 
   // API route'ları middleware auth yönlendirmesinden muaf
   if (isApiRoute) {

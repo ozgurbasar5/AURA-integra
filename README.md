@@ -89,6 +89,25 @@ X-API-Key: ak_live_...
 
 Generate keys in **Ayarlar → Entegrasyonlar**.
 
+## Nasıl Çalışır? (Türkçe)
+
+Uygulama içi interaktif rehber: **`/dashboard/nasil-calisir`** (sağ üstte ? ikonu).
+
+| Modül | Ne işe yarar? | Otomatik mantık |
+|-------|---------------|-----------------|
+| **Hızlı Kabul** | Cihaz teslim alma, servis no, fiş | SMS/WhatsApp + portal linki |
+| **Atölye** | Tamir, parça, teslim | Stoktan parça → stok düşer, maliyet/kâr |
+| **Stok** | Yedek parça envanteri | Giriş → finansa gider; barkod otomatik |
+| **Alış** | İkinci el cihaz alımı (tedarik) | Vitrin/satışa hazırlık; stoktan farklı |
+| **Satış POS** | Perakende satış | Stok doğrula → satış → gelir → kasa |
+| **Kasa** | Vardiya aç/kapat, Z raporu | Sabah kasa + gün içi tüm işlemler detaylı |
+
+**Tema özelleştirme:** Ayarlar → Tema & Görünüm — renk, sol panel stili (Marka/Koyu/Açık), köşe yuvarlaklığı, canlı önizleme.
+
+**SMS kurulum:** `/dashboard/nasil-calisir` → SMS Kurulumu adımı veya Dokümantasyon → Bayi Kurulum SMS.
+
+Detaylı dokümantasyon: `/dashboard/dokumantasyon`
+
 ## Cron
 
 ```http

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { activateTenantSubscription } from '@/lib/subscription-webhook'
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 function verifyIyzicoSignature(body: string, signature: string | null): boolean {
   const secret = process.env.IYZICO_SECRET
@@ -12,7 +12,11 @@ function verifyIyzicoSignature(body: string, signature: string | null): boolean 
   }
   if (!signature) return false
   const expected = createHmac('sha256', secret).update(body).digest('hex')
-  return expected === signature
+  try {
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  } catch {
+    return false
+  }
 }
 
 /** iyzico ödeme webhook — abonelik aktivasyonu / yenileme */

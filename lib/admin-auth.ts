@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getServiceClient } from '@/lib/supabase/service'
-import { isSuperAdminEmail } from '@/lib/supabase/auth-helpers'
 import { getUserFromRequest } from '@/lib/supabase/session-from-request'
 
 const PROFILE_CHECK_MS = 5000
+
+async function verifySuperAdminProfile(userId: string): Promise<boolean> {
+  const service = getServiceClient()
+  if (!service) return false
+
+  try {
+    const result = await Promise.race([
+      service.from('user_profiles').select('role, is_active').eq('id', userId).single(),
+      new Promise<{ data: null; error: { message: 'timeout' } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), PROFILE_CHECK_MS)
+      ),
+    ])
+
+    const profile = result.data as { role: string; is_active: boolean } | null
+    return profile?.role === 'super_admin' && profile.is_active !== false
+  } catch {
+    return false
+  }
+}
 
 export async function requireSuperAdmin(
   request: NextRequest
@@ -14,30 +32,12 @@ export async function requireSuperAdmin(
     return { authorized: false, error: NextResponse.json({ error: 'Oturum bulunamadı' }, { status: 401 }) }
   }
 
-  const service = getServiceClient()
-  if (service) {
-    try {
-      const result = await Promise.race([
-        service.from('user_profiles').select('role, is_active').eq('id', user.id).single(),
-        new Promise<{ data: null; error: { message: 'timeout' } }>((resolve) =>
-          setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), PROFILE_CHECK_MS)
-        ),
-      ])
-
-      const profile = result.data as { role: string; is_active: boolean } | null
-      if (profile?.role === 'super_admin' && profile.is_active !== false) {
-        return { authorized: true, userId: user.id }
-      }
-    } catch {
-      /* service role okunamadı — e-posta yedeğine düş */
-    }
+  const ok = await verifySuperAdminProfile(user.id)
+  if (!ok) {
+    return { authorized: false, error: NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }) }
   }
 
-  if (process.env.NODE_ENV === 'development' && isSuperAdminEmail(user.email)) {
-    return { authorized: true, userId: user.id }
-  }
-
-  return { authorized: false, error: NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }) }
+  return { authorized: true, userId: user.id }
 }
 
 /** Server component layout — cookie store ile oturum */
@@ -59,29 +59,15 @@ export async function requireSuperAdminFromCookies(): Promise<
     })
 
     const {
-      data: { session },
-    } = await sb.auth.getSession()
-    const user = session?.user
-    if (!user) return { authorized: false }
+      data: { user },
+      error,
+    } = await sb.auth.getUser()
+    if (error || !user) return { authorized: false }
 
-    const service = getServiceClient()
-    if (service) {
-      const { data: profile } = await service
-        .from('user_profiles')
-        .select('role, is_active')
-        .eq('id', user.id)
-        .single()
+    const ok = await verifySuperAdminProfile(user.id)
+    if (!ok) return { authorized: false }
 
-      if (profile?.role === 'super_admin' && profile.is_active !== false) {
-        return { authorized: true, userId: user.id }
-      }
-    }
-
-    if (process.env.NODE_ENV === 'development' && isSuperAdminEmail(user.email)) {
-      return { authorized: true, userId: user.id }
-    }
-
-    return { authorized: false }
+    return { authorized: true, userId: user.id }
   } catch {
     return { authorized: false }
   }

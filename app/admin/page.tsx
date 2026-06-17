@@ -1,8 +1,8 @@
+import dynamic from 'next/dynamic'
 import { getAdminDataClient } from '@/lib/supabase/admin-data'
 import { TrendingUp, AlertTriangle, UserPlus, Building2, CreditCard } from 'lucide-react'
 import { formatCurrency, formatDate, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '@/lib/utils'
 import { getPlanLevel, PLAN_LEVEL_LABELS, type PlanLevel } from '@/lib/plan-tiers'
-import dynamic from 'next/dynamic'
 
 const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
   ssr: false,
@@ -12,6 +12,7 @@ const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
 })
 
 const AdminChurnPanel = dynamic(() => import('./AdminChurnPanel'), { ssr: false })
+const AdminOpsAlerts = dynamic(() => import('@/components/admin/AdminOpsAlerts'), { ssr: false })
 
 interface TenantRow {
   id: string
@@ -83,6 +84,8 @@ export default async function AdminDashboardPage() {
           {now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} — Tüm sistemler aktif
         </p>
       </div>
+
+      <AdminOpsAlerts />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {METRICS.map(m => {

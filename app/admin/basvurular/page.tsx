@@ -285,7 +285,7 @@ export default function BasvurularPage() {
         </div>
 
         {/* Table */}
-        <div className="table-shell">
+        <div className="table-shell" data-tour="admin-basvuru-list">
           {loading ? (
             <div className="flex items-center justify-center py-20 text-[var(--text-muted)]">
               <div className="text-center">

@@ -1,4 +1,4 @@
-import { isOwnerRole, isRouteAllowedForRole } from './role-access'
+import { isOwnerRole } from './role-access'
 import { normalizeTenantRole } from './tenant-roles'
 
 /** Tenant API yazma işlemleri için minimum yetki */
@@ -18,20 +18,51 @@ export function canPushFinance(role: string): boolean {
   return isOwnerRole(r) || r === 'muhasebe' || r === 'kasiyer'
 }
 
+const PUSH_MODULE_ALLOWLIST = new Set([
+  'stock',
+  'customers',
+  'transactions',
+  'sales',
+  'purchases',
+  'todos',
+  'customerOrders',
+  'storeProducts',
+  'assets',
+  'campaigns',
+  'deals',
+  'secondHandDevices',
+  'stolenIMEIs',
+  'branches',
+  'appointments',
+  'warranties',
+  'invoices',
+  'notificationLogs',
+  'supportTickets',
+  'cashShifts',
+  'supplierOrders',
+  'personnel',
+  'foreignDevices',
+  'serviceExpenses',
+  'statusHistory',
+  'notificationSettings',
+])
+
+export function isKnownPushModule(module: string): boolean {
+  return PUSH_MODULE_ALLOWLIST.has(module)
+}
+
 /** Modül bazlı push yetkisi */
 export function canPushModule(role: string, module: string): boolean {
+  if (!isKnownPushModule(module)) return false
+
   const r = normalizeTenantRole(role)
   if (r === 'viewer') return false
 
-  const financeModules = ['finance', 'transactions', 'cash', 'cashShifts', 'kasaBalance', 'invoices']
+  const financeModules = ['finance', 'transactions', 'cash', 'cashShifts', 'invoices']
   if (financeModules.includes(module)) return canPushFinance(r)
 
   const adminModules = ['branches', 'personnel', 'notificationSettings']
   if (adminModules.includes(module)) return canManageTenantSettings(r)
-
-  if (module === 'serviceOrders' || module === 'service') {
-    return isRouteAllowedForRole('/dashboard/atolye', r) || isRouteAllowedForRole('/dashboard/kabul', r)
-  }
 
   return true
 }

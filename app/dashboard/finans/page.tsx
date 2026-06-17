@@ -13,7 +13,7 @@ import {
 import { PAYMENT_METHODS, INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '@/lib/constants'
 import { formatCurrency, formatRelativeTime } from '@/lib/validators'
 import {
-  getTransactions, getFinanceSummary, addTransaction, onStoreChange,
+  getTransactions, getFinanceSummary, addTransactionViaApi, onStoreChange,
   type FinanceTransaction
 } from '@/lib/store'
 
@@ -79,28 +79,32 @@ export default function FinansPage() {
   const sorted = [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   const chartData = computeMonthlyChart(transactions)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.description.trim() || !formData.amount) {
       toast.error('Açıklama ve tutar zorunlu')
       return
     }
-    addTransaction({
-      type: modalType,
-      description: formData.description.trim(),
-      category: formData.category || (modalType === 'gelir' ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]),
-      amount: parseFloat(formData.amount),
-      payment_method: formData.payment_method,
-      date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-    })
-    toast.success(`${modalType === 'gelir' ? 'Gelir' : 'Gider'} kaydedildi — ${formatCurrency(parseFloat(formData.amount))}`)
-    setShowModal(false)
-    setFormData({ description: '', category: '', amount: '', payment_method: 'nakit', date: '', note: '' })
+    try {
+      await addTransactionViaApi({
+        type: modalType,
+        description: formData.description.trim(),
+        category: formData.category || (modalType === 'gelir' ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]),
+        amount: parseFloat(formData.amount),
+        payment_method: formData.payment_method,
+        date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+      })
+      toast.success(`${modalType === 'gelir' ? 'Gelir' : 'Gider'} kaydedildi — ${formatCurrency(parseFloat(formData.amount))}`)
+      setShowModal(false)
+      setFormData({ description: '', category: '', amount: '', payment_method: 'nakit', date: '', note: '' })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Kayıt başarısız')
+    }
   }
 
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div data-tour="finans-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <DollarSign size={20} className="text-sky-600" /> Finans & Kasa
@@ -108,11 +112,11 @@ export default function FinansPage() {
           <p className="text-slate-400 text-sm mt-0.5">Gelir, gider, kasa ve cari hesap yönetimi</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setModalType('gelir'); setShowModal(true) }}
+          <button data-tour="finans-gelir-btn" onClick={() => { setModalType('gelir'); setShowModal(true) }}
             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all">
             <ArrowUpCircle size={14} /> Gelir Ekle
           </button>
-          <button onClick={() => { setModalType('gider'); setShowModal(true) }}
+          <button data-tour="finans-gider-btn" onClick={() => { setModalType('gider'); setShowModal(true) }}
             className="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-xl transition-all">
             <ArrowDownCircle size={14} /> Gider Ekle
           </button>
@@ -120,7 +124,7 @@ export default function FinansPage() {
       </div>
 
       {/* Metrikler — CANLI VERİ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div data-tour="finans-metrikler" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Toplam Gelir', val: formatCurrency(summary.totalGelir), icon: TrendingUp, bg: 'from-emerald-500 to-green-600', up: true },
           { label: 'Toplam Gider', val: formatCurrency(summary.totalGider), icon: TrendingDown, bg: 'from-red-500 to-rose-600', up: false },
@@ -140,7 +144,7 @@ export default function FinansPage() {
       </div>
 
       {/* Grafik */}
-      <div className="card p-5">
+      <div data-tour="finans-grafik" className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">Gelir vs Gider (6 Ay)</h3>
@@ -193,7 +197,7 @@ export default function FinansPage() {
       </div>
 
       {/* İşlem tablosu */}
-      <div className="card overflow-hidden">
+      <div data-tour="finans-tablo" className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">

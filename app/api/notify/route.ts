@@ -5,6 +5,7 @@ import nodemailer from 'nodemailer'
 import { sendSms } from '@/lib/notification-service'
 import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { canWriteTenantData } from '@/lib/api-role-guard'
 
 function escapeHtml(str: string): string {
   return String(str)
@@ -20,6 +21,10 @@ export async function POST(request: Request) {
     const auth = await requireTenantAuth()
     if (!auth.ok) {
       return NextResponse.json({ error: auth.message }, { status: auth.status })
+    }
+
+    if (!canWriteTenantData(auth.role)) {
+      return NextResponse.json({ error: 'Bu işlem için yetkiniz yok' }, { status: 403 })
     }
 
     const supabase = auth.supabase

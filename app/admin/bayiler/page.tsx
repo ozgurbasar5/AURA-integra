@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Bell, Pencil, Trash2, PauseCircle } from 'lucide-react'
+import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Bell, Pencil, Trash2, PauseCircle, LogIn, Activity } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency, TENANT_STATUS_COLORS, TENANT_STATUS_LABELS } from '@/lib/utils'
+import { healthScoreLabel, type HealthIntervention } from '@/lib/admin/health-score'
 import type { Tenant, SubscriptionPlan } from '@/types/database'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -56,7 +57,11 @@ export default function BayilerPage() {
   const [subEnd,   setSubEnd]   = useState('')
   const [subPlanId, setSubPlanId] = useState('')
   const [subStatus, setSubStatus] = useState('')
-  const [tenantHealth, setTenantHealth] = useState<{ active_users: number; orders_30d: number; revenue_30d: number; overdue_payments: number } | null>(null)
+  const [tenantHealth, setTenantHealth] = useState<{ active_users: number; orders_30d: number; revenue_30d: number; overdue_payments: number; health_score?: number } | null>(null)
+  const [auditLogs, setAuditLogs] = useState<{ action: string; actor_email: string | null; created_at: string; metadata?: Record<string, unknown> }[]>([])
+  const [interventions, setInterventions] = useState<HealthIntervention[]>([])
+  const [adminNote, setAdminNote] = useState('')
+  const [impersonating, setImpersonating] = useState(false)
   const [resetPassword, setResetPassword] = useState('')
   const [featureFlags, setFeatureFlags] = useState({ sms: true, portal: true, whatsapp: false, efatura: false })
 
@@ -102,6 +107,19 @@ export default function BayilerPage() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    if (loading || tenants.length === 0) return
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('highlight')
+    if (!id) return
+    const t = tenants.find(x => x.id === id)
+    if (t) {
+      setSelectedTenant(t)
+      setDrawerOpen(true)
+      window.history.replaceState({}, '', '/admin/bayiler')
+    }
+  }, [loading, tenants])
 
   // Dropdown menüyü dışarı tıklayınca kapat
   useEffect(() => {
@@ -150,14 +168,21 @@ export default function BayilerPage() {
       setSubEnd(selectedTenant.subscription_end || '')
       setSubPlanId(selectedTenant.plan_id || '')
       setSubStatus(selectedTenant.status || '')
+      setAdminNote('')
       fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, { credentials: 'same-origin' })
         .then(r => r.json())
         .then(json => {
           setTenantHealth(json.health ?? null)
+          setAuditLogs(json.audit_logs ?? [])
+          setInterventions(json.interventions ?? [])
           const flags = json.tenant?.feature_flags as typeof featureFlags | undefined
-          if (flags) setFeatureFlags({ ...featureFlags, ...flags })
+          if (flags) setFeatureFlags(prev => ({ ...prev, ...flags }))
         })
-        .catch(() => setTenantHealth(null))
+        .catch(() => {
+          setTenantHealth(null)
+          setAuditLogs([])
+          setInterventions([])
+        })
     }
   }, [selectedTenant])
 
@@ -231,6 +256,11 @@ export default function BayilerPage() {
 
   const saveSubscription = async () => {
     if (!selectedTenant) return
+    const note = adminNote.trim()
+    if (note.length < 3) {
+      toast.error('Abonelik kaydı için admin notu zorunlu (min 3 karakter)')
+      return
+    }
     setSavingSubscription(true)
     try {
       const res = await fetch('/api/admin/tenant', {
@@ -242,6 +272,7 @@ export default function BayilerPage() {
           subscription_end:   subEnd || null,
           plan_id:            subPlanId || null,
           status:             subStatus,
+          admin_note:         note,
         }),
       })
       const result = await res.json()
@@ -252,11 +283,40 @@ export default function BayilerPage() {
         ? { ...prev, subscription_start: subStart, subscription_end: subEnd, plan_id: subPlanId, status: subStatus as any }
         : prev
       )
+      setAdminNote('')
       fetchData()
     } catch (err: any) {
       toast.error(err.message || 'Kayıt başarısız')
     } finally {
       setSavingSubscription(false)
+    }
+  }
+
+  const impersonateTenant = async () => {
+    if (!selectedTenant) return
+    const note = adminNote.trim()
+    if (note.length < 3) {
+      toast.error('Panele giriş için destek notu zorunlu (min 3 karakter)')
+      return
+    }
+    setImpersonating(true)
+    try {
+      const res = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: selectedTenant.id, note }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Giriş linki oluşturulamadı')
+      window.open(json.action_link, '_blank', 'noopener,noreferrer')
+      toast.success(`${json.company_name} için giriş linki açıldı`)
+      const healthRes = await fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, { credentials: 'same-origin' })
+      const healthJson = await healthRes.json()
+      setAuditLogs(healthJson.audit_logs ?? [])
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Giriş başarısız')
+    } finally {
+      setImpersonating(false)
     }
   }
 
@@ -314,7 +374,7 @@ export default function BayilerPage() {
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden" data-tour="admin-bayiler-table">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={24} className="animate-spin text-sky-400" />
@@ -577,6 +637,21 @@ export default function BayilerPage() {
                 ))}
               </div>
 
+              {tenantHealth?.health_score != null && (
+                <div className="flex items-center justify-between bg-[#18181b] border border-[#27272a] rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-sky-400" />
+                    <span className="text-zinc-400 text-sm">Sağlık Skoru</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold text-lg">{tenantHealth.health_score}</span>
+                    <span className={`badge border text-xs ${healthScoreLabel(tenantHealth.health_score).color}`}>
+                      {healthScoreLabel(tenantHealth.health_score).label}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {tenantHealth && (
                 <div className="grid grid-cols-2 gap-3">
                   {[
@@ -588,6 +663,18 @@ export default function BayilerPage() {
                     <div key={label} className="bg-sky-500/10 border border-sky-500/20 rounded-lg p-3">
                       <p className="text-sky-400/70 text-xs mb-1">{label}</p>
                       <p className="text-white text-sm font-bold">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {interventions.length > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2">
+                  <p className="text-amber-400 text-xs font-semibold uppercase tracking-wide">Önerilen müdahaleler</p>
+                  {interventions.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-300">{item.message}</span>
+                      {item.action && <span className="text-sky-400 text-xs shrink-0">{item.action}</span>}
                     </div>
                   ))}
                 </div>
@@ -619,6 +706,46 @@ export default function BayilerPage() {
                 <Link href={`/admin/bayiler/preview/${selectedTenant.id}`} className="btn-ghost text-xs w-full block text-center mt-1">
                   Bayi Önizleme →
                 </Link>
+              </div>
+
+              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
+                <p className="text-zinc-500 text-xs">Son işlemler (audit)</p>
+                {auditLogs.length === 0 ? (
+                  <p className="text-zinc-600 text-xs">Kayıt yok</p>
+                ) : (
+                  <div className="space-y-2 max-h-36 overflow-y-auto">
+                    {auditLogs.map(log => (
+                      <div key={log.created_at + log.action} className="text-xs border-b border-zinc-800 pb-1.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-zinc-300 font-mono">{log.action}</span>
+                          <span className="text-zinc-600 shrink-0">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+                        </div>
+                        {typeof log.metadata?.note === 'string' && log.metadata.note && (
+                          <p className="text-zinc-500 mt-0.5 truncate">{log.metadata.note}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
+                <p className="text-zinc-500 text-xs">Destek / admin notu</p>
+                <textarea
+                  className="input min-h-[72px] text-sm resize-none"
+                  placeholder="Abonelik değişikliği veya panele giriş için zorunlu not..."
+                  value={adminNote}
+                  onChange={e => setAdminNote(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={impersonateTenant}
+                  disabled={impersonating}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  {impersonating ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+                  {impersonating ? 'Link oluşturuluyor...' : 'Bayi Paneline Giriş (Magic Link)'}
+                </button>
               </div>
 
               <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">

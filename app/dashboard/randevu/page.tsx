@@ -98,10 +98,11 @@ export default function RandevuPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="randevu-baslik"
         icon={CalendarDays}
         title="Randevu Yönetimi"
         description="Günlük ve haftalık teknisyen ajandası"
-        actions={<button onClick={() => setShowModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Randevu</button>}
+        actions={<button data-tour="randevu-yeni-btn" onClick={() => setShowModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Randevu</button>}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -119,6 +120,7 @@ export default function RandevuPage() {
         ))}
       </div>
 
+      <div data-tour="randevu-takvim" className="space-y-4">
       <div className="card p-4">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => changeDay(-7)} className="p-1.5 rounded-lg hover:bg-slate-100"><ChevronLeft size={16} /></button>
@@ -179,6 +181,7 @@ export default function RandevuPage() {
             })}
           </div>
         )}
+      </div>
       </div>
 
       {showModal && (

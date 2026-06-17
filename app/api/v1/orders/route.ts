@@ -16,31 +16,11 @@ export async function GET(req: NextRequest) {
 
   const apiKeyHash = hashApiKey(apiKey)
 
-  let tenant: { id: string; company_name: string | null } | null = null
-
-  const { data: byHash } = await admin
+  const { data: tenant } = await admin
     .from('tenants')
     .select('id, company_name')
     .eq('api_key_hash', apiKeyHash)
     .maybeSingle()
-
-  tenant = byHash
-
-  // Geriye dönük: düz api_key ile eşleşen tenant varsa hash'e taşı
-  if (!tenant) {
-    const { data: legacy } = await admin
-      .from('tenants')
-      .select('id, company_name')
-      .eq('api_key', apiKey)
-      .maybeSingle()
-    if (legacy?.id) {
-      await admin
-        .from('tenants')
-        .update({ api_key_hash: apiKeyHash, api_key: null })
-        .eq('id', legacy.id)
-      tenant = legacy
-    }
-  }
 
   if (!tenant) {
     return NextResponse.json({ error: 'Geçersiz API anahtarı' }, { status: 403 })

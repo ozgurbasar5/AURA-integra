@@ -44,20 +44,26 @@ export default function AuraAI() {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }), // Tüm geçmişi gönderiyoruz
+        body: JSON.stringify({ messages: newMessages }),
       });
 
-      if (!res.ok) throw new Error("API Hatası");
+      const data = await res.json() as { content?: string; error?: string };
 
-      const data = await res.json();
+      if (!res.ok) {
+        const detail = data.error || `HTTP ${res.status}`;
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `AI yanıt veremedi: ${detail}` },
+        ]);
+        return;
+      }
 
-      // Cevabı ekle
-      setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: data.content || data.error || 'Boş yanıt' }]);
     } catch (error) {
       console.error(error);
       setMessages((prev) => [
-        ...prev, 
-        { role: "assistant", content: "Ustam bağlantı koptu, tekrar dener misin?" }
+        ...prev,
+        { role: "assistant", content: "Ağ hatası — sunucuya ulaşılamadı. npm run dev çalışıyor mu kontrol edin." },
       ]);
     } finally {
       setIsLoading(false);

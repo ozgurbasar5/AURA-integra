@@ -30,7 +30,7 @@ export default function AdminChurnPanel() {
   if (!data?.at_risk?.length) return null
 
   return (
-    <div className="card p-6 border border-amber-500/20 bg-amber-500/5">
+    <div className="card p-6 border border-amber-500/20 bg-amber-500/5" data-tour="admin-churn-panel">
       <div className="flex items-center gap-2 mb-4">
         <TrendingDown size={18} className="text-amber-400" />
         <h2 className="text-white font-bold">Churn Riski — {data.summary.at_risk_count} Bayi</h2>
@@ -52,7 +52,7 @@ export default function AdminChurnPanel() {
                 <p className="text-xs text-red-400 mt-1">₺{t.overdue_amount.toLocaleString('tr-TR')} gecikmiş</p>
               )}
             </div>
-            <Link href={`/admin/bayiler/preview/${t.id}`} className="text-xs text-sky-400 hover:underline shrink-0">
+            <Link href={`/admin/bayiler?highlight=${t.id}`} className="text-xs text-sky-400 hover:underline shrink-0">
               İncele
             </Link>
           </div>

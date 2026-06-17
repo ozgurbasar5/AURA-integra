@@ -55,7 +55,7 @@ export default function AtolyeDetailPage() {
   const [price, setPrice] = useState(0)
   const [status, setStatus] = useState('waiting_diagnosis')
   const [showPartForm, setShowPartForm] = useState(false)
-  const [partForm, setPartForm] = useState({ name: '', qty: '1', cost: '', sell: '' })
+  const [partForm, setPartForm] = useState({ stock_id: '', qty: '1' })
   const [profit, setProfit] = useState({ netProfit: 0, totalExpense: 0, profitMargin: 0 })
   const [finalChecks, setFinalChecks] = useState<string[]>([])
   const [compatible, setCompatible] = useState<ReturnType<typeof getCompatibleParts>>([])
@@ -126,30 +126,33 @@ export default function AtolyeDetailPage() {
   }
 
   function addPart() {
-    if (!partForm.name || !partForm.sell || !order) return
+    if (!partForm.stock_id || !order) return
+    const stockItem = compatible.find(s => s.id === partForm.stock_id) || getStock().find(s => s.id === partForm.stock_id)
+    if (!stockItem) { toast.error('Parça seçin'); return }
     const qty = Number(partForm.qty) || 1
+    if (stockItem.stock_qty < qty) {
+      toast.error(`Yetersiz stok (${stockItem.stock_qty} adet)`)
+      return
+    }
+    const unitCost = stockItem.buy_price
+    const unitSell = stockItem.sell_price || stockItem.buy_price
     const p: Part = {
-      id: String(Date.now()), name: partForm.name,
+      id: stockItem.id,
+      name: stockItem.name,
       quantity: qty,
-      unit_cost: Number(partForm.cost) || 0,
-      unit_price: Number(partForm.sell) || 0,
+      unit_cost: unitCost,
+      unit_price: unitSell,
     }
-    const stockMatch = getStock().find(s =>
-      s.name.toLocaleLowerCase('tr-TR') === partForm.name.trim().toLocaleLowerCase('tr-TR')
+    usePartsForService(
+      [{ stock_id: stockItem.id, name: stockItem.name, qty, unit_buy: unitCost, unit_sell: unitSell }],
+      order.job_no,
+      order.customer_name,
     )
-    if (stockMatch && stockMatch.stock_qty >= qty) {
-      usePartsForService(
-        [{ stock_id: stockMatch.id, name: stockMatch.name, qty, unit_buy: p.unit_cost || stockMatch.buy_price, unit_sell: p.unit_price }],
-        order.job_no,
-        order.customer_name,
-      )
-    } else {
-      addServiceExpense(id, { source: 'part', reference_id: p.id, description: p.name, amount: p.unit_cost * p.quantity })
-    }
     setParts(prev => [...prev, p])
-    setPartForm({ name: '', qty: '1', cost: '', sell: '' })
+    setCompatible(getCompatibleParts(getStock(), order.device_brand, order.device_model))
+    setPartForm({ stock_id: '', qty: '1' })
     setShowPartForm(false)
-    toast.success(stockMatch ? 'Parça eklendi — stok düşüldü' : 'Parça eklendi (stok dışı)')
+    toast.success('Parça eklendi — stok düşüldü, maliyet güncellendi')
   }
 
   function removePart(partId: string) {
@@ -459,16 +462,32 @@ export default function AtolyeDetailPage() {
               <button type="button" onClick={() => setShowPartForm(false)}><X size={18} /></button>
             </div>
             <div className="modal-body space-y-3 py-4 px-5">
-              <input className="input" placeholder="Parça adı *" value={partForm.name} onChange={e => setPartForm(f => ({ ...f, name: e.target.value }))} />
-              <div className="grid grid-cols-3 gap-2">
-                <input type="number" className="input" placeholder="Adet" value={partForm.qty} onChange={e => setPartForm(f => ({ ...f, qty: e.target.value }))} />
-                <input type="number" className="input" placeholder="Alış" value={partForm.cost} onChange={e => setPartForm(f => ({ ...f, cost: e.target.value }))} />
-                <input type="number" className="input" placeholder="Satış *" value={partForm.sell} onChange={e => setPartForm(f => ({ ...f, sell: e.target.value }))} />
-              </div>
+              {compatible.length === 0 ? (
+                <p className="text-sm text-slate-500">Bu cihaz için uyumlu stok parçası yok. Önce stok modülünden parça ekleyin.</p>
+              ) : (
+                <>
+                  <div>
+                    <label className="label">Stoktan parça seç *</label>
+                    <select
+                      className="select w-full"
+                      value={partForm.stock_id}
+                      onChange={e => setPartForm(f => ({ ...f, stock_id: e.target.value }))}
+                    >
+                      <option value="">— Seçin —</option>
+                      {compatible.map(s => (
+                        <option key={s.id} value={s.id} disabled={s.stock_qty <= 0}>
+                          {s.name} ({s.stock_qty} adet · Alış {fmt(s.buy_price)} · Satış {fmt(s.sell_price)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <input type="number" className="input" placeholder="Adet" min={1} value={partForm.qty} onChange={e => setPartForm(f => ({ ...f, qty: e.target.value }))} />
+                </>
+              )}
             </div>
             <div className="modal-footer py-4 px-5">
               <button type="button" onClick={() => setShowPartForm(false)} className="btn-secondary flex-1">İptal</button>
-              <button type="button" onClick={addPart} className="btn-primary flex-1">Ekle</button>
+              <button type="button" onClick={addPart} disabled={!partForm.stock_id} className="btn-primary flex-1">Ekle</button>
             </div>
           </div>
         </div>

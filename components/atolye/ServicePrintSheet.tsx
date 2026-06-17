@@ -1,6 +1,6 @@
 'use client'
 
-import { getBusinessBranding, type BusinessBranding } from '@/lib/business-branding'
+import { getBusinessBranding, resolveShopDisplayLine, type BusinessBranding } from '@/lib/business-branding'
 
 export interface ServicePrintData {
   jobNo: string
@@ -30,6 +30,7 @@ export default function ServicePrintSheet({
   mode?: 'print' | 'preview'
 }) {
   const b = brandingProp ?? getBusinessBranding()
+  const locationLine = resolveShopDisplayLine(b)
   const date = data.createdAt
     ? new Date(data.createdAt).toLocaleString('tr-TR')
     : new Date().toLocaleString('tr-TR')
@@ -56,7 +57,7 @@ export default function ServicePrintSheet({
               <h1 className="text-xl font-black uppercase tracking-tight">{b.shopName}</h1>
               <p className="text-xs text-slate-600 mt-0.5">Teknik Servis Kabul Formu</p>
               {b.shopPhone && <p className="text-xs mt-1">Tel: {b.shopPhone}</p>}
-              {b.shopAddress && <p className="text-xs text-slate-600 max-w-xs">{b.shopAddress}</p>}
+              {locationLine && <p className="text-xs text-slate-600 max-w-xs">{locationLine}</p>}
             </div>
           </div>
           <div className="text-right">

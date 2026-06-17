@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/validators'
 import confetti from 'canvas-confetti'
 import { PAYMENT_METHODS } from '@/lib/constants'
 import {
-  getStock, getSales, getFinanceSummary, completeSale as storeCompleteSale,
+  getStock, getSales, getFinanceSummary, completeSaleViaApi,
   getCampaigns,
   onStoreChange, type StockItem, type Sale
 } from '@/lib/store'
@@ -126,7 +126,7 @@ export default function SatisPage() {
   const profitMargin = subtotal > 0 ? (grossProfit / subtotal) * 100 : 0
   const isLoss = costPrice > subtotal
 
-  const handleCompleteSale = () => {
+  const handleCompleteSale = async () => {
     if (cart.length === 0) { toast.error('Sepet boş'); return }
 
     const saleItems = cart.map(c => ({
@@ -137,7 +137,7 @@ export default function SatisPage() {
     }))
 
     try {
-      storeCompleteSale(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
+      await completeSaleViaApi(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } })
       toast.success(`Satış tamamlandı! ${formatCurrency(total)} — Stok güncellendi, gelir finansa yansıdı ✅`)
       setCart([])
@@ -155,7 +155,7 @@ export default function SatisPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div data-tour="satis-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <ShoppingCart size={20} className="text-sky-600" /> Satış & POS
@@ -165,7 +165,7 @@ export default function SatisPage() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div data-tour="satis-metrikler" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Bugünkü Satış', val: formatCurrency(todayTotal), icon: DollarSign, bg: 'from-sky-500 to-purple-600' },
           { label: 'Kasa Bakiye', val: formatCurrency(summary.kasaBakiye), icon: Wallet, bg: 'from-blue-500 to-cyan-600' },
@@ -186,7 +186,7 @@ export default function SatisPage() {
       <div className="grid lg:grid-cols-5 gap-4">
         {/* Product Search + Recent Sales */}
         <div className="lg:col-span-3 space-y-3">
-          <div className="card p-4">
+          <div data-tour="satis-arama" className="card p-4">
             <label className="label mb-2">Ürün / Barkod Ara</label>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -251,7 +251,7 @@ export default function SatisPage() {
         </div>
 
         {/* Cart */}
-        <div className="lg:col-span-2 card flex flex-col h-fit sticky top-4">
+        <div data-tour="satis-sepet" className="lg:col-span-2 card flex flex-col h-fit sticky top-4">
           <div className="px-5 py-4 border-b border-slate-100">
             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <ShoppingCart size={14} className="text-sky-600" /> Sepet
@@ -292,7 +292,7 @@ export default function SatisPage() {
                 ))}
               </div>
 
-              <div className="p-4 border-t border-slate-100 space-y-2">
+              <div data-tour="satis-ozet" className="p-4 border-t border-slate-100 space-y-2">
                 <div><label className="label text-[10px]">Müşteri Adı</label>
                   <input className="input text-xs" placeholder="Walk-in" value={customerName}
                     onChange={e => setCustomerName(e.target.value)} />
@@ -341,7 +341,7 @@ export default function SatisPage() {
               </div>
 
               <div className="p-4 border-t border-slate-100 space-y-3">
-                <div className="grid grid-cols-3 gap-1.5">
+                <div data-tour="satis-odeme-yontemi" className="grid grid-cols-3 gap-1.5">
                   {(['nakit', 'kredi_karti', 'havale'] as const).map(m => (
                     <button key={m} onClick={() => setPaymentMethod(m)}
                       className={`p-2 rounded-lg text-[10px] font-bold border transition-all ${
@@ -354,7 +354,7 @@ export default function SatisPage() {
                     </button>
                   ))}
                 </div>
-                <button onClick={handleCompleteSale}
+                <button data-tour="satis-tamamla-btn" onClick={handleCompleteSale}
                   className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl transition-all shadow-sm">
                   💳 Satışı Tamamla — {formatCurrency(total)}
                 </button>

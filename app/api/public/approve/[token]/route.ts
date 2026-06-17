@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const approved = body.approved === true
   const newStatus = approved ? mapStoreStatusToDb('customer_approved') : mapStoreStatusToDb('customer_refused')
 
-  const { error: updateErr } = await admin
+  const { data: updated, error: updateErr } = await admin
     .from('service_orders')
     .update({
       approval_status: approved ? 'approved' : 'rejected',
@@ -79,16 +79,23 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', order.id)
+    .or('approval_status.eq.pending,approval_status.is.null')
+    .select('id')
+    .maybeSingle()
 
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
 
+  if (!updated) {
+    return NextResponse.json({ error: 'Zaten yanıtlandı' }, { status: 409 })
+  }
+
   await admin.from('service_status_history').insert({
-    service_order_id: order.id,
-    tenant_id: order.tenant_id,
+    order_id: order.id,
     status: newStatus,
     note: approved ? 'Müşteri onay linki ile onayladı' : 'Müşteri onay linki ile reddetti',
+    created_by: null,
   })
 
   return NextResponse.json({ ok: true, approved })

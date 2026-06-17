@@ -3,22 +3,31 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Clock, Wallet, FileText } from 'lucide-react'
-import { getOpenCashShift, getCashShifts } from '@/lib/store'
+import { getOpenCashShift, getCashShifts, type CashShift } from '@/lib/store'
 
 interface Props {
   shopName: string
 }
 
 export function DashboardDayHeader({ shopName }: Props) {
-  const [now, setNow] = useState(new Date())
-  const [openShift, setOpenShift] = useState(getOpenCashShift())
-  const lastClosed = getCashShifts().find(s => s.status === 'closed')
+  const [mounted, setMounted] = useState(false)
+  const [now, setNow] = useState<Date | null>(null)
+  const [openShift, setOpenShift] = useState<CashShift | undefined>()
+  const [lastClosed, setLastClosed] = useState<CashShift | undefined>()
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000)
+    setMounted(true)
+    setNow(new Date())
     setOpenShift(getOpenCashShift())
+    setLastClosed(getCashShifts().find(s => s.status === 'closed'))
+
+    const t = setInterval(() => setNow(new Date()), 60_000)
     return () => clearInterval(t)
   }, [])
+
+  if (!mounted || !now) {
+    return <div className="surface p-4 mb-6 h-[88px] animate-pulse" aria-hidden />
+  }
 
   const dateStr = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })

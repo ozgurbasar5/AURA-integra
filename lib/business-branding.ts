@@ -11,12 +11,23 @@ export interface BusinessBranding {
   shopLogo: string | null
 }
 
+const PLACEHOLDER_ADDRESSES = new Set(['', 'merkez mağaza', 'merkez magaza'])
+
+/** Fiş / WhatsApp'ta gösterilecek şube veya adres satırı */
+export function resolveShopDisplayLine(branding: BusinessBranding): string {
+  const addr = branding.shopAddress?.trim() ?? ''
+  const name = branding.shopName?.trim() ?? ''
+  if (addr && !PLACEHOLDER_ADDRESSES.has(addr.toLocaleLowerCase('tr-TR'))) return addr
+  return name
+}
+
 export function getBusinessBranding(): BusinessBranding {
   const s = getNotificationSettings()
+  const shopName = s.shop_name?.trim() || 'AURA İntegra'
   return {
-    shopName: s.shop_name?.trim() || 'AURA İntegra',
+    shopName,
     shopPhone: s.shop_phone?.trim() || '',
-    shopAddress: s.shop_address?.trim() || '',
+    shopAddress: s.shop_address?.trim() || shopName,
     shopLogo: s.shop_logo?.trim() || null,
   }
 }

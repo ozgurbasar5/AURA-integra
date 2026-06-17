@@ -246,6 +246,10 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
     EXECUTE format('DROP POLICY IF EXISTS tenant_all_%1$s ON %1$I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_select_%1$s ON %1$I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_insert_%1$s ON %1$I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_update_%1$s ON %1$I', tbl);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_delete_%1$s ON %1$I', tbl);
     IF tbl = 'tenant_settings' THEN
       EXECUTE format(
         'CREATE POLICY tenant_all_%1$s ON %1$I FOR ALL USING (tenant_id = get_current_tenant_id() OR is_super_admin()) WITH CHECK (tenant_id = get_current_tenant_id() OR is_super_admin())',
@@ -268,6 +272,27 @@ BEGIN
         'CREATE POLICY tenant_delete_%1$s ON %1$I FOR DELETE USING (tenant_id = get_current_tenant_id() OR is_super_admin())',
         tbl
       );
+    END IF;
+  END LOOP;
+END $$;
+
+-- PostgREST / API erişimi
+DO $$
+DECLARE tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'tenant_settings','appointments','warranties','invoices','notification_logs',
+    'support_tickets','cash_shifts','supplier_orders','showcase_devices',
+    'foreign_devices','service_expenses','personnel_profiles'
+  ]
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = tbl
+    ) THEN
+      EXECUTE format('GRANT ALL ON TABLE %I TO authenticated', tbl);
+      EXECUTE format('GRANT ALL ON TABLE %I TO service_role', tbl);
+      EXECUTE format('GRANT SELECT, INSERT ON TABLE %I TO anon', tbl);
     END IF;
   END LOOP;
 END $$;

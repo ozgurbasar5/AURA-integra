@@ -70,6 +70,7 @@ export default function GarantiPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="garanti-baslik"
         icon={Shield}
         title="Garanti Yönetimi"
         description="Servis garantileri, talepler ve takip"
@@ -112,7 +113,7 @@ export default function GarantiPage() {
       </div>
 
       {/* Garanti Listesi */}
-      <div className="card overflow-hidden">
+      <div data-tour="garanti-tablo" className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

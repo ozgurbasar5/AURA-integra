@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Package, Settings, Bell, Info, Plus, Save, Trash2,
-  CheckCircle, XCircle, Edit2, Database
+  CheckCircle, XCircle, Edit2, Database, RotateCcw
 } from 'lucide-react'
+import { requestAdminTourRestart } from '@/lib/onboarding/use-admin-onboarding-tour'
 
 const TABS = [
   { id: 'paketler',   label: 'Paket Yönetimi',     icon: Package },
@@ -507,6 +508,20 @@ export default function AyarlarPage() {
                 </div>
               ))}
             </div>
+          </div>
+          <div className="card p-6" data-tour="admin-tour-restart">
+            <h2 className="font-semibold text-slate-800 mb-2">Admin Turu</h2>
+            <p className="text-sm text-slate-500 mb-4">Komuta merkezi ve bayi yönetimi turunu yeniden başlatır.</p>
+            <button
+              type="button"
+              onClick={() => {
+                requestAdminTourRestart()
+                showToast('success', 'Admin turu yeniden başlatılıyor...')
+              }}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <RotateCcw size={15} /> Turu Tekrar Başlat
+            </button>
           </div>
         </div>
       )}

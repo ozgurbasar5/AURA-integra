@@ -131,7 +131,7 @@ export default function RaporlarPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div data-tour="rapor-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <BarChart3 size={20} className="text-sky-600" /> Raporlar & Analitik
@@ -139,13 +139,13 @@ export default function RaporlarPage() {
           <p className="text-slate-400 text-sm mt-0.5">Gerçek verilerinizden oluşan işletme analizi</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={exportExcel} className="btn-secondary text-xs flex items-center gap-1">
+          <button data-tour="rapor-excel-btn" type="button" onClick={exportExcel} className="btn-secondary text-xs flex items-center gap-1">
             <Download size={14} /> Excel
           </button>
           <button type="button" onClick={exportPdf} className="btn-secondary text-xs flex items-center gap-1">
             <FileText size={14} /> PDF
           </button>
-          <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
+          <div data-tour="rapor-sekmeler" className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-bold">
           <button
             type="button"
             onClick={() => setTab('analitik')}
@@ -203,7 +203,7 @@ export default function RaporlarPage() {
       <>
 
       {/* Metrikler — CANLI VERİ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div data-tour="rapor-metrikler" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Toplam Gelir', val: formatCurrency(summary.totalGelir), icon: DollarSign, bg: 'from-sky-500 to-purple-600' },
           { label: 'Toplam Gider', val: formatCurrency(summary.totalGider), icon: BarChart3, bg: 'from-blue-500 to-cyan-600' },
@@ -238,7 +238,7 @@ export default function RaporlarPage() {
           {/* Grafik Satırı */}
           <div className="grid lg:grid-cols-3 gap-4">
             {/* Gelir/Gider Grafiği */}
-            <div className="lg:col-span-2 card p-5">
+            <div data-tour="rapor-trend-grafik" className="lg:col-span-2 card p-5">
               <h3 className="font-bold text-slate-900 text-sm mb-1">Gelir vs Gider Trendi</h3>
               <p className="text-[11px] text-slate-400 mb-4">Aylık karşılaştırma — gerçek verileriniz</p>
               {monthlyData.length > 0 ? (

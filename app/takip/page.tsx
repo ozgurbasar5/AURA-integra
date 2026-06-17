@@ -2,30 +2,16 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
 import { Search, Phone, Copy, CheckCircle, Clock, Smartphone, ChevronRight, RotateCcw } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import type { ServiceOrder, ServiceStatusHistory, Customer } from '@/types/database'
 import type { ServiceOrderStatus } from '@/types/database'
-import {
-  searchLocalServiceOrders, getLocalStatusHistory, type StoreServiceOrder,
-} from '@/lib/store'
 import { mapStoreStatusToPublic, PUBLIC_STATUS_LABELS, buildTrackingUrl } from '@/lib/erp-features'
-import { filterOrdersByTrackingQuery, trackingQueryMatchesOrder } from '@/lib/tracking-search'
 
 type ShopBranding = {
   shopName: string
   shopPhone: string
   shopAddress: string
   shopLogo: string | null
-}
-
-// Public anon client (RLS public read policy must be applied on service_orders & service_status_history)
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  )
 }
 
 // ─── Status config ─────────────────────────────────────────────────────────────
@@ -123,8 +109,6 @@ const STATUS_BADGE: Record<ServiceOrderStatus, { label: string; classes: string 
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type OrderWithCustomer = ServiceOrder & { customers: Customer }
-
 type LocalTrackOrder = {
   id: string
   order_no: string
@@ -139,6 +123,10 @@ type LocalTrackOrder = {
   actual_cost?: number
   customers: { full_name: string; phone: string }
 }
+
+type OrderWithCustomer = LocalTrackOrder
+
+type HistoryEntry = { status: string; created_at: string; note?: string | null }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -158,9 +146,7 @@ function TakipContent() {
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [loading, setLoading] = useState(false)
   const [order, setOrder] = useState<OrderWithCustomer | null>(null)
-  const [localOrder, setLocalOrder] = useState<LocalTrackOrder | null>(null)
-  const [history, setHistory] = useState<ServiceStatusHistory[]>([])
-  const [localHistory, setLocalHistory] = useState<{ status: string; created_at: string; note?: string }[]>([])
+  const [history, setHistory] = useState<HistoryEntry[]>([])
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [branding, setBranding] = useState<ShopBranding>({
@@ -189,54 +175,8 @@ function TakipContent() {
           })
         })
         .catch(() => {})
-      return
     }
-    try {
-      const raw = localStorage.getItem('servissoft_store')
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      const s = parsed?.notificationSettings
-      if (!s) return
-      setBranding({
-        shopName: s.shop_name || 'AURA İntegra',
-        shopPhone: s.shop_phone || '0850 000 00 00',
-        shopAddress: s.shop_address || '',
-        shopLogo: s.shop_logo || null,
-      })
-    } catch { /* ignore */ }
   }, [shopSlug])
-
-  function mapLocalOrder(o: StoreServiceOrder): LocalTrackOrder {
-    return {
-      id: o.id,
-      order_no: o.job_no,
-      device_brand: o.device_brand,
-      device_model: o.device_model,
-      device_color: o.color,
-      status: mapStoreStatusToPublic(o.status) as ServiceOrderStatus,
-      received_at: o.created_at,
-      estimated_delivery: o.eta || undefined,
-      fault_description: o.description || o.notes || '—',
-      estimated_cost: o.estimated_cost,
-      actual_cost: o.actual_cost,
-      customers: { full_name: o.customer_name, phone: o.customer_phone },
-    }
-  }
-
-  function tryLocalSearch(trimmed: string): boolean {
-    const hits = searchLocalServiceOrders(trimmed)
-    if (!hits.length) return false
-    const o = hits[0]
-    setLocalOrder(mapLocalOrder(o))
-    setLocalHistory(getLocalStatusHistory(o.id).map(h => ({
-      status: mapStoreStatusToPublic(h.status),
-      created_at: h.created_at,
-      note: h.note,
-    })))
-    setOrder(null)
-    setHistory([])
-    return true
-  }
 
   const handleSearch = async () => {
     const trimmed = query.trim()
@@ -244,79 +184,69 @@ function TakipContent() {
     setLoading(true)
     setError('')
     setOrder(null)
-    setLocalOrder(null)
     setHistory([])
-    setLocalHistory([])
+
+    if (!shopSlug) {
+      setError('Servis takibi için bayi linkinizi kullanın (URL\'de shop parametresi gerekli).')
+      setLoading(false)
+      return
+    }
 
     try {
-      const supabase = getSupabase()
-      const trimmedUpper = trimmed.toUpperCase()
-      let data: OrderWithCustomer | null = null
-
-      const { data: byExact, error: qErr } = await supabase
-        .from('service_orders')
-        .select(`
-          *,
-          customers (
-            id,
-            full_name,
-            phone,
-            email
-          )
-        `)
-        .or(`order_no.ilike.${trimmed},order_no.ilike.${trimmedUpper},imei.ilike.%${trimmed}%`)
-        .limit(5)
-
-      if (qErr) throw qErr
-
-      const rows = byExact ?? []
-      const hit = rows.find(r =>
-        trackingQueryMatchesOrder(trimmed, r.order_no) ||
-        (r.imei && String(r.imei).includes(trimmed.replace(/\D/g, '').slice(-8))),
-      ) ?? rows[0]
-
-      if (hit) data = hit as OrderWithCustomer
-
-      if (!data) {
-        const { data: recent } = await supabase
-          .from('service_orders')
-          .select(`
-            *,
-            customers ( id, full_name, phone, email )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100)
-
-        const matched = filterOrdersByTrackingQuery(recent ?? [], trimmed)
-        if (matched[0]) data = matched[0] as OrderWithCustomer
+      const params = new URLSearchParams({ shop: shopSlug, q: trimmed })
+      const res = await fetch(`/api/public/takip?${params.toString()}`)
+      const payload = await res.json() as {
+        found?: boolean
+        error?: string
+        order?: {
+          id: string
+          order_no: string
+          device_brand: string
+          device_model: string
+          status: string
+          public_status: string
+          customer_name: string
+          customer_phone: string
+          estimated_cost: number
+          created_at: string
+          eta: string | null
+          description: string
+        }
+        history?: HistoryEntry[]
       }
 
-      if (!data) {
-        if (tryLocalSearch(trimmed)) return
+      if (!res.ok) {
+        setError(payload.error || 'Arama başarısız.')
+        return
+      }
+
+      if (!payload.found || !payload.order) {
         setError('Kayıt bulunamadı. Servis no (SRV-2606-0001 veya 26060001), IMEI veya telefon deneyin.')
         return
       }
 
-      setOrder(data)
-
-      const supabase2 = getSupabase()
-      // Fetch status history
-      const { data: histData } = await supabase2
-        .from('service_status_history')
-        .select('*')
-        .eq('order_id', data.id)
-        .order('created_at', { ascending: true })
-
-      setHistory(histData ?? [])
+      const hit = payload.order
+      setOrder({
+        id: hit.id,
+        order_no: hit.order_no,
+        device_brand: hit.device_brand,
+        device_model: hit.device_model,
+        status: (hit.public_status || hit.status) as ServiceOrderStatus,
+        received_at: hit.created_at,
+        estimated_delivery: hit.eta || undefined,
+        fault_description: hit.description || '—',
+        estimated_cost: hit.estimated_cost,
+        customers: { full_name: hit.customer_name, phone: hit.customer_phone },
+      })
+      setHistory(payload.history ?? [])
     } catch {
-      if (tryLocalSearch(trimmed)) return
       setError('Bir hata oluştu. Lütfen tekrar deneyin.')
     } finally {
       setLoading(false)
     }
   }
 
-  const displayOrder = order || localOrder
+  const displayOrder = order
   const currentStepIdx = displayOrder
     ? STATUS_STEPS.findIndex((s) => s.key === displayOrder.status)
     : -1
@@ -459,7 +389,7 @@ function TakipContent() {
                       {STATUS_BADGE[displayOrder.status]?.label ?? PUBLIC_STATUS_LABELS[displayOrder.status] ?? displayOrder.status}
                     </span>
                     <button
-                      onClick={() => { setOrder(null); setLocalOrder(null); setHistory([]); setLocalHistory([]); setQuery('') }}
+                      onClick={() => { setOrder(null); setHistory([]); setQuery('') }}
                       className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors"
                     >
                       <RotateCcw size={12} />
@@ -580,7 +510,6 @@ function TakipContent() {
                       const isActive = idx === currentStepIdx
                       const isFuture = idx > currentStepIdx
                       const histItem = history.find((h) => h.status === step.key)
-                        || localHistory.find((h) => h.status === step.key)
                       const isLast = idx === STATUS_STEPS.length - 1
 
                       return (

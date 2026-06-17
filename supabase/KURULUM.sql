@@ -7,6 +7,8 @@
 -- 2) supabase_packages_v2.sql      — 3 katmanlı paket sistemi (450/750/1200 ₺)
 -- 3) supabase/migrations/20260613_tenant_branding.sql  — Marka alanları (varsa)
 -- 4) supabase/migrations/20260614_aura_integra_complete.sql — ERP genişletme
+-- 4b) supabase/migrations/20260622_repair_sync_tables.sql — Sync toast hatası (tenant_settings/settings, showcase, expenses)
+-- 4c) supabase/migrations/20260623_grant_erp_tables.sql — permission denied (42501) düzeltmesi
 -- 5) supabase/migrations/20260615_platform_admin_features.sql — Platform ayarları, audit log
 -- 6) supabase/migrations/20260616_eod_foreign_devices.sql — Gün sonu snapshot, foreign_devices RLS
 -- 7) supabase/migrations/20260617_basvuru_monthly_text.sql — Başvuru aylık servis alanı TEXT

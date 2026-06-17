@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getTenantBlockMessage, type TenantBlockReason } from '@/lib/subscription'
+import { setActiveTenantId } from '@/lib/store'
 import { Eye, EyeOff, Loader2, Wrench, Package, BarChart3, ShoppingCart, Shield, Cloud, ArrowRight } from 'lucide-react'
 import { AuraLogo } from '@/components/landing/AuraLogo'
 import { AURA_CORPORATE } from '@/lib/brand-corporate'
@@ -103,6 +104,8 @@ export default function LoginForm() {
         setError(json.error || 'Giriş başarısız.')
         return
       }
+
+      if (json.tenant_id) setActiveTenantId(json.tenant_id)
 
       window.location.href = json.redirect || '/dashboard'
     } catch {

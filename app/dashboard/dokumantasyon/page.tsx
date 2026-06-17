@@ -25,6 +25,32 @@ const MODULE_META: Record<string, { label: string; icon: React.ReactNode; color:
 
 const STATIC_DOCS: DocPage[] = [
   {
+    id: '0', slug: 'bayi-kurulum-sms', title: 'Bayi Kurulum — SMS (Netgsm)', module: 'genel', sort_order: 0,
+    content: `<h2>Bayi SMS Kurulum Rehberi</h2>
+<p>Platform tarafı hazırdır. SMS göndermek için bayinin kendi Netgsm hesabını bağlaması gerekir.</p>
+<h3>Netgsm tarafında (netgsm.com.tr)</h3>
+<ol>
+  <li>Kurumsal hesap açın ve SMS kredisi yükleyin</li>
+  <li><strong>Gönderici başlığı</strong> başvurusu yapın (mağaza adınız, örn. DSADAS) — BTK onayı birkaç gün sürebilir</li>
+  <li>API kullanıcı adı ve şifre oluşturun</li>
+</ol>
+<h3>Uygulama tarafında</h3>
+<ol>
+  <li><strong>Ayarlar → Entegrasyonlar</strong> — Netgsm Kullanıcı, Başlık, Şifre girin</li>
+  <li><strong>Bildirim Ayarlarını Kaydet</strong> butonuna basın</li>
+  <li><strong>SMS Test Gönder</strong> ile profil telefonunuza deneme mesajı</li>
+  <li><strong>Ayarlar → Bildirimler</strong> — Otomatik SMS ve durum değişimini açın</li>
+  <li><strong>Hızlı Kabul</strong> ile gerçek müşteriye test SMS</li>
+</ol>
+<h3>Ne zaman SMS gider?</h3>
+<ul>
+  <li>Hızlı Kabul (yeni kayıt)</li>
+  <li>Bildirimler sayfasından manuel gönderim</li>
+  <li>Servis durumu: alındı, teslim, kalite kontrol (API üzerinden)</li>
+</ul>
+<p><strong>Not:</strong> WhatsApp otomatik değildir; müşteriye wa.me linki ile manuel gönderilir.</p>`
+  },
+  {
     id: '1', slug: 'teknik-servis-giris', title: 'Teknik Servise Giriş', module: 'teknik-servis', sort_order: 1,
     content: `<h2>Teknik Servis Modülü</h2>
 <p>Cihaz kabul, teşhis, tamir ve teslim sürecini uçtan uca yönetin. AURA ServisPanel 24 farklı servis durumu ile tam izlenebilirlik sağlar.</p>

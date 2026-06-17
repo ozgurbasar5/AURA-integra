@@ -14,15 +14,16 @@ export function PageHeader({
   description,
   icon: Icon,
   actions,
+  ...rest
 }: {
   eyebrow?: string
   title: string
   description?: string
   icon?: LucideIcon
   actions?: ReactNode
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4" {...rest}>
       <div>
         {eyebrow && (
           <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">{eyebrow}</p>
@@ -48,15 +49,16 @@ export function PageCard({
   children,
   className = '',
   noPadding,
+  ...rest
 }: {
   title?: string
   action?: ReactNode
   children: ReactNode
   className?: string
   noPadding?: boolean
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`surface overflow-hidden ${className}`}>
+    <div className={`surface overflow-hidden ${className}`} {...rest}>
       {title && (
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-sm font-bold text-slate-900">{title}</h2>

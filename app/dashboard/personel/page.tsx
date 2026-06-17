@@ -89,13 +89,14 @@ export default function PersonelPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader
+        data-tour="personel-baslik"
         icon={Users}
         title="Personel Yönetimi"
         description="Ekip, performans ve yetki yönetimi"
-        actions={<button onClick={() => setShowModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Personel</button>}
+        actions={<button data-tour="personel-yeni-btn" onClick={() => setShowModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Personel</button>}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div data-tour="personel-metrikler" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Toplam Personel', val: staff.length, bg: 'bg-sky-50', color: 'text-sky-600', icon: Users },
           { label: 'Aktif Teknisyen', val: technicians.length, bg: 'bg-blue-50', color: 'text-blue-600', icon: Wrench },
@@ -121,7 +122,7 @@ export default function PersonelPage() {
         </select>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div data-tour="personel-kartlar" className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(s => {
           const roleConf = ROLES[s.role as keyof typeof ROLES] || { label: s.role, color: 'bg-slate-100 text-slate-600' }
           const targetPercent = s.daily_target > 0 ? Math.min(100, Math.round(s.completed_today / s.daily_target * 100)) : 0

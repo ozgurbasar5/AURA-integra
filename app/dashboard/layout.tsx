@@ -63,6 +63,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           full_name: profile.full_name,
           email: user.email ?? '',
           role: normalizeTenantRole(profile.role),
+          onboarding_completed: profile.onboarding_completed ?? false,
         }}
       >
         {children}

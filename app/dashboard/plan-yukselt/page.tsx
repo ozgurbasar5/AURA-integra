@@ -28,18 +28,38 @@ export default function PlanYukseltPage() {
       return
     }
     const tier = PLAN_TIERS.find(t => t.level === target)
-    const res = await fetch('/api/tenant/plan-upgrade', {
+    if (!tier) return
+
+    const checkoutRes = await fetch('/api/billing/checkout', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan_id: tier?.name, message: `${tier?.name} paketine yükseltme talebi` }),
+      body: JSON.stringify({ plan_level: target }),
     })
-    const json = await res.json()
-    if (res.ok) {
-      toast.success(json.message || 'Talep alındı')
-    } else {
-      toast.error(json.error || 'Talep gönderilemedi')
+    const checkoutJson = await checkoutRes.json() as { url?: string; error?: string; fallback?: boolean }
+
+    if (checkoutRes.ok && checkoutJson.url) {
+      window.location.href = checkoutJson.url
+      return
     }
+
+    if (checkoutJson.fallback || checkoutRes.status === 503) {
+      const res = await fetch('/api/tenant/plan-upgrade', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: tier.name, message: `${tier.name} paketine yükseltme talebi` }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        toast.success(json.message || 'Talep alındı — ödeme linki için destek ile iletişime geçin')
+      } else {
+        toast.error(json.error || 'Talep gönderilemedi')
+      }
+      return
+    }
+
+    toast.error(checkoutJson.error || 'Ödeme başlatılamadı')
   }
 
   if (loading) {
@@ -98,7 +118,7 @@ export default function PlanYukseltPage() {
                       : 'bg-sky-600 text-white hover:bg-sky-700'
                 }`}
               >
-                {isCurrent ? 'Mevcut Paket' : active ? 'Dahil' : 'Yükseltme Talep Et'}
+                {isCurrent ? 'Mevcut Paket' : active ? 'Dahil' : 'Öde ve Yükselt'}
               </button>
             </div>
           )

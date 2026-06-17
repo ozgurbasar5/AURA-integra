@@ -3,17 +3,27 @@ import { getServiceClient } from './service'
 
 const PROFILE_TIMEOUT_MS = 4000
 
-/** Süper admin e-postaları — admin paneli yalnızca DB + Supabase ile açılır */
-export const SUPER_ADMIN_EMAILS = [
+/** Süper admin e-postaları — SUPER_ADMIN_EMAILS env (virgülle ayrılmış) veya varsayılan */
+const DEFAULT_SUPER_ADMIN_EMAILS = [
   'admin@aurabilisim.net',
   'admin@aurabilisim.com',
-  'admin@aurabilisim',
 ] as const
+
+function getSuperAdminEmailList(): string[] {
+  const fromEnv = process.env.SUPER_ADMIN_EMAILS?.trim()
+  if (fromEnv) {
+    return fromEnv.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+  }
+  return [...DEFAULT_SUPER_ADMIN_EMAILS]
+}
+
+export const SUPER_ADMIN_EMAILS = DEFAULT_SUPER_ADMIN_EMAILS
 
 export type LayoutProfile = {
   full_name: string
   role: string
   is_active: boolean
+  onboarding_completed?: boolean
   tenant_id: string | null
   tenants: {
     company_name: string
@@ -97,11 +107,7 @@ function nameFromUser(user: User): string {
 export function isSuperAdminEmail(email: string | undefined | null): boolean {
   if (!email) return false
   const normalized = email.toLowerCase().trim()
-  return (
-    SUPER_ADMIN_EMAILS.includes(normalized as (typeof SUPER_ADMIN_EMAILS)[number])
-    || normalized === 'admin@aurabilisim'
-    || /^admin@aurabilisim\./i.test(normalized)
-  )
+  return getSuperAdminEmailList().includes(normalized)
 }
 
 /** Cookie'den oturum — ağ çağrısı yapmaz */
@@ -175,7 +181,7 @@ export async function requireSuperAdminFromDb(
 }
 
 /**
- * Admin paneli erişimi — süper admin e-postası hızlı yol, DB arka planda.
+ * Admin paneli erişimi — yalnızca DB'de doğrulanmış super_admin profili.
  */
 export async function resolveSuperAdminAccess(
   supabase: SupabaseClient,
@@ -185,31 +191,19 @@ export async function resolveSuperAdminAccess(
     return { ok: false, reason: 'not_super_admin' }
   }
 
-  // Süper admin e-postası: en fazla 4s DB dene, sonra hemen izin ver
-  if (isSuperAdminEmail(user.email)) {
-    const serviceDb = await requireSuperAdminFromServiceRole(user)
-    if (serviceDb.ok) return serviceDb
+  let serviceDb = await requireSuperAdminFromServiceRole(user)
+  if (serviceDb.ok) return serviceDb
 
-    void ensureSuperAdminProfile(user)
-
-    return {
-      ok: true,
-      fromDb: false,
-      warning:
-        serviceDb.reason === 'timeout'
-          ? 'Supabase yavaş yanıt veriyor; veriler gecikebilir.'
-          : undefined,
-      data: {
-        full_name: nameFromUser(user),
-        role: 'super_admin',
-        is_active: true,
-      },
+  if (
+    isSuperAdminEmail(user.email) &&
+    (serviceDb.reason === 'not_found' || serviceDb.reason === 'not_super_admin')
+  ) {
+    const created = await ensureSuperAdminProfile(user)
+    if (created) {
+      serviceDb = await requireSuperAdminFromServiceRole(user)
+      if (serviceDb.ok) return serviceDb
     }
   }
-
-  await ensureSuperAdminProfile(user)
-  const serviceDb = await requireSuperAdminFromServiceRole(user)
-  if (serviceDb.ok) return serviceDb
 
   const anonDb = await requireSuperAdminFromDb(supabase, user)
   if (anonDb.ok) return anonDb
@@ -234,7 +228,7 @@ export async function fetchLayoutProfileFromDb(
     supabase
       .from('user_profiles')
       .select(
-        'full_name, role, is_active, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
+        'full_name, role, is_active, onboarding_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
       )
       .eq('id', user.id)
       .single()
@@ -256,7 +250,7 @@ export async function fetchLayoutProfileService(
     admin
       .from('user_profiles')
       .select(
-        'full_name, role, is_active, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
+        'full_name, role, is_active, onboarding_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
       )
       .eq('id', user.id)
       .single(),
@@ -269,7 +263,7 @@ export async function tenantHasOverduePaymentService(
   tenantId: string
 ): Promise<boolean> {
   const admin = getServiceClient()
-  if (!admin) return false
+  if (!admin) return true
   try {
     const today = new Date().toISOString().split('T')[0]
     const { data } = await admin
@@ -281,7 +275,7 @@ export async function tenantHasOverduePaymentService(
       .limit(1)
     return (data?.length ?? 0) > 0
   } catch {
-    return false
+    return true
   }
 }
 
@@ -315,6 +309,7 @@ export function buildOfflineLayoutProfile(user: User): LayoutProfile {
     full_name: nameFromUser(user),
     role: safeRole,
     is_active: true,
+    onboarding_completed: false,
     tenant_id: null,
     tenants: null,
   }

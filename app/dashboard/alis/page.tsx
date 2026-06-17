@@ -339,7 +339,7 @@ export default function AlisPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div>
+      <div data-tour="alis-baslik">
         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
           <div className="p-2 bg-sky-500/20 rounded-xl">
             <ShoppingBag className="w-6 h-6 text-sky-400" />
@@ -447,6 +447,7 @@ export default function AlisPage() {
 
           {/* New Purchase Button */}
           <button
+            data-tour="alis-yeni-btn"
             onClick={openNew}
             className="flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 whitespace-nowrap"
           >
@@ -457,7 +458,7 @@ export default function AlisPage() {
       </div>
 
       {/* ── Data Table ─────────────────────────────────────────────────────── */}
-      <div className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+      <div data-tour="alis-tablo" className="bg-slate-800/60 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

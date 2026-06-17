@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireSuperAdmin } from '@/lib/admin-auth'
-import { getServiceClient } from '@/lib/supabase/service'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { verifyTurnstileToken } from '@/lib/turnstile'
 
 const PLAN_LABELS: Record<string, string> = {
   deneme: '30 Gün Deneme',
@@ -29,7 +29,16 @@ function getSupabaseForInsert() {
 }
 
 // Public API — auth gerektirmez
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const rl = await checkRateLimit(`basvuru:${ip}`, 5, 60 * 60 * 1000)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { success: false, error: 'Çok fazla başvuru. Lütfen daha sonra tekrar deneyin.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
+
   try {
     const body = await request.json()
 
@@ -44,10 +53,16 @@ export async function POST(request: Request) {
       paket,
       mesaj,
       kvkk,
+      turnstile_token,
     } = body
 
     if (!firma_adi || !yetkili_adi || !email || !telefon || !kvkk) {
       return NextResponse.json({ success: false, error: 'Zorunlu alanlar eksik' }, { status: 400 })
+    }
+
+    const captchaOk = await verifyTurnstileToken(turnstile_token, ip)
+    if (!captchaOk) {
+      return NextResponse.json({ success: false, error: 'Güvenlik doğrulaması başarısız' }, { status: 400 })
     }
 
     const supabase = getSupabaseForInsert()

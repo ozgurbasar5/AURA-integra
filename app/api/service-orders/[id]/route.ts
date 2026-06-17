@@ -35,6 +35,14 @@ async function getAuthContext() {
     return { error: NextResponse.json({ error: 'Profil bulunamadı.' }, { status: 403 }) as NextResponse }
   }
 
+  if (profile.role === 'super_admin') {
+    return { error: NextResponse.json({ error: 'Süper admin tenant API kullanamaz' }, { status: 403 }) as NextResponse }
+  }
+
+  if (!profile.tenant_id) {
+    return { error: NextResponse.json({ error: 'Geçerli bir tenant bulunamadı.' }, { status: 403 }) as NextResponse }
+  }
+
   return { supabase, user, profile }
 }
 
@@ -51,12 +59,12 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     if ('error' in ctx) return ctx.error
     const { supabase, profile } = ctx
 
-    let query = supabase.from('service_orders').select(ORDER_SELECT).eq('id', params.id)
-    if (profile.role !== 'super_admin' && profile.tenant_id) {
-      query = query.eq('tenant_id', profile.tenant_id)
-    }
-
-    const { data, error } = await query.single()
+    const { data, error } = await supabase
+      .from('service_orders')
+      .select(ORDER_SELECT)
+      .eq('id', params.id)
+      .eq('tenant_id', profile.tenant_id)
+      .single()
     if (error || !data) {
       return NextResponse.json({ error: 'Kayıt bulunamadı.' }, { status: 404 })
     }
@@ -93,12 +101,13 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       patch.closed_at = body.closed_at ?? new Date().toISOString()
     }
 
-    let query = supabase.from('service_orders').update(patch).eq('id', params.id)
-    if (profile.role !== 'super_admin' && profile.tenant_id) {
-      query = query.eq('tenant_id', profile.tenant_id)
-    }
-
-    const { data, error } = await query.select(ORDER_SELECT).single()
+    const { data, error } = await supabase
+      .from('service_orders')
+      .update(patch)
+      .eq('id', params.id)
+      .eq('tenant_id', profile.tenant_id)
+      .select(ORDER_SELECT)
+      .single()
     if (error || !data) {
       return NextResponse.json({ error: error?.message ?? 'Güncelleme başarısız.' }, { status: 500 })
     }

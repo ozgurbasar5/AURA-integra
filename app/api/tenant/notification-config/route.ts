@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canManageTenantSettings } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
-import { encryptSecret, isEncryptedSecret } from '@/lib/secrets-crypto'
+import { encryptSecret, isEncryptedSecret, EncryptionKeyMissingError } from '@/lib/secrets-crypto'
 import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
 
 export type TenantNotificationConfig = {
@@ -82,10 +82,20 @@ export async function PUT(req: NextRequest) {
   const prevNotif = (prev.notification_config as TenantNotificationConfig) ?? {}
 
   let netgsmPass = prevNotif.netgsm_pass
-  if (body.netgsm_pass) {
-    netgsmPass = encryptSecret(body.netgsm_pass)
-  } else if (netgsmPass && !isEncryptedSecret(netgsmPass)) {
-    netgsmPass = encryptSecret(netgsmPass)
+  try {
+    if (body.netgsm_pass) {
+      netgsmPass = encryptSecret(body.netgsm_pass)
+    } else if (netgsmPass && !isEncryptedSecret(netgsmPass)) {
+      netgsmPass = encryptSecret(netgsmPass)
+    }
+  } catch (e) {
+    if (e instanceof EncryptionKeyMissingError) {
+      return NextResponse.json(
+        { error: 'Şifreleme anahtarı yapılandırılmamış (APP_ENCRYPTION_KEY)' },
+        { status: 503 },
+      )
+    }
+    throw e
   }
 
   const notification_config: TenantNotificationConfig = {

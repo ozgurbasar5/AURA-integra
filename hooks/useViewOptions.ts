@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   applyViewOptions,
+  DEFAULT_VIEW_OPTIONS,
   getViewOptions,
   type ViewOptions,
 } from '@/lib/user-settings'
@@ -15,7 +16,11 @@ export function dispatchViewOptionsChanged(opts: ViewOptions) {
 }
 
 export function useViewOptions() {
-  const [opts, setOpts] = useState<ViewOptions>(() => getViewOptions())
+  const [opts, setOpts] = useState<ViewOptions>(DEFAULT_VIEW_OPTIONS)
+
+  useEffect(() => {
+    setOpts(getViewOptions())
+  }, [])
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {

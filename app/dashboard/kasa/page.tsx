@@ -10,7 +10,7 @@ import {
   getOpenCashShift, getCashShifts, openCashShift, closeCashShift,
   getCashSummary, onStoreChange, attachShiftReport, type CashShift,
 } from '@/lib/store'
-import { buildShiftReport } from '@/lib/eod-report'
+import { buildShiftReport, suggestOpeningCash } from '@/lib/eod-report'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { formatCurrency } from '@/lib/validators'
 import { useUserRole } from '@/lib/role-context'
@@ -48,6 +48,10 @@ export default function KasaPage() {
   useEffect(() => {
     setMounted(true)
     refresh()
+    if (!getOpenCashShift()) {
+      const suggested = suggestOpeningCash()
+      if (suggested > 0) setOpening(String(suggested))
+    }
     return onStoreChange(m => { if (!m || m === 'cashShifts' || m === 'cash' || m === 'finance' || m === 'sales') refresh() })
   }, [refresh])
 
@@ -86,13 +90,14 @@ export default function KasaPage() {
   return (
     <PageShell>
       <PageHeader
+        data-tour="kasa-baslik"
         eyebrow="Finans"
         title="Kasa Vardiyası"
         description="Açılış/kapanış, nakit sayımı ve gün sonu Z raporu."
         icon={Wallet}
       />
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div data-tour="kasa-ozet-kartlar" className="grid md:grid-cols-3 gap-4">
         <div className="surface p-5 rounded-2xl">
           <p className="text-xs font-bold text-slate-500 uppercase">Kasa Bakiye</p>
           <p className="text-2xl font-black text-slate-900 mt-1">{fmt(shiftCash.kasaBakiye)}</p>
@@ -108,7 +113,7 @@ export default function KasaPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <PageCard title={openShift ? 'Açık Vardiya' : 'Vardiya Aç'}>
+        <PageCard data-tour="kasa-vardiya-panel" title={openShift ? 'Açık Vardiya' : 'Vardiya Aç'}>
           {openShift ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl text-sm font-semibold">
@@ -118,21 +123,22 @@ export default function KasaPage() {
               <p className="text-sm text-slate-600">Beklenen nakit: <strong>{fmt(expected)}</strong></p>
               <input className="input" type="number" placeholder="Sayım tutarı (₺)" value={closing} onChange={e => setClosing(e.target.value)} />
               <input className="input" placeholder="Not (opsiyonel)" value={notes} onChange={e => setNotes(e.target.value)} />
-              <button type="button" onClick={handleClose} className="btn-primary w-full flex items-center justify-center gap-2">
+              <button data-tour="kasa-vardiya-kapat-btn" type="button" onClick={handleClose} className="btn-primary w-full flex items-center justify-center gap-2">
                 <Lock size={16} /> Vardiyayı Kapat & Rapor
               </button>
             </div>
           ) : (
             <div className="space-y-4">
-              <input className="input" type="number" placeholder="Açılış kasa tutarı (₺)" value={opening} onChange={e => setOpening(e.target.value)} />
-              <button type="button" onClick={handleOpen} className="btn-primary w-full flex items-center justify-center gap-2">
+              <p className="text-xs text-slate-500">Sabah kasadaki nakit tutarını girin. Önerilen: {fmt(suggestOpeningCash())}</p>
+              <input data-tour="kasa-acilis-input" className="input" type="number" placeholder="Açılış kasa tutarı (₺)" value={opening} onChange={e => setOpening(e.target.value)} />
+              <button data-tour="kasa-vardiya-ac-btn" type="button" onClick={handleOpen} className="btn-primary w-full flex items-center justify-center gap-2">
                 <Unlock size={16} /> Vardiya Aç
               </button>
             </div>
           )}
         </PageCard>
 
-        <PageCard title="Vardiya Geçmişi" noPadding>
+        <PageCard data-tour="kasa-gecmis" title="Vardiya Geçmişi" noPadding>
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
             {history.length === 0 ? (
               <p className="text-sm text-slate-400 p-5 text-center">Kayıt yok</p>

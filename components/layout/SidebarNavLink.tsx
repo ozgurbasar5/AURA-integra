@@ -24,17 +24,20 @@ export default function SidebarNavLink({
     <Link
       href={item.href}
       onClick={onNavigate}
-      className={`sidebar-nav-link group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all min-h-[44px] lg:min-h-0 ${
-        active ? 'bg-sky-500/15 text-white sidebar-nav-link--active' : 'text-slate-400 hover:text-white hover:bg-white/5'
+      data-tour-nav={item.href}
+      className={`sidebar-nav-link group relative flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium transition-all min-h-[44px] lg:min-h-0 ${
+        active ? 'sidebar-nav-link--active' : ''
       }`}
+      style={!active ? { color: 'var(--sidebar-text)' } : undefined}
       title={collapsed ? item.label : undefined}
     >
       {active && (
-        <span className="sidebar-nav-indicator absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-sky-400 rounded-r-full" />
+        <span className="sidebar-nav-indicator absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" />
       )}
       <Icon
         size={collapsed ? 20 : 17}
-        className={`shrink-0 ${active ? 'text-sky-400' : 'text-slate-500 group-hover:text-slate-300'}`}
+        className="shrink-0"
+        style={{ color: active ? 'var(--sidebar-active-border)' : 'var(--sidebar-muted)' }}
       />
       {!collapsed && (
         <>

@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { AuraLogo } from '@/components/landing/AuraLogo'
 import { AURA_CORPORATE } from '@/lib/brand-corporate'
 import { getPlanLevel } from '@/lib/plan-tiers'
+import TurnstileWidget from '@/components/TurnstileWidget'
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type ServiceType = 'cep_telefonu' | 'robot_supurge' | 'akilli_saat' | 'bilgisayar'
@@ -155,6 +156,7 @@ export default function BasvuruPage() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
   const [trialDays, setTrialDays] = useState(30)
   const [planOptions, setPlanOptions] = useState(DEFAULT_PLAN_OPTIONS)
 
@@ -241,7 +243,7 @@ export default function BasvuruPage() {
       const res = await fetch('/api/basvuru', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, turnstile_token: turnstileToken }),
       })
 
       const data = await res.json().catch(() => ({}))
@@ -638,6 +640,8 @@ export default function BasvuruPage() {
                 </p>
               )}
             </div>
+
+            <TurnstileWidget onToken={setTurnstileToken} />
 
             {/* ── Submit Error ── */}
             {submitError && (

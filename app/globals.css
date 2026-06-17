@@ -621,10 +621,53 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
   transform: scaleX(1);
 }
 
-/* ─── Sidebar Dark Theme ──────────────────────────────────────────────────── */
+/* ─── Sidebar — tema değişkenleri ─────────────────────────────────────────── */
 .sidebar-dark {
-  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  background: linear-gradient(180deg, var(--sidebar-from, #0f172a) 0%, var(--sidebar-to, #020617) 100%);
+  border-color: var(--sidebar-border, rgba(255,255,255,0.05));
+  color: var(--sidebar-text, #94a3b8);
+  min-height: 100vh;
 }
+
+html[data-sidebar-style="light"] .sidebar-dark {
+  color: var(--sidebar-text);
+}
+
+.sidebar-nav-link {
+  border-radius: var(--radius-ui, 0.75rem);
+}
+
+.sidebar-nav-link--active,
+.sidebar-nav-link.sidebar-nav-link--active {
+  background: var(--sidebar-active-bg) !important;
+  color: var(--sidebar-text-active) !important;
+}
+
+.sidebar-nav-indicator {
+  background: var(--sidebar-active-border) !important;
+}
+
+.sidebar-nav-link:not(.sidebar-nav-link--active):hover {
+  background: var(--sidebar-hover) !important;
+  color: var(--sidebar-text-active) !important;
+}
+
+html[data-sidebar-style="light"] .sidebar-dark .sidebar-nav-link:not(.sidebar-nav-link--active) {
+  color: var(--sidebar-text);
+}
+
+/* Hero / dashboard gradient */
+.hero-themed {
+  background: linear-gradient(135deg, var(--hero-from, var(--accent)) 0%, var(--hero-to, var(--accent-dark)) 100%);
+}
+
+/* UI radius global */
+.card, .surface, .btn-primary, .btn-secondary, .input, .select {
+  border-radius: var(--radius-ui, 0.75rem);
+}
+
+.ui-compact .page-wrapper { padding: 0.75rem; }
+.ui-compact .card { padding: 0.75rem !important; }
 
 /* ─── Kanban Column ────────────────────────────────────────────────────────── */
 .kanban-column {
@@ -747,5 +790,51 @@ html.dark .landing-page .landing-tag {
   background: #d4f0f7 !important;
   color: #0c5f73 !important;
   border-color: #a5e9f5 !important;
+}
+
+/* ─── Onboarding tour (One UI slayt) ─────────────────────────────────────── */
+@keyframes aura-tour-pulse-keyframes {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.15); }
+}
+
+@keyframes aura-tour-pulse-soft-keyframes {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes aura-tour-slide-up-keyframes {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.aura-tour-pulse {
+  animation: aura-tour-pulse-keyframes 2s ease-in-out infinite;
+}
+
+.aura-tour-pulse-soft {
+  animation: aura-tour-pulse-soft-keyframes 2.4s ease-in-out infinite;
+}
+
+.aura-tour-slide-up {
+  animation: aura-tour-slide-up-keyframes 0.45s ease-out;
+}
+
+.aura-tour-root {
+  font-family: inherit;
+}
+
+.aura-tour-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-border) transparent;
+}
+
+.aura-tour-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.aura-tour-scroll::-webkit-scrollbar-thumb {
+  background: var(--bg-border);
+  border-radius: 4px;
 }
 
