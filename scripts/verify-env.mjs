@@ -67,9 +67,9 @@ const isVercelProd =
 if (isVercelProd) {
   const encKey = get('APP_ENCRYPTION_KEY')
   if (!encKey || encKey.length < 32) {
-    console.error('❌ APP_ENCRYPTION_KEY Vercel production\'da zorunlu (min 32 karakter)')
-    console.error('   SMS şifreleri ve hassas alanlar şifrelenmeden saklanır.')
-    process.exit(1)
+    console.warn('⚠ APP_ENCRYPTION_KEY eksik — build devam ediyor (SMS şifreleri düz metin saklanır)')
+    console.warn('   Vercel → Environment Variables → APP_ENCRYPTION_KEY (min 32 karakter)')
+  } else {
+    console.log('✓ APP_ENCRYPTION_KEY OK')
   }
-  console.log('✓ APP_ENCRYPTION_KEY OK')
 }

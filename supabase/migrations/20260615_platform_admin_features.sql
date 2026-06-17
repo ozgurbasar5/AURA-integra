@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS documentation_pages (
   slug        TEXT UNIQUE NOT NULL,
   title       TEXT NOT NULL,
   content     TEXT NOT NULL DEFAULT '',
-  category    TEXT DEFAULT 'genel',
+  module      TEXT DEFAULT 'genel',
   sort_order  INT DEFAULT 0,
-  is_published BOOLEAN DEFAULT TRUE,
+  published   BOOLEAN DEFAULT TRUE,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );

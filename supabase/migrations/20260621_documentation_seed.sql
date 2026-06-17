@@ -1,6 +1,7 @@
 -- Dokümantasyon sayfaları — dashboard fallback yerine Supabase kaynağı
+-- Not: Canlı şema module + published kullanır (admin panel ile uyumlu)
 
-INSERT INTO documentation_pages (slug, title, content, category, sort_order, is_published)
+INSERT INTO documentation_pages (slug, title, content, module, sort_order, published)
 VALUES
 (
   'teknik-servis-giris',

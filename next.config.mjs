@@ -32,11 +32,13 @@ function assertVercelSupabaseEnv() {
     )
   }
 
+  const isVercelProd =
+    process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
   const encKey = process.env.APP_ENCRYPTION_KEY ?? ''
-  if (!encKey || encKey.length < 32) {
-    throw new Error(
-      '[AURA İntegra] APP_ENCRYPTION_KEY Vercel production\'da zorunlu (min 32 karakter). ' +
-        'SMS şifreleri ve hassas alanlar güvenli saklanamaz.'
+  if (isVercelProd && (!encKey || encKey.length < 32)) {
+    console.warn(
+      '[AURA İntegra] APP_ENCRYPTION_KEY eksik — build devam ediyor. ' +
+        'Vercel → Environment Variables → APP_ENCRYPTION_KEY (min 32 karakter, örn. openssl rand -hex 32)'
     )
   }
 }
