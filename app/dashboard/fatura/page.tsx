@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   FileText, Search, Plus, X, Download, Send,
@@ -43,6 +43,14 @@ export default function FaturaPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [efaturaProvider, setEfaturaProvider] = useState('')
+
+  useEffect(() => {
+    fetch('/api/tenant/efatura-status', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => setEfaturaProvider(json.provider ?? ''))
+      .catch(() => {})
+  }, [])
 
   if (!mounted || flagsLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -148,7 +156,7 @@ export default function FaturaPage() {
         data-tour="fatura-baslik"
         icon={FileText}
         title="E-Fatura & E-Arşiv"
-        description="GİB uyumlu fatura yönetimi"
+        description={efaturaProvider ? `GİB uyumlu fatura — Entegratör: ${efaturaProvider}` : 'GİB uyumlu fatura yönetimi'}
         actions={<button data-tour="fatura-yeni-btn" onClick={() => setShowNewModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Fatura</button>}
       />
 

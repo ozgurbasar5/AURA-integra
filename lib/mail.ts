@@ -54,3 +54,30 @@ export function trialReminderEmail(opts: {
   `
   return { subject, html }
 }
+
+export function paymentReminderEmail(opts: {
+  contactName: string
+  companyName: string
+  amount: string | number
+  dueDate: string
+  subscriptionEnd?: string
+  payUrl?: string
+}): { subject: string; html: string } {
+  const subject = `AURA İntegra — Ödeme Hatırlatması (${opts.companyName})`
+  const payBlock = opts.payUrl
+    ? `<p><a href="${opts.payUrl}" style="display:inline-block;padding:12px 24px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">Ödeme Yap</a></p>`
+    : '<p>Ödeme için bizimle iletişime geçebilirsiniz.</p>'
+
+  const html = `
+    <p>Merhaba ${opts.contactName},</p>
+    <p>AURA İntegra abonelik ödemeniz hatırlatması:</p>
+    <ul>
+      <li><strong>Tutar:</strong> ₺${opts.amount}</li>
+      <li><strong>Son ödeme:</strong> ${opts.dueDate}</li>
+      ${opts.subscriptionEnd ? `<li><strong>Abonelik bitiş:</strong> ${opts.subscriptionEnd}</li>` : ''}
+    </ul>
+    ${payBlock}
+    <p>AURA İntegra Ekibi</p>
+  `
+  return { subject, html }
+}

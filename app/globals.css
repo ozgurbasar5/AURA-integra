@@ -462,13 +462,15 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
     @apply flex items-center justify-end gap-3 p-6 border-t border-slate-200;
   }
 
-  /* Drawer — light */
+  /* Drawer — tema uyumlu */
   .drawer-overlay {
     @apply fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity;
   }
   .drawer-panel {
-    @apply fixed top-0 right-0 h-full w-full max-w-xl bg-white border-l border-slate-200
-           z-50 overflow-y-auto shadow-2xl transition-transform duration-300 ease-out;
+    @apply fixed top-0 right-0 h-full w-full max-w-xl z-50 overflow-y-auto shadow-2xl transition-transform duration-300 ease-out;
+    background-color: var(--bg-base);
+    border-left: 1px solid var(--bg-border);
+    color: var(--text-primary);
   }
 }
 

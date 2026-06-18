@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canManageTenantSettings } from '@/lib/api-role-guard'
 import { PLAN_TIERS, type PlanLevel } from '@/lib/plan-tiers'
+import { getServerAppUrl } from '@/lib/app-url'
 
 export async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const stripeKey = process.env.STRIPE_SECRET_KEY
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = getServerAppUrl(req.nextUrl.origin)
 
   if (!stripeKey) {
     return NextResponse.json({

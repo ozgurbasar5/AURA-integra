@@ -2,24 +2,21 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
+import { verifyCronRequest } from '@/lib/cron-auth'
+import { getServerAppUrl } from '@/lib/app-url'
 import { sendMail, trialReminderEmail } from '@/lib/mail'
 
 const REMINDER_DAYS = [7, 3, 1]
 
-/** Vercel Cron veya CRON_SECRET ile çağrılır — trial bitiş hatırlatması */
+/** Vercel Cron — trial bitiş hatırlatması */
 export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (secret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+  const denied = verifyCronRequest(req)
+  if (denied) return denied
 
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://integra.aurabilisim.net'
+  const appUrl = getServerAppUrl()
   const today = new Date()
   const reminders: { tenant_id: string; days_left: number; email?: string; sent?: boolean; error?: string }[] = []
 
@@ -31,7 +28,7 @@ export async function GET(req: NextRequest) {
     const { data: tenants } = await admin
       .from('tenants')
       .select('id, company_name, subscription_end, status')
-      .eq('status', 'active')
+      .in('status', ['trial', 'active'])
       .gte('subscription_end', `${targetDate}T00:00:00`)
       .lt('subscription_end', `${targetDate}T23:59:59`)
 
@@ -40,7 +37,7 @@ export async function GET(req: NextRequest) {
         .from('user_profiles')
         .select('email')
         .eq('tenant_id', t.id)
-        .eq('role', 'tenant_admin')
+        .in('role', ['tenant_admin', 'owner', 'admin'])
         .limit(1)
 
       const email = users?.[0]?.email

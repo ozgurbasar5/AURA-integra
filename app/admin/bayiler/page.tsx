@@ -163,27 +163,35 @@ export default function BayilerPage() {
 
   // Drawer açıldığında state'leri doldur
   useEffect(() => {
-    if (selectedTenant) {
-      setSubStart(selectedTenant.subscription_start || '')
-      setSubEnd(selectedTenant.subscription_end || '')
-      setSubPlanId(selectedTenant.plan_id || '')
-      setSubStatus(selectedTenant.status || '')
-      setAdminNote('')
-      fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(json => {
-          setTenantHealth(json.health ?? null)
-          setAuditLogs(json.audit_logs ?? [])
-          setInterventions(json.interventions ?? [])
-          const flags = json.tenant?.feature_flags as typeof featureFlags | undefined
-          if (flags) setFeatureFlags(prev => ({ ...prev, ...flags }))
-        })
-        .catch(() => {
-          setTenantHealth(null)
-          setAuditLogs([])
-          setInterventions([])
-        })
-    }
+    if (!selectedTenant) return
+
+    const ac = new AbortController()
+    setSubStart(selectedTenant.subscription_start || '')
+    setSubEnd(selectedTenant.subscription_end || '')
+    setSubPlanId(selectedTenant.plan_id || '')
+    setSubStatus(selectedTenant.status || '')
+    setAdminNote('')
+
+    fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, {
+      credentials: 'same-origin',
+      signal: ac.signal,
+    })
+      .then(r => r.json())
+      .then(json => {
+        setTenantHealth(json.health ?? null)
+        setAuditLogs(json.audit_logs ?? [])
+        setInterventions(json.interventions ?? [])
+        const flags = json.tenant?.feature_flags as typeof featureFlags | undefined
+        if (flags) setFeatureFlags(prev => ({ ...prev, ...flags }))
+      })
+      .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setTenantHealth(null)
+        setAuditLogs([])
+        setInterventions([])
+      })
+
+    return () => ac.abort()
   }, [selectedTenant])
 
   const filteredTenants = tenants.filter(t => {
@@ -310,9 +318,15 @@ export default function BayilerPage() {
       if (!res.ok) throw new Error(json.error || 'Giriş linki oluşturulamadı')
       window.open(json.action_link, '_blank', 'noopener,noreferrer')
       toast.success(`${json.company_name} için giriş linki açıldı`)
-      const healthRes = await fetch(`/api/admin/tenant-health?tenant_id=${selectedTenant.id}`, { credentials: 'same-origin' })
-      const healthJson = await healthRes.json()
-      setAuditLogs(healthJson.audit_logs ?? [])
+      setAuditLogs(prev => [
+        {
+          action: 'impersonate_link_generated',
+          actor_email: null,
+          created_at: new Date().toISOString(),
+          metadata: { note },
+        },
+        ...prev,
+      ].slice(0, 8))
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Giriş başarısız')
     } finally {
@@ -472,18 +486,18 @@ export default function BayilerPage() {
                           {openMenuId === t.id && (
                             <div
                               ref={menuRef}
-                              className="absolute right-0 top-full mt-1 w-44 bg-[#18181b] border border-[#27272a] rounded-lg shadow-xl z-30 py-1 animate-fade-in-up"
+                              className="absolute right-0 top-full mt-1 w-44 bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg shadow-xl z-30 py-1 animate-fade-in-up"
                             >
                               <button
                                 onClick={() => handleEdit(t)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-border)] hover:text-[var(--text-primary)] transition-colors"
                               >
                                 <Pencil size={14} className="text-sky-400" /> Düzenle
                               </button>
                               {t.status !== 'passive' && (
                                 <button
                                   onClick={() => { setOpenMenuId(null); updateStatus(t.id, 'passive') }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-border)] hover:text-[var(--text-primary)] transition-colors"
                                 >
                                   <PauseCircle size={14} className="text-amber-400" /> Pasif Al
                                 </button>
@@ -491,7 +505,7 @@ export default function BayilerPage() {
                               {t.status === 'passive' && (
                                 <button
                                   onClick={() => { setOpenMenuId(null); updateStatus(t.id, 'active') }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-border)] hover:text-[var(--text-primary)] transition-colors"
                                 >
                                   <Check size={14} className="text-emerald-400" /> Aktif Yap
                                 </button>
@@ -601,10 +615,10 @@ export default function BayilerPage() {
         <>
           <div className="drawer-overlay opacity-100" onClick={() => setDrawerOpen(false)} />
           <div className="drawer-panel animate-slide-in-right">
-            <div className="sticky top-0 bg-[#111113] border-b border-[#27272a] p-5 flex items-center justify-between z-10">
+            <div className="sticky top-0 border-b border-[var(--bg-border)] bg-[var(--bg-muted)] p-5 flex items-center justify-between z-10">
               <div>
-                <p className="text-white font-bold">{selectedTenant.company_name}</p>
-                <p className="text-zinc-500 text-xs">{selectedTenant.email}</p>
+                <p className="text-[var(--text-primary)] font-bold">{selectedTenant.company_name}</p>
+                <p className="text-[var(--text-muted)] text-xs">{selectedTenant.email}</p>
               </div>
               <button onClick={() => setDrawerOpen(false)} className="btn-ghost btn-sm p-1.5">
                 <X size={16} />
@@ -630,21 +644,21 @@ export default function BayilerPage() {
                       : '—'
                   },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-[#18181b] border border-[#27272a] rounded-lg p-3">
-                    <p className="text-zinc-500 text-xs mb-1">{label}</p>
-                    <p className="text-white text-sm font-medium">{value}</p>
+                  <div key={label} className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3">
+                    <p className="text-[var(--text-muted)] text-xs mb-1">{label}</p>
+                    <p className="text-[var(--text-primary)] text-sm font-medium">{value}</p>
                   </div>
                 ))}
               </div>
 
               {tenantHealth?.health_score != null && (
-                <div className="flex items-center justify-between bg-[#18181b] border border-[#27272a] rounded-lg p-3">
+                <div className="flex items-center justify-between bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3">
                   <div className="flex items-center gap-2">
                     <Activity size={16} className="text-sky-400" />
-                    <span className="text-zinc-400 text-sm">Sağlık Skoru</span>
+                    <span className="text-[var(--text-muted)] text-sm">Sağlık Skoru</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-bold text-lg">{tenantHealth.health_score}</span>
+                    <span className="text-[var(--text-primary)] font-bold text-lg">{tenantHealth.health_score}</span>
                     <span className={`badge border text-xs ${healthScoreLabel(tenantHealth.health_score).color}`}>
                       {healthScoreLabel(tenantHealth.health_score).label}
                     </span>
@@ -662,7 +676,7 @@ export default function BayilerPage() {
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-sky-500/10 border border-sky-500/20 rounded-lg p-3">
                       <p className="text-sky-400/70 text-xs mb-1">{label}</p>
-                      <p className="text-white text-sm font-bold">{value}</p>
+                      <p className="text-[var(--text-primary)] text-sm font-bold">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -673,17 +687,17 @@ export default function BayilerPage() {
                   <p className="text-amber-400 text-xs font-semibold uppercase tracking-wide">Önerilen müdahaleler</p>
                   {interventions.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between text-sm">
-                      <span className="text-zinc-300">{item.message}</span>
+                      <span className="text-[var(--text-secondary)]">{item.message}</span>
                       {item.action && <span className="text-sky-400 text-xs shrink-0">{item.action}</span>}
                     </div>
                   ))}
                 </div>
               )}
 
-              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
-                <p className="text-zinc-500 text-xs">Modül bayrakları</p>
+              <div className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3 space-y-2">
+                <p className="text-[var(--text-muted)] text-xs">Modül bayrakları</p>
                 {(['sms', 'portal', 'whatsapp', 'efatura'] as const).map(key => (
-                  <label key={key} className="flex items-center justify-between text-sm text-zinc-300">
+                  <label key={key} className="flex items-center justify-between text-sm text-[var(--text-secondary)]">
                     <span className="capitalize">{key}</span>
                     <input type="checkbox" checked={featureFlags[key]} onChange={e => setFeatureFlags(f => ({ ...f, [key]: e.target.checked }))} />
                   </label>
@@ -708,20 +722,20 @@ export default function BayilerPage() {
                 </Link>
               </div>
 
-              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
-                <p className="text-zinc-500 text-xs">Son işlemler (audit)</p>
+              <div className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3 space-y-2">
+                <p className="text-[var(--text-muted)] text-xs">Son işlemler (audit)</p>
                 {auditLogs.length === 0 ? (
-                  <p className="text-zinc-600 text-xs">Kayıt yok</p>
+                  <p className="text-[var(--text-muted)] text-xs">Kayıt yok</p>
                 ) : (
                   <div className="space-y-2 max-h-36 overflow-y-auto">
                     {auditLogs.map(log => (
-                      <div key={log.created_at + log.action} className="text-xs border-b border-zinc-800 pb-1.5">
+                      <div key={log.created_at + log.action} className="text-xs border-b border-[var(--bg-border)] pb-1.5">
                         <div className="flex justify-between gap-2">
-                          <span className="text-zinc-300 font-mono">{log.action}</span>
-                          <span className="text-zinc-600 shrink-0">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+                          <span className="text-[var(--text-secondary)] font-mono">{log.action}</span>
+                          <span className="text-[var(--text-muted)] shrink-0">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
                         </div>
                         {typeof log.metadata?.note === 'string' && log.metadata.note && (
-                          <p className="text-zinc-500 mt-0.5 truncate">{log.metadata.note}</p>
+                          <p className="text-[var(--text-muted)] mt-0.5 truncate">{log.metadata.note}</p>
                         )}
                       </div>
                     ))}
@@ -729,8 +743,8 @@ export default function BayilerPage() {
                 )}
               </div>
 
-              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
-                <p className="text-zinc-500 text-xs">Destek / admin notu</p>
+              <div className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3 space-y-2">
+                <p className="text-[var(--text-muted)] text-xs">Destek / admin notu</p>
                 <textarea
                   className="input min-h-[72px] text-sm resize-none"
                   placeholder="Abonelik değişikliği veya panele giriş için zorunlu not..."
@@ -748,8 +762,8 @@ export default function BayilerPage() {
                 </button>
               </div>
 
-              <div className="bg-[#18181b] border border-[#27272a] rounded-lg p-3 space-y-2">
-                <p className="text-zinc-500 text-xs">Admin şifre sıfırlama</p>
+              <div className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-lg p-3 space-y-2">
+                <p className="text-[var(--text-muted)] text-xs">Admin şifre sıfırlama</p>
                 <div className="flex gap-2">
                   <input type="password" className="input flex-1" placeholder="Yeni şifre (min 8)" value={resetPassword} onChange={e => setResetPassword(e.target.value)} />
                   <button
@@ -774,8 +788,8 @@ export default function BayilerPage() {
               </div>
 
               {/* ── Abonelik Yönetimi Kartı ─────────────────────────────────── */}
-              <div className="bg-[#111113] border border-[#27272a] rounded-xl p-4 space-y-4">
-                <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+              <div className="bg-[var(--bg-muted)] border border-[var(--bg-border)] rounded-xl p-4 space-y-4">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                   📅 Abonelik Yönetimi
                 </h4>
 
@@ -834,7 +848,7 @@ export default function BayilerPage() {
                         className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
                           subStatus === s.val
                             ? 'bg-sky-600 text-white border-sky-600'
-                            : 'bg-transparent text-zinc-400 border-zinc-600 hover:border-sky-500 hover:text-sky-300'
+                            : 'bg-transparent text-[var(--text-muted)] border-[var(--bg-border)] hover:border-sky-500 hover:text-sky-600'
                         }`}
                       >
                         {s.label}

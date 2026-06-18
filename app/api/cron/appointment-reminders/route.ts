@@ -2,25 +2,11 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
+import { verifyCronRequest } from '@/lib/cron-auth'
 import { sendSms } from '@/lib/notification-service'
 import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
 
-/** Randevu hatırlatma cron — Authorization: Bearer CRON_SECRET */
-export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  const authHeader = req.headers.get('authorization')
-
-  if (process.env.NODE_ENV === 'production' && !secret) {
-    return NextResponse.json({ error: 'CRON_SECRET yapılandırılmamış' }, { status: 503 })
-  }
-  if (!secret) {
-    if (process.env.CRON_ALLOW_DEV !== '1') {
-      return NextResponse.json({ error: 'CRON_SECRET gerekli (dev: CRON_ALLOW_DEV=1 ile geçici açılabilir)' }, { status: 503 })
-    }
-  } else if (authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function runAppointmentReminders() {
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
 
@@ -70,4 +56,17 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, checked: appointments?.length ?? 0, sent })
+}
+
+/** Vercel Cron (GET) veya manuel POST */
+export async function GET(req: NextRequest) {
+  const denied = verifyCronRequest(req)
+  if (denied) return denied
+  return runAppointmentReminders()
+}
+
+export async function POST(req: NextRequest) {
+  const denied = verifyCronRequest(req)
+  if (denied) return denied
+  return runAppointmentReminders()
 }

@@ -18,6 +18,13 @@ export type EfaturaSubmitResult = {
   provider: string
 }
 
+export function getEfaturaProviderLabel(): string {
+  const p = (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
+  if (p === 'nes' && process.env.NES_EFATURA_API_KEY) return 'NES (aktif)'
+  if (p === 'logo' && process.env.LOGO_EFATURA_URL) return 'Logo (aktif)'
+  return 'Stub (test modu)'
+}
+
 function providerName(): string {
   return (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
 }

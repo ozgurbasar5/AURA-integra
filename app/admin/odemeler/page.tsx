@@ -5,7 +5,6 @@ import { CreditCard, Download, Filter, Check, X, Loader2, Calendar } from 'lucid
 import { toast } from 'sonner'
 import { formatDate, formatCurrency, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '@/lib/utils'
 import type { TenantPayment } from '@/types/database'
-import * as XLSX from 'xlsx'
 
 export default function OdemelerPage() {
   const [payments, setPayments] = useState<TenantPayment[]>([])
@@ -57,7 +56,8 @@ export default function OdemelerPage() {
     fetchPayments()
   }
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    const XLSX = await import('xlsx')
     const rows = payments.map(p => ({
       'Bayi':       (p.tenants as any)?.company_name,
       'E-posta':    (p.tenants as any)?.email,

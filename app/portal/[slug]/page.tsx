@@ -11,6 +11,7 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
     shopName: params.slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
     shopPhone: '',
     shopLogo: null as string | null,
+    shopAddress: '',
   })
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
             shopName: json.shopName || branding.shopName,
             shopPhone: json.shopPhone || '',
             shopLogo: json.shopLogo || null,
+            shopAddress: json.shopAddress || '',
           })
         }
       } catch {
@@ -63,6 +65,7 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
       shopName={branding.shopName}
       shopPhone={branding.shopPhone}
       shopLogo={branding.shopLogo}
+      shopAddress={branding.shopAddress}
     />
   )
 }

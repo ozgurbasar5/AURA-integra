@@ -62,7 +62,10 @@ export async function POST(request: NextRequest) {
 
     const captchaOk = await verifyTurnstileToken(turnstile_token, ip)
     if (!captchaOk) {
-      return NextResponse.json({ success: false, error: 'Güvenlik doğrulaması başarısız' }, { status: 400 })
+      const msg = process.env.TURNSTILE_SECRET_KEY
+        ? 'Güvenlik doğrulaması başarısız'
+        : 'CAPTCHA yapılandırması eksik (TURNSTILE_SECRET_KEY)'
+      return NextResponse.json({ success: false, error: msg }, { status: 400 })
     }
 
     const supabase = getSupabaseForInsert()

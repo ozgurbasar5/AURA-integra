@@ -20,5 +20,22 @@
       "type": "image/svg+xml",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Atölye",
+      "url": "/dashboard/atolye",
+      "description": "Servis kayıtları"
+    },
+    {
+      "name": "Stok Sayım",
+      "url": "/dashboard/stok/sayim",
+      "description": "Barkod ile sayım"
+    },
+    {
+      "name": "Kasa",
+      "url": "/dashboard/kasa",
+      "description": "Günlük kasa"
+    }
   ]
 }

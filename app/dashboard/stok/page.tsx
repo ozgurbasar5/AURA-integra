@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import {
   Package, Plus, Search, AlertTriangle, X,
@@ -15,8 +16,9 @@ import {
 import {
   loadStockFromApi, addStockItemViaApi, receiveStockViaApi,
 } from '@/lib/stock-bridge'
-import BarcodeLabelSheet from '@/components/labels/BarcodeLabelSheet'
 import { stockLabelFromItem, generateStockBarcode } from '@/lib/barcode-labels'
+
+const BarcodeLabelSheet = dynamic(() => import('@/components/labels/BarcodeLabelSheet'), { ssr: false })
 
 export default function StokPage() {
   const [stock, setStockData] = useState<StockItem[]>([])

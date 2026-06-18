@@ -59,6 +59,9 @@ let syncing = false
 let autoSyncEnabled = false
 let flushListenersAttached = false
 let syncInitStarted = false
+let rehydrateTimer: ReturnType<typeof setInterval> | null = null
+const SYNC_TOKEN_KEY = 'aura_sync_token'
+const REHYDRATE_MS = 3 * 60 * 1000
 
 function settingsForPush(settings: StoreData['notificationSettings']): Record<string, unknown> {
   const copy = { ...settings } as Record<string, unknown>
@@ -88,8 +91,12 @@ export async function hydrateFromSupabase(): Promise<boolean> {
       data?: Partial<StoreData>
       partial?: boolean
       queryErrors?: { table: string; err: string }[]
+      sync_token?: string
     }
     if (json.tenantId) setActiveTenantId(json.tenantId)
+    if (json.sync_token && typeof window !== 'undefined') {
+      localStorage.setItem(SYNC_TOKEN_KEY, json.sync_token)
+    }
     if (json.data) {
       syncing = true
       hydrateStoreFromRemote(json.data)
@@ -237,14 +244,26 @@ export async function initTenantDataSync(): Promise<void> {
   syncInitStarted = true
   await hydrateFromSupabase()
   seedDemoDataIfEmpty()
-  if (autoSyncEnabled) return
-  autoSyncEnabled = true
-  attachFlushListeners()
-  onStoreChange(schedulePush)
+  if (!autoSyncEnabled) {
+    autoSyncEnabled = true
+    attachFlushListeners()
+    onStoreChange(schedulePush)
+  }
+  if (!rehydrateTimer) {
+    rehydrateTimer = setInterval(() => {
+      if (!syncing && document.visibilityState === 'visible') {
+        void hydrateFromSupabase()
+      }
+    }, REHYDRATE_MS)
+  }
 }
 
 export function disableAutoSync() {
   autoSyncEnabled = false
   if (pushTimer) clearTimeout(pushTimer)
   pendingModuleKey = null
+  if (rehydrateTimer) {
+    clearInterval(rehydrateTimer)
+    rehydrateTimer = null
+  }
 }

@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   Zap, ClipboardList, LogOut, Users, BookOpen, Menu, X,
-  Shield, Webhook,
+  Shield, Webhook, Clock,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
@@ -34,6 +34,7 @@ const SECTIONS = [
     items: [
       { href: '/admin/operasyon/audit', icon: Shield, label: 'Denetim Kayıtları' },
       { href: '/admin/operasyon/webhook', icon: Webhook, label: 'Webhook Hataları' },
+      { href: '/admin/operasyon/cron', icon: Clock, label: 'Zamanlanmış Görevler' },
     ],
   },
   {

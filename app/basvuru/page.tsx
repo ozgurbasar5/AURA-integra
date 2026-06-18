@@ -238,6 +238,11 @@ export default function BasvuruPage() {
 
     if (!validate()) return
 
+    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setSubmitError('Güvenlik doğrulamasını tamamlayın')
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/basvuru', {

@@ -22,9 +22,10 @@ type Props = {
   shopName: string
   shopPhone: string
   shopLogo?: string | null
+  shopAddress?: string
 }
 
-export default function PortalTrackUI({ slug, shopName, shopPhone, shopLogo }: Props) {
+export default function PortalTrackUI({ slug, shopName, shopPhone, shopLogo, shopAddress }: Props) {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -110,7 +111,7 @@ export default function PortalTrackUI({ slug, shopName, shopPhone, shopLogo }: P
             )}
             <div className="min-w-0">
               <p className="font-bold truncate">{shopName}</p>
-              <p className="text-xs text-white/50">Servis Takip Portalı</p>
+              <p className="text-xs text-white/50 truncate">{shopAddress || 'Servis Takip Portalı'}</p>
             </div>
           </div>
           {telHref && (

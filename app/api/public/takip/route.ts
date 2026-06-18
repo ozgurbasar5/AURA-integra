@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { resolveTenantByPortalSlug } from '@/lib/portal-tenant'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   fetchOrderStatusHistory,
   searchTenantOrders,
@@ -10,6 +11,15 @@ import {
 } from '@/lib/public-tracking'
 
 export async function GET(req: NextRequest) {
+  const ip = getClientIp(req)
+  const rl = await checkRateLimit(`takip:${ip}`, 30, 15 * 60 * 1000)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Çok fazla sorgu. Lütfen bekleyin.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
+
   const shop = req.nextUrl.searchParams.get('shop')?.trim()
   const q = req.nextUrl.searchParams.get('q')?.trim()
 

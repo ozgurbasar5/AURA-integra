@@ -5,6 +5,8 @@ import { requireSuperAdmin } from '@/lib/admin-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { sendEmail } from '@/lib/notification-service'
 import { writeAuditLog } from '@/lib/audit-log'
+import { getServerAppUrl } from '@/lib/app-url'
+import { paymentReminderEmail } from '@/lib/mail'
 
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request)
@@ -44,22 +46,23 @@ export async function POST(request: NextRequest) {
   const dueDate = payment?.due_date
     ? new Date(payment.due_date).toLocaleDateString('tr-TR')
     : '—'
+  const subEnd = tenant.subscription_end
+    ? new Date(tenant.subscription_end).toLocaleDateString('tr-TR')
+    : undefined
 
-  const html = `
-    <p>Merhaba ${tenant.contact_name ?? tenant.company_name},</p>
-    <p>AURA İntegra abonelik ödemeniz hatırlatması:</p>
-    <ul>
-      <li><strong>Tutar:</strong> ₺${amount}</li>
-      <li><strong>Son ödeme:</strong> ${dueDate}</li>
-      <li><strong>Abonelik bitiş:</strong> ${tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString('tr-TR') : '—'}</li>
-    </ul>
-    <p>Ödeme için bizimle iletişime geçebilirsiniz.</p>
-    <p>AURA İntegra Ekibi</p>
-  `
+  const appUrl = getServerAppUrl(request.nextUrl.origin)
+  const { subject, html } = paymentReminderEmail({
+    contactName: tenant.contact_name ?? tenant.company_name,
+    companyName: tenant.company_name,
+    amount,
+    dueDate,
+    subscriptionEnd: subEnd,
+    payUrl: `${appUrl}/dashboard/plan-yukselt`,
+  })
 
   const result = await sendEmail({
     to: tenant.email,
-    subject: `AURA İntegra — Ödeme Hatırlatması (${tenant.company_name})`,
+    subject,
     html,
   })
 

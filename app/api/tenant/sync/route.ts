@@ -80,7 +80,7 @@ export async function GET() {
       supabase.from('showcase_devices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
       supabase.from('branches').select('*').eq('tenant_id', tid).order('name'),
       supabase.from('tenants').select('company_name, phone, address, shop_name, shop_logo, portal_slug').eq('id', tid).single(),
-      supabase.from('tenant_settings').select('settings').eq('tenant_id', tid).maybeSingle(),
+      supabase.from('tenant_settings').select('settings, updated_at').eq('tenant_id', tid).maybeSingle(),
       supabase.from('accounts').select('balance').eq('tenant_id', tid).eq('type', 'kasa').limit(1),
     ])
 
@@ -235,6 +235,7 @@ export async function GET() {
       tenantId: tid,
       data: payload,
       synced_at: new Date().toISOString(),
+      sync_token: settingsRes.data?.updated_at ?? new Date().toISOString(),
       partial: queryErrors.length > 0,
       queryErrors: queryErrors.length ? queryErrors : undefined,
     })

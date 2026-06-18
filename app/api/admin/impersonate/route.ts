@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/lib/admin-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { writeAuditLog } from '@/lib/audit-log'
+import { appDashboardUrl, fixMagicLinkRedirect, getServerAppUrl } from '@/lib/app-url'
 
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request)
@@ -40,15 +41,19 @@ export async function POST(request: NextRequest) {
   const loginEmail = owner?.email ?? tenant.email
   if (!loginEmail) return NextResponse.json({ error: 'Bayi giriş e-postası bulunamadı' }, { status: 404 })
 
+  const appUrl = getServerAppUrl(request.nextUrl.origin)
+
   const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
     type: 'magiclink',
     email: loginEmail,
-    options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin}/dashboard` },
+    options: { redirectTo: appDashboardUrl(request.nextUrl.origin) },
   })
 
   if (linkErr || !linkData?.properties?.action_link) {
     return NextResponse.json({ error: linkErr?.message ?? 'Giriş linki oluşturulamadı' }, { status: 500 })
   }
+
+  const actionLink = fixMagicLinkRedirect(linkData.properties.action_link, appUrl)
 
   await writeAuditLog({
     actorId: auth.userId,
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    action_link: linkData.properties.action_link,
+    action_link: actionLink,
     email: loginEmail,
     company_name: tenant.company_name,
   })

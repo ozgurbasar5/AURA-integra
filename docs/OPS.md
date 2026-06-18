@@ -35,8 +35,30 @@
 |----------|------|
 | `STRIPE_SECRET_KEY` (sk_live_) | Online ödeme |
 | `STRIPE_WEBHOOK_SECRET` | Abonelik uzatma |
-| `UPSTASH_REDIS_REST_URL` + `TOKEN` | Rate limit (serverless) |
+| `UPSTASH_REDIS_REST_URL` + `TOKEN` | Rate limit (login, başvuru, takip) |
+| `TURNSTILE_SECRET_KEY` + site key | Başvuru CAPTCHA (prod zorunlu) |
 | `NEXT_PUBLIC_SENTRY_DSN` | Hata izleme |
-| `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial hatırlatma e-postası |
-| `TURNSTILE_SECRET_KEY` + site key | Başvuru CAPTCHA |
-| `CRON_SECRET` | Trial cron koruması |
+| `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial / ödeme hatırlatma e-postası |
+| `CRON_SECRET` | Cron koruması (trial, ödeme, randevu) |
+| `NEXT_PUBLIC_APP_URL` | Magic link redirect — prod: `https://integra.aurabilisim.net` |
+
+## E-posta otomasyonu (cron)
+
+| Endpoint | Zamanlama | Açıklama |
+|----------|-----------|----------|
+| `GET /api/cron/trial-reminders` | 09:00 günlük | Deneme bitişine 7/3/1 gün kala |
+| `GET /api/cron/payment-reminders` | 10:00 günlük | Vadesi yaklaşan + gecikmiş ödemeler |
+| `GET /api/cron/churn-interventions` | 11:00 günlük | Düşük health skoru — otomatik e-posta |
+| `GET /api/cron/appointment-reminders` | 18:00 günlük | Yarınki randevu SMS |
+
+Admin panel: **Operasyon → Zamanlanmış Görevler** — manuel tetikleme.
+
+Manuel test: `curl -H "Authorization: Bearer $CRON_SECRET" https://integra.aurabilisim.net/api/cron/payment-reminders`
+
+Admin ayarları → Bildirim → **Ödeme Hatırlatma (kaç gün önce)** cron gün sayısını belirler.
+
+## Magic link (bayi panele giriş)
+
+1. Vercel: `NEXT_PUBLIC_APP_URL=https://integra.aurabilisim.net`
+2. Supabase Auth → URL Configuration → Site URL aynı domain
+3. Redirect URLs: `https://integra.aurabilisim.net/**`

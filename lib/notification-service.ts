@@ -2,7 +2,7 @@
  * SMS / e-posta bildirim servisi — Netgsm veya SMTP (mock mod destekli)
  */
 
-import nodemailer from 'nodemailer'
+import { sendMail, type SendMailInput } from '@/lib/mail'
 import type { TenantSmsCredentials } from '@/lib/tenant-sms'
 
 export interface SendSmsInput {
@@ -57,26 +57,18 @@ export async function sendSms(input: SendSmsInput): Promise<{ ok: boolean; statu
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; error?: string }> {
-  const email = process.env.SMTP_EMAIL
-  const pass = process.env.SMTP_PASSWORD
-  if (!email || !pass) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Email mock]', input.to, input.subject)
-      return { ok: true }
-    }
-    return { ok: false, error: 'SMTP yapılandırması eksik' }
+  const payload: SendMailInput = {
+    to: input.to,
+    subject: input.subject,
+    html: input.html,
   }
 
-  try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: email, pass },
-    })
-    await transporter.sendMail({ from: email, to: input.to, subject: input.subject, html: input.html })
+  if (process.env.NODE_ENV === 'development' && !process.env.SMTP_EMAIL) {
+    console.log('[Email mock]', input.to, input.subject)
     return { ok: true }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'E-posta hatası' }
   }
+
+  return sendMail(payload)
 }
 
 const STATUS_SMS: Record<string, string> = {

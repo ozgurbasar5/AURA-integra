@@ -13,6 +13,16 @@ export default function PlanYukseltPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('paid') === '1') {
+      toast.success('Ödemeniz alındı! Aboneliğiniz kısa süre içinde güncellenecek.')
+    }
+    if (params.get('cancelled') === '1') {
+      toast.info('Ödeme iptal edildi')
+    }
+  }, [])
+
+  useEffect(() => {
     fetch('/api/tenant/limits', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(json => {

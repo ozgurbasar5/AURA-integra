@@ -105,7 +105,14 @@ export default function AyarlarPage() {
   const router = useRouter()
 
   async function testIntegration(integrationId: string) {
-    const map: Record<string, string> = { nes: 'sms', mikro: 'smtp', logo: 'smtp', iyzico: 'smtp' }
+    const map: Record<string, string> = {
+      nes: 'sms',
+      mikro: 'smtp',
+      logo: 'smtp',
+      iyzico: 'smtp',
+      gib: 'smtp',
+      efatura: 'smtp',
+    }
     const kind = map[integrationId]
     if (!kind) {
       toast.info('Bu entegrasyon henüz desteklenmiyor')
@@ -1196,7 +1203,10 @@ export default function AyarlarPage() {
                       <RefreshCw size={14}/>
                     </button>
                   </div>
-                  <p className="text-xs text-[var(--text-muted)] mt-2">REST API: GET /api/v1/orders — Header: X-API-Key</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-2">
+                    REST API: GET /api/v1/orders — Header: X-API-Key ·{' '}
+                    <Link href="/dashboard/api-docs" className="text-sky-600 font-semibold hover:underline">API Dokümantasyonu →</Link>
+                  </p>
                 </div>
               </div>
             </div>
