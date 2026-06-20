@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { verifyTurnstileToken } from '@/lib/turnstile'
+import { turnstileErrorMessage, verifyTurnstileToken } from '@/lib/turnstile'
 
 const PLAN_LABELS: Record<string, string> = {
   deneme: '30 Gün Deneme',
@@ -60,10 +60,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Zorunlu alanlar eksik' }, { status: 400 })
     }
 
-    const captchaOk = await verifyTurnstileToken(turnstile_token, ip)
-    if (!captchaOk) {
-      const msg = process.env.TURNSTILE_SECRET_KEY
-        ? 'Güvenlik doğrulaması başarısız'
+    const captcha = await verifyTurnstileToken(turnstile_token)
+    if (!captcha.ok) {
+      const msg = process.env.TURNSTILE_SECRET_KEY?.trim()
+        ? turnstileErrorMessage(captcha.errorCodes)
         : 'CAPTCHA yapılandırması eksik (TURNSTILE_SECRET_KEY)'
       return NextResponse.json({ success: false, error: msg }, { status: 400 })
     }

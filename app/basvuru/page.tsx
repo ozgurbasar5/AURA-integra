@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { AuraLogo } from '@/components/landing/AuraLogo'
 import { AURA_CORPORATE } from '@/lib/brand-corporate'
 import { getPlanLevel } from '@/lib/plan-tiers'
-import TurnstileWidget from '@/components/TurnstileWidget'
+import TurnstileWidget, { type TurnstileHandle } from '@/components/TurnstileWidget'
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type ServiceType = 'cep_telefonu' | 'robot_supurge' | 'akilli_saat' | 'bilgisayar'
@@ -157,8 +157,23 @@ export default function BasvuruPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState(
+    () => process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || '',
+  )
+  const [turnstileLoadError, setTurnstileLoadError] = useState(false)
+  const turnstileRef = useRef<TurnstileHandle>(null)
   const [trialDays, setTrialDays] = useState(30)
   const [planOptions, setPlanOptions] = useState(DEFAULT_PLAN_OPTIONS)
+
+  useEffect(() => {
+    if (turnstileSiteKey) return
+    fetch('/api/public/turnstile-config')
+      .then((r) => r.json())
+      .then((json: { siteKey?: string }) => {
+        if (json.siteKey?.trim()) setTurnstileSiteKey(json.siteKey.trim())
+      })
+      .catch(() => {})
+  }, [turnstileSiteKey])
 
   useEffect(() => {
     fetch('/api/public/plans')
@@ -238,8 +253,12 @@ export default function BasvuruPage() {
 
     if (!validate()) return
 
-    if (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken) {
-      setSubmitError('Güvenlik doğrulamasını tamamlayın')
+    if (turnstileSiteKey && !turnstileToken) {
+      setSubmitError('Güvenlik doğrulamasını tamamlayın (CAPTCHA kutusunu bekleyin)')
+      return
+    }
+    if (turnstileSiteKey && turnstileLoadError) {
+      setSubmitError('Güvenlik doğrulaması yüklenemedi. Sayfayı yenileyip tekrar deneyin.')
       return
     }
 
@@ -253,6 +272,7 @@ export default function BasvuruPage() {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data.success === false) {
+        if (turnstileSiteKey) turnstileRef.current?.reset()
         throw new Error(data.error || 'Gönderim başarısız oldu')
       }
 
@@ -646,7 +666,15 @@ export default function BasvuruPage() {
               )}
             </div>
 
-            <TurnstileWidget onToken={setTurnstileToken} />
+            {turnstileSiteKey ? (
+              <TurnstileWidget
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                onToken={setTurnstileToken}
+                onError={() => setTurnstileLoadError(true)}
+                onExpire={() => setTurnstileToken('')}
+              />
+            ) : null}
 
             {/* ── Submit Error ── */}
             {submitError && (
