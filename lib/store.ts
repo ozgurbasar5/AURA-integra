@@ -2297,9 +2297,9 @@ export function addBranch(data: Omit<Branch, 'id' | 'created_at'>): Branch {
   return item
 }
 
-export function setActiveBranchId(id: string): void {
+export function setActiveBranchId(id: string | null): void {
   const store = loadStore()
-  if (!store.branches.some(b => b.id === id)) return
+  if (id && !store.branches.some(b => b.id === id)) return
   store.activeBranchId = id
   saveStore(store)
   emitChange('branches')

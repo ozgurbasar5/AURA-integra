@@ -696,10 +696,12 @@ export default function BasvuruPage() {
                 ref={turnstileRef}
                 siteKey={turnstileSiteKey}
                 onToken={setTurnstileToken}
-                onError={() => {
+                onError={(code) => {
                   setTurnstileLoadError(true)
                   setSubmitError(
-                    'CAPTCHA yüklenemedi. Cloudflare Turnstile panelinde hostname olarak integra.aurabilisim.net ekleyin.',
+                    code
+                      ? `CAPTCHA hatası (${code}). Cloudflare panelinde widget modunu Interactive yapın ve site/secret key eşleşmesini kontrol edin.`
+                      : 'CAPTCHA yüklenemedi. Cloudflare Turnstile panelinde hostname olarak integra.aurabilisim.net ekleyin.',
                   )
                 }}
                 onExpire={() => setTurnstileToken('')}

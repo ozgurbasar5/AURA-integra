@@ -46,8 +46,8 @@ export function turnstileErrorMessage(errorCodes?: string[]): string {
   if (errorCodes.includes('timeout-or-duplicate')) {
     return 'Güvenlik doğrulamasının süresi doldu. Sayfayı yenileyip tekrar deneyin.'
   }
-  if (errorCodes.includes('invalid-input-secret')) {
-    return 'CAPTCHA yapılandırması hatalı. Lütfen destek ile iletişime geçin.'
+  if (errorCodes.includes('invalid-input-secret') || errorCodes.includes('missing-secret')) {
+    return 'CAPTCHA yapılandırması hatalı (site key / secret key eşleşmiyor). Lütfen destek ile iletişime geçin.'
   }
   if (errorCodes.includes('invalid-input-response')) {
     return 'Güvenlik doğrulaması geçersiz. CAPTCHA\'yı tekrar tamamlayıp gönderin.'

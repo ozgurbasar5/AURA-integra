@@ -24,7 +24,14 @@ import {
 } from '@/lib/nav-config'
 import SidebarCategory from '@/components/layout/SidebarCategory'
 import SidebarNavLink from '@/components/layout/SidebarNavLink'
+import BranchSelector from '@/components/dashboard/BranchSelector'
 import { useViewOptions } from '@/hooks/useViewOptions'
+import {
+  isAccordionLayout,
+  resolveSidebarLayout,
+  type TenantSidebarSettings,
+  DEFAULT_TENANT_SIDEBAR,
+} from '@/lib/sidebar-layout'
 import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
 
 const ROLE_LABELS: Record<string, { label: string; bg: string }> = {
@@ -61,7 +68,30 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([])
   const [brand, setBrand] = useState({ shopName: '', shopLogo: null as string | null })
   const [badges, setBadges] = useState({ stok: 0, atolye: 0 })
+  const [tenantSidebar, setTenantSidebar] = useState<TenantSidebarSettings>(DEFAULT_TENANT_SIDEBAR)
   const supabase = createClient()
+
+  const effectiveLayout = useMemo(
+    () => resolveSidebarLayout(viewOpts, tenantSidebar),
+    [viewOpts, tenantSidebar],
+  )
+  const accordionMode = isAccordionLayout(effectiveLayout)
+  const forceExpanded = effectiveLayout === 'accordion_open'
+
+  useEffect(() => {
+    fetch('/api/tenant/ui-settings', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.sidebar) setTenantSidebar(json.sidebar)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (tenantSidebar.sidebar_default_expanded.length > 0 && expandedCategories.length === 0) {
+      setExpandedCategories(tenantSidebar.sidebar_default_expanded)
+    }
+  }, [tenantSidebar.sidebar_default_expanded, expandedCategories.length])
 
   useEffect(() => {
     const persisted = getSidebarState()
@@ -97,11 +127,11 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   const initials = user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   const sections = useMemo(() => {
-    if (viewOpts.sidebarMode === 'categorized') {
+    if (accordionMode) {
       return buildCategorizedSections(normalizedRole, planLevel)
     }
     return buildClassicSections(normalizedRole, planLevel)
-  }, [viewOpts.sidebarMode, normalizedRole, planLevel])
+  }, [accordionMode, normalizedRole, planLevel])
 
   useEffect(() => {
     const onPrepareTour = () => {
@@ -124,12 +154,18 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   )
 
   useEffect(() => {
-    if (!activeSectionId) return
+    if (forceExpanded) {
+      setExpandedCategories(sections.filter(s => s.collapsible).map(s => s.id))
+    }
+  }, [forceExpanded, sections])
+
+  useEffect(() => {
+    if (!activeSectionId || forceExpanded) return
     setExpandedCategories(prev => {
       if (prev.includes(activeSectionId)) return prev
       return [...prev, activeSectionId]
     })
-  }, [activeSectionId])
+  }, [activeSectionId, forceExpanded])
 
   useEffect(() => {
     if (viewOpts.sidebarPersistCollapse) {
@@ -171,7 +207,7 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   }
 
   function renderClassicSection(section: NavSection) {
-    const headerLabel = viewOpts.sidebarMode === 'classic'
+    const headerLabel = effectiveLayout === 'classic'
       ? (section.id === 'ana' ? 'ANA' : section.label.toUpperCase())
       : section.label
 
@@ -200,7 +236,7 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
   }
 
   function renderNav() {
-    if (viewOpts.sidebarMode === 'categorized') {
+    if (accordionMode) {
       return sections.map(section => {
         if (!section.collapsible) {
           return (
@@ -218,13 +254,16 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
             </div>
           )
         }
+        const isExpanded = forceExpanded || expandedCategories.includes(section.id)
         return (
           <SidebarCategory
             key={section.id}
             section={section}
             collapsed={collapsed}
-            expanded={expandedCategories.includes(section.id)}
-            onToggle={() => toggleCategory(section.id)}
+            expanded={isExpanded}
+            onToggle={() => {
+              if (!forceExpanded) toggleCategory(section.id)
+            }}
             isActivePath={isActive}
             getLiveBadge={getLiveBadge}
             onNavigate={() => setMobileOpen(false)}
@@ -259,6 +298,8 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
           </p>
         )}
 
+        <BranchSelector collapsed={collapsed} />
+
         {!collapsed && (
           <div className="px-3 mb-3">
             <button
@@ -268,7 +309,7 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-500 text-xs hover:bg-white/10 hover:text-slate-300 transition-colors text-left"
             >
               <Search size={13} />
-              <span className="flex-1">Hızlı arama...</span>
+              <span className="flex-1">IMEI, barkod, servis no…</span>
               <kbd className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400">Ctrl+K</kbd>
             </button>
           </div>

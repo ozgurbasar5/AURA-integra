@@ -1,6 +1,7 @@
 'use client'
 
 import { getBusinessBranding, resolveShopDisplayLine, type BusinessBranding } from '@/lib/business-branding'
+import { QRCodeSVG } from 'qrcode.react'
 
 export interface ServicePrintData {
   jobNo: string
@@ -64,6 +65,15 @@ export default function ServicePrintSheet({
             <p className="text-[10px] uppercase text-slate-500 font-bold">Servis No</p>
             <p className="text-lg font-black font-mono">{data.jobNo}</p>
             <p className="text-xs text-slate-500 mt-2">{date}</p>
+            <div className="mt-3 inline-block p-2 border border-slate-300 rounded-lg bg-white">
+              <QRCodeSVG
+                value={data.imei && data.imei !== '-' ? data.imei : data.jobNo}
+                size={72}
+                level="M"
+                includeMargin={false}
+              />
+              <p className="text-[8px] text-slate-500 mt-1 font-mono">Kabul QR</p>
+            </div>
           </div>
         </header>
 

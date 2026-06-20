@@ -20,6 +20,8 @@ import {
   getViewOptions, applyViewOptions, DEFAULT_PORTAL_SETTINGS, type ViewOptions,
 } from '@/lib/user-settings'
 import { dispatchViewOptionsChanged } from '@/hooks/useViewOptions'
+import type { SidebarLayout, TenantSidebarSettings } from '@/lib/sidebar-layout'
+import { DEFAULT_TENANT_SIDEBAR } from '@/lib/sidebar-layout'
 import {
   readLogoFile, saveBusinessBranding, syncBusinessBrandingToSupabase, fetchBusinessBrandingFromSupabase,
   type BusinessBranding,
@@ -78,8 +80,12 @@ export default function AyarlarPage() {
     noAnim: false,
     highContrast: false,
     sidebarMode: 'classic',
+    sidebarLayout: 'classic',
+    useTenantSidebarDefault: true,
     sidebarPersistCollapse: false,
   })
+  const [tenantSidebar, setTenantSidebar] = useState<TenantSidebarSettings>(DEFAULT_TENANT_SIDEBAR)
+  const [tenantSidebarSaving, setTenantSidebarSaving] = useState(false)
   const [autoNotify, setAutoNotify] = useState<NotificationSettings>({
     auto_sms: true, auto_whatsapp: true, on_status_change: true, on_delivery: true,
     require_qc_on_delivery: true, shop_address: '', shop_phone: '', shop_name: '', shop_logo: '', portal_slug: '',
@@ -154,14 +160,54 @@ export default function AyarlarPage() {
     })
   }
 
-  function setSidebarMode(mode: ViewOptions['sidebarMode']) {
+  function setSidebarLayout(layout: SidebarLayout) {
     setViewOpts(prev => {
-      const next = { ...prev, sidebarMode: mode }
+      const next = {
+        ...prev,
+        sidebarLayout: layout,
+        sidebarMode: layout === 'classic' ? 'classic' as const : 'categorized' as const,
+        useTenantSidebarDefault: false,
+      }
       applyViewOptions(next)
       dispatchViewOptionsChanged(next)
-      toast.success(mode === 'categorized' ? 'Kategorize menü etkin' : 'Klasik menü etkin')
+      const labels: Record<SidebarLayout, string> = {
+        classic: 'Klasik menü',
+        accordion: 'Akordeon menü',
+        accordion_open: 'Açık akordeon menü',
+      }
+      toast.success(`${labels[layout]} uygulandı`)
       return next
     })
+  }
+
+  function toggleUseTenantSidebarDefault() {
+    setViewOpts(prev => {
+      const next = { ...prev, useTenantSidebarDefault: !prev.useTenantSidebarDefault }
+      applyViewOptions(next)
+      dispatchViewOptionsChanged(next)
+      toast.success(next.useTenantSidebarDefault ? 'Bayi varsayılanı kullanılıyor' : 'Kişisel tercih kullanılıyor')
+      return next
+    })
+  }
+
+  async function saveTenantSidebarSettings(patch: Partial<TenantSidebarSettings>) {
+    setTenantSidebarSaving(true)
+    try {
+      const res = await fetch('/api/tenant/ui-settings', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...tenantSidebar, ...patch }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Kaydedilemedi')
+      if (json.sidebar) setTenantSidebar(json.sidebar)
+      toast.success('Bayi menü varsayılanı kaydedildi')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Kayıt hatası')
+    } finally {
+      setTenantSidebarSaving(false)
+    }
   }
 
   useEffect(() => {
@@ -239,6 +285,10 @@ export default function AyarlarPage() {
     fetch('/api/tenant/subscription', { credentials: 'same-origin' })
       .then(r => r.ok ? r.json() : null)
       .then(json => { if (json?.plan) setSubscription(json) })
+      .catch(() => {})
+    fetch('/api/tenant/ui-settings', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => { if (json.sidebar) setTenantSidebar(json.sidebar) })
       .catch(() => {})
   }, [])
 
@@ -857,49 +907,92 @@ export default function AyarlarPage() {
               <div className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Menü Düzeni</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-4">
-                  Sol panelde Stok, Finans gibi kategorilere tıklayınca alt menüler açılsın mı?
+                  Sol panel düzeni — kişisel tercih veya bayi varsayılanı.
                 </p>
 
-                <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                <div className="flex items-center justify-between py-2 mb-4 rounded-xl bg-[var(--bg-muted)] px-3">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Bayi varsayılanını kullan</p>
+                    <p className="text-xs text-[var(--text-muted)]">Kapalıysa aşağıdaki kişisel seçim geçerli olur</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setSidebarMode('classic')}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      viewOpts.sidebarMode === 'classic'
-                        ? 'border-[var(--accent)] bg-[var(--accent-light)]'
-                        : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
-                    }`}
+                    onClick={toggleUseTenantSidebarDefault}
+                    className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${viewOpts.useTenantSidebarDefault ? '' : 'settings-toggle-off bg-[var(--bg-border)]'}`}
+                    style={viewOpts.useTenantSidebarDefault ? { backgroundColor: 'var(--accent)' } : {}}
                   >
-                    <p className="text-sm font-semibold text-[var(--text-primary)] mb-2">Klasik Liste</p>
-                    <div className="space-y-1 text-[10px] font-mono text-[var(--text-muted)]">
-                      <p className="uppercase tracking-wider">MODÜLLER</p>
-                      <p>Stok</p>
-                      <p>Teknik Servis</p>
-                      <p>Finans</p>
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)] mt-2">Sabit, hep açık liste</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSidebarMode('categorized')}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
-                      viewOpts.sidebarMode === 'categorized'
-                        ? 'border-[var(--accent)] bg-[var(--accent-light)]'
-                        : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
-                    }`}
-                  >
-                    <p className="text-sm font-semibold text-[var(--text-primary)] mb-2">Kategorize Menü</p>
-                    <div className="space-y-1 text-[10px] text-[var(--text-muted)]">
-                      <p className="font-semibold text-[var(--text-primary)]">▾ Stok</p>
-                      <p className="pl-2 opacity-70">Stok · Sayım</p>
-                      <p className="font-semibold text-[var(--text-primary)]">▸ Finans</p>
-                    </div>
-                    <p className="text-xs text-[var(--text-muted)] mt-2">Tıklayınca alt segmentler açılır</p>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${viewOpts.useTenantSidebarDefault ? 'left-5' : 'left-0.5'}`}/>
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between py-2 border-t border-[var(--bg-border)]">
+                <div className="grid sm:grid-cols-3 gap-3 mb-6">
+                  {([
+                    { id: 'classic' as const, title: 'Klasik Liste', desc: 'Sabit, hep açık liste' },
+                    { id: 'accordion' as const, title: 'Akordeon', desc: 'Tıklayınca alt menüler açılır' },
+                    { id: 'accordion_open' as const, title: 'Açık Akordeon', desc: 'Tüm kategoriler sürekli açık' },
+                  ]).map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={viewOpts.useTenantSidebarDefault}
+                      onClick={() => setSidebarLayout(opt.id)}
+                      className={`p-4 rounded-xl border-2 text-left transition-all disabled:opacity-50 ${
+                        viewOpts.sidebarLayout === opt.id
+                          ? 'border-[var(--accent)] bg-[var(--accent-light)]'
+                          : 'border-[var(--bg-border)] hover:border-[var(--text-muted)]'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">{opt.title}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="border-t border-[var(--bg-border)] pt-4">
+                  <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Bayi varsayılanı (tüm kullanıcılar)</h4>
+                  <p className="text-xs text-[var(--text-muted)] mb-3">Yönetici olarak tüm personel için başlangıç menü düzenini belirleyin.</p>
+                  <div className="grid sm:grid-cols-3 gap-2 mb-3">
+                    {(['classic', 'accordion', 'accordion_open'] as SidebarLayout[]).map(layout => (
+                      <button
+                        key={layout}
+                        type="button"
+                        disabled={tenantSidebarSaving}
+                        onClick={() => {
+                          setTenantSidebar(prev => ({ ...prev, sidebar_layout: layout }))
+                          void saveTenantSidebarSettings({ sidebar_layout: layout })
+                        }}
+                        className={`px-3 py-2 rounded-lg text-xs font-bold border ${
+                          tenantSidebar.sidebar_layout === layout
+                            ? 'border-[var(--accent)] bg-[var(--accent-light)] text-[var(--text-primary)]'
+                            : 'border-[var(--bg-border)] text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        {layout === 'classic' ? 'Klasik' : layout === 'accordion' ? 'Akordeon' : 'Hep Açık'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text-primary)]">Tüm kullanıcılara zorunlu uygula</p>
+                      <p className="text-xs text-[var(--text-muted)]">Kişisel tercihleri geçersiz kılar</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={tenantSidebarSaving}
+                      onClick={() => {
+                        const next = !tenantSidebar.enforce_tenant_default
+                        setTenantSidebar(prev => ({ ...prev, enforce_tenant_default: next }))
+                        void saveTenantSidebarSettings({ enforce_tenant_default: next })
+                      }}
+                      className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${tenantSidebar.enforce_tenant_default ? '' : 'settings-toggle-off bg-[var(--bg-border)]'}`}
+                      style={tenantSidebar.enforce_tenant_default ? { backgroundColor: 'var(--accent)' } : {}}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${tenantSidebar.enforce_tenant_default ? 'left-5' : 'left-0.5'}`}/>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-2 border-t border-[var(--bg-border)] mt-4">
                   <div>
                     <p className="text-sm font-medium text-[var(--text-primary)]">Sidebar Daraltmayı Hatırla</p>
                     <p className="text-xs text-[var(--text-muted)]">Daraltılmış menü tercihi cihazda saklanır</p>

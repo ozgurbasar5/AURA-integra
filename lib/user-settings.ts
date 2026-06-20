@@ -14,11 +14,16 @@ export interface PortalSettings {
   kvkk_auto: boolean
 }
 
+import type { SidebarLayout } from '@/lib/sidebar-layout'
+
 export interface ViewOptions {
   compact: boolean
   noAnim: boolean
   highContrast: boolean
+  /** @deprecated sidebarLayout kullanın */
   sidebarMode: 'classic' | 'categorized'
+  sidebarLayout?: SidebarLayout
+  useTenantSidebarDefault: boolean
   sidebarPersistCollapse: boolean
 }
 
@@ -79,6 +84,8 @@ export const DEFAULT_VIEW_OPTIONS: ViewOptions = {
   noAnim: false,
   highContrast: false,
   sidebarMode: 'classic',
+  sidebarLayout: 'classic',
+  useTenantSidebarDefault: true,
   sidebarPersistCollapse: false,
 }
 
@@ -89,7 +96,14 @@ export function getViewOptions(): ViewOptions {
   try {
     const raw = localStorage.getItem(VIEW_OPTS_KEY)
     if (!raw) return { ...DEFAULT_VIEW_OPTIONS }
-    return { ...DEFAULT_VIEW_OPTIONS, ...JSON.parse(raw) }
+    const parsed = { ...DEFAULT_VIEW_OPTIONS, ...JSON.parse(raw) } as ViewOptions
+    if (!parsed.sidebarLayout) {
+      parsed.sidebarLayout = parsed.sidebarMode === 'categorized' ? 'accordion' : 'classic'
+    }
+    if (parsed.useTenantSidebarDefault === undefined) {
+      parsed.useTenantSidebarDefault = true
+    }
+    return parsed
   } catch {
     return { ...DEFAULT_VIEW_OPTIONS }
   }

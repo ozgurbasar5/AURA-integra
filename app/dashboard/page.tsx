@@ -10,6 +10,7 @@ import {
 import {
   getServiceOrders, onStoreChange, getFinanceSummary, getSales, getSecondHandDevices,
 } from '@/lib/store'
+import { filterByActiveBranch } from '@/lib/branch-scope'
 import { loadServiceOrdersFromApi } from '@/lib/service-order-bridge'
 import { findRepeatRepairs } from '@/lib/erp-features'
 import { usePlanLevel } from '@/lib/plan-context'
@@ -24,6 +25,10 @@ import {
 } from '@/components/dashboard/DashboardWidgets'
 import { DashboardDayHeader } from '@/components/dashboard/DashboardDayHeader'
 import { DashboardMiniChart } from '@/components/dashboard/DashboardMiniChart'
+import FxRatesWidget from '@/components/dashboard/FxRatesWidget'
+import {
+  TodaySalesBreakdownWidget, RecentActivityWidget, TodosPreviewWidget, QualityDistributionWidget,
+} from '@/components/dashboard/DashboardVantaWidgets'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { toast } from 'sonner'
 
@@ -97,7 +102,7 @@ export default function DashboardPage() {
   }, [])
 
   const syncOrdersFromStore = useCallback(() => {
-    setOrders(getServiceOrders().map(mapOrder))
+    setOrders(filterByActiveBranch(getServiceOrders()).map(mapOrder))
   }, [])
 
   useEffect(() => {
@@ -111,7 +116,7 @@ export default function DashboardPage() {
       .catch(() => {})
     return onStoreChange(m => {
       refresh()
-      if (m === 'service') syncOrdersFromStore()
+      if (m === 'service' || m === 'branches') syncOrdersFromStore()
       if (m === 'settings') setShopName(getBusinessBranding().shopName)
     })
   }, [refresh, fetchOrders, syncOrdersFromStore])
@@ -271,6 +276,15 @@ export default function DashboardPage() {
         </form>
       )}
 
+      {!isTechnician && (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <TodaySalesBreakdownWidget />
+          <RecentActivityWidget />
+          <TodosPreviewWidget />
+          <QualityDistributionWidget />
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 surface overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--bg-border)]">
@@ -398,6 +412,8 @@ export default function DashboardPage() {
           )}
 
           {!isTechnician && <QuickNotesWidget />}
+
+          {!isTechnician && <FxRatesWidget />}
         </div>
       </div>
     </div>

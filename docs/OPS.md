@@ -39,6 +39,7 @@
 | `TURNSTILE_SECRET_KEY` | Başvuru CAPTCHA secret (Cloudflare → Turnstile → Secret Key) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **veya** `TURNSTILE_SITE_KEY` | Site key — Production ortamında zorunlu |
 | Cloudflare Turnstile hostname | `integra.aurabilisim.net` (widget boş kalırsa burayı kontrol edin) |
+| Cloudflare Turnstile widget modu | **Interactive** (Managed + `interaction-only` boş kutu yapabilir) |
 | `NEXT_PUBLIC_SENTRY_DSN` | Hata izleme |
 | `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial / ödeme hatırlatma e-postası |
 | `CRON_SECRET` | Cron koruması (trial, ödeme, randevu) |
@@ -58,6 +59,22 @@ Admin panel: **Operasyon → Zamanlanmış Görevler** — manuel tetikleme.
 Manuel test: `curl -H "Authorization: Bearer $CRON_SECRET" https://integra.aurabilisim.net/api/cron/payment-reminders`
 
 Admin ayarları → Bildirim → **Ödeme Hatırlatma (kaç gün önce)** cron gün sayısını belirler.
+
+## Cloudflare Turnstile (başvuru CAPTCHA)
+
+1. Cloudflare Dashboard → Turnstile → ilgili widget
+2. **Hostname:** `integra.aurabilisim.net` (Preview için gerekirse `localhost`)
+3. **Widget Mode:** Managed yerine **Interactive** (Always visible) — boş kutu sorununu giderir
+4. **Site Key** → Vercel `NEXT_PUBLIC_TURNSTILE_SITE_KEY` veya `TURNSTILE_SITE_KEY`
+5. **Secret Key** → Vercel `TURNSTILE_SECRET_KEY` (aynı widget satırından kopyalanmalı)
+6. Değişiklik sonrası Vercel redeploy
+7. Doğrulama: `GET /api/public/turnstile-config` → `siteKey` dolu, `required: true`
+
+## TCMB döviz kurları
+
+- Dashboard widget: `GET /api/tenant/fx-rates` (auth gerekli)
+- Kaynak: `https://www.tcmb.gov.tr/kurlar/today.xml` — sunucu tarafında 1 saat cache
+- USD / EUR / GBP alış-satış (banknot)
 
 ## Magic link (bayi panele giriş)
 

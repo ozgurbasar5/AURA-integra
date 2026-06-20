@@ -53,23 +53,31 @@ export default function SidebarCategory({
   }
 
   return (
-    <div className="mb-1 sidebar-category">
+    <div className={`mb-1 sidebar-category ${expanded ? 'sidebar-category--expanded' : 'sidebar-category--collapsed'}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className={`sidebar-category-trigger w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all min-h-[44px] lg:min-h-0 ${
-          hasActiveChild
-            ? 'text-white bg-white/5'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
+        className={`sidebar-category-trigger w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all min-h-[44px] lg:min-h-0 border-l-2 ${
+          expanded
+            ? 'border-sky-400 bg-sky-500/10 text-white'
+            : hasActiveChild
+              ? 'border-transparent text-white bg-white/5'
+              : 'border-transparent text-slate-500 hover:text-white hover:bg-white/5'
         }`}
       >
-        <Icon size={17} className={`shrink-0 ${hasActiveChild ? 'text-sky-400' : 'text-slate-500'}`} />
+        <Icon
+          size={17}
+          className={`shrink-0 ${expanded || hasActiveChild ? 'text-sky-400' : 'text-slate-500'}`}
+        />
         <span className="truncate flex-1 text-left">{section.label}</span>
+        {hasActiveChild && !expanded && (
+          <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" aria-hidden />
+        )}
         <ChevronDown
           size={15}
-          className={`sidebar-category-chevron shrink-0 text-slate-500 transition-transform duration-200 ${
-            expanded ? 'rotate-180' : ''
+          className={`sidebar-category-chevron shrink-0 transition-transform duration-200 ${
+            expanded ? 'rotate-180 text-sky-400' : 'text-slate-500'
           }`}
         />
       </button>

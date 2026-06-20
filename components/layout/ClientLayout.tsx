@@ -18,6 +18,7 @@ import { PlanProvider } from '@/lib/plan-context'
 import { RoleProvider } from '@/lib/role-context'
 import SetupWizard from '@/components/help/SetupWizard'
 import OnboardingTourTrigger from '@/components/dashboard/OnboardingTourTrigger'
+import SubscriptionBanner from '@/components/dashboard/SubscriptionBanner'
 
 interface Props {
   tenant: {
@@ -68,6 +69,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
           {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
           <main className="flex-1 overflow-y-auto">
             <div className="page-wrapper">
+              <SubscriptionBanner />
               {allowed ? (
                 children
               ) : !roleAllowed ? (
