@@ -89,6 +89,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       technician_notes?: string
       fault_description?: string
       closed_at?: string | null
+      device_images?: string[]
     }
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -97,6 +98,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.estimated_cost != null) patch.estimated_cost = body.estimated_cost
     if (body.technician_notes != null) patch.technician_notes = body.technician_notes
     if (body.fault_description != null) patch.fault_description = body.fault_description
+    if (body.device_images != null) {
+      if (!Array.isArray(body.device_images) || body.device_images.some(i => typeof i !== 'string')) {
+        return NextResponse.json({ error: 'device_images geçersiz.' }, { status: 400 })
+      }
+      if (body.device_images.length > 8) {
+        return NextResponse.json({ error: 'En fazla 8 fotoğraf yüklenebilir.' }, { status: 400 })
+      }
+      patch.device_images = body.device_images
+    }
     if (body.status === 'teslim' || body.status === 'delivered') {
       patch.closed_at = body.closed_at ?? new Date().toISOString()
     }

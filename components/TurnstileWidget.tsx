@@ -20,9 +20,10 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
   ref,
 ) {
   const turnstileRef = useRef<TurnstileInstance | null>(null)
-  const [loading, setLoading] = useState(true)
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
+  const [gotToken, setGotToken] = useState(false)
+  const [widgetReady, setWidgetReady] = useState(false)
 
   const clearError = useCallback(() => setErrorCode(null), [])
 
@@ -30,7 +31,8 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
     reset: () => {
       onToken('')
       clearError()
-      setLoading(true)
+      setWidgetReady(false)
+      setGotToken(false)
       turnstileRef.current?.reset()
     },
   }))
@@ -38,7 +40,8 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
   function handleRetry() {
     onToken('')
     clearError()
-    setLoading(true)
+    setWidgetReady(false)
+    setGotToken(false)
     setRetryKey(k => k + 1)
   }
 
@@ -46,10 +49,10 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
       <p className="text-xs font-medium text-slate-600 mb-2">Güvenlik doğrulaması</p>
 
-      {loading && !errorCode && (
-        <div className="flex items-center gap-2 py-3 text-xs text-slate-500">
-          <Loader2 size={14} className="animate-spin text-sky-500" />
-          CAPTCHA yükleniyor…
+      {!gotToken && !errorCode && (
+        <div className="flex items-center gap-2 py-2 text-xs text-slate-500">
+          <Loader2 size={14} className={`text-sky-500 ${gotToken ? '' : 'animate-spin'}`} />
+          {widgetReady ? 'Doğrulama tamamlanıyor…' : 'CAPTCHA yükleniyor…'}
         </div>
       )}
 
@@ -61,7 +64,7 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
             <p className="mt-0.5 text-red-600">
               {errorCode === 'unsupported'
                 ? 'Tarayıcınız CAPTCHA desteklemiyor. Farklı bir tarayıcı deneyin.'
-                : `Cloudflare hata kodu: ${errorCode}. Panelde widget modunu Interactive yapın ve site/secret key eşleşmesini kontrol edin.`}
+                : `Cloudflare hata kodu: ${errorCode}. Hostname (integra.aurabilisim.net) ve Non-interactive mod ayarını kontrol edin.`}
             </p>
           </div>
           <button
@@ -75,7 +78,7 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
         </div>
       )}
 
-      <div className={errorCode ? 'hidden' : undefined}>
+      <div className={`min-h-[72px] ${errorCode ? 'hidden' : ''}`}>
         <Turnstile
           key={`${siteKey}-${retryKey}`}
           ref={turnstileRef}
@@ -83,20 +86,20 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
           options={{
             theme: 'light',
             size: 'normal',
-            appearance: 'interaction-only',
+            appearance: 'always',
             language: 'tr',
           }}
           onWidgetLoad={() => {
-            setLoading(false)
+            setWidgetReady(true)
             clearError()
           }}
           onSuccess={token => {
-            setLoading(false)
+            setWidgetReady(true)
             clearError()
+            setGotToken(true)
             onToken(token)
           }}
           onError={code => {
-            setLoading(false)
             const err = code || 'unknown'
             setErrorCode(err)
             onToken('')
@@ -107,7 +110,6 @@ const TurnstileWidget = forwardRef<TurnstileHandle, Props>(function TurnstileWid
             onExpire?.()
           }}
           onUnsupported={() => {
-            setLoading(false)
             setErrorCode('unsupported')
             onToken('')
             onError?.('unsupported')

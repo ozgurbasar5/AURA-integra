@@ -143,6 +143,7 @@ export interface ServiceOrder {
   received_at: string
   estimated_delivery?: string
   closed_at?: string
+  device_images?: string[]
   created_at: string
   updated_at: string
   // Joined

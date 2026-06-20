@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { getServiceClient } from '@/lib/supabase/service'
 import { turnstileErrorMessage, verifyTurnstileToken } from '@/lib/turnstile'
 
 const PLAN_LABELS: Record<string, string> = {
@@ -13,19 +13,6 @@ const PLAN_LABELS: Record<string, string> = {
   starter: 'Stok & Satış',
   pro: 'Teknik Servis',
   enterprise: 'Finans & Analitik',
-}
-
-function getSupabaseForInsert() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (url && serviceKey) {
-    return createClient(url, serviceKey)
-  }
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (url && anonKey) {
-    return createClient(url, anonKey)
-  }
-  return null
 }
 
 // Public API — auth gerektirmez
@@ -68,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: msg }, { status: 400 })
     }
 
-    const supabase = getSupabaseForInsert()
+    const supabase = getServiceClient()
     if (!supabase) {
       return NextResponse.json({ success: false, error: 'Sunucu yapılandırması eksik' }, { status: 503 })
     }
@@ -76,24 +63,38 @@ export async function POST(request: NextRequest) {
     const planLabel = paket ? (PLAN_LABELS[String(paket)] ?? String(paket)) : null
     const monthlyLabel = aylik_servis ? String(aylik_servis) : null
     const extraNote = monthlyLabel ? `Aylık servis hacmi: ${monthlyLabel}` : ''
-    const fullMessage = [mesaj, extraNote].filter(Boolean).join('\n').trim() || null
+    const deviceNote = Array.isArray(servis_turleri) && servis_turleri.length
+      ? `Servis türleri: ${servis_turleri.join(', ')}`
+      : ''
+    const planNote = planLabel ? `Paket ilgisi: ${planLabel}` : ''
+    const fullMessage = [mesaj, extraNote, deviceNote, planNote].filter(Boolean).join('\n').trim() || null
 
-    const { data, error } = await supabase
-      .from('bayi_basvurulari')
-      .insert({
-        company_name: firma_adi.trim(),
-        contact_name: yetkili_adi.trim(),
-        email: email.trim().toLowerCase(),
-        phone: telefon.trim(),
-        city: sehir?.trim() || null,
-        device_types: Array.isArray(servis_turleri) ? servis_turleri : [],
-        monthly_service_count: monthlyLabel,
-        plan_interest: planLabel,
-        message: fullMessage,
-        status: 'beklemede',
-      })
-      .select('id')
-      .single()
+    const coreRow = {
+      company_name: firma_adi.trim(),
+      contact_name: yetkili_adi.trim(),
+      email: email.trim().toLowerCase(),
+      phone: telefon.trim(),
+      city: sehir?.trim() || null,
+      message: fullMessage,
+      sirket_adi: firma_adi.trim(),
+      yetkili_kisi: yetkili_adi.trim(),
+      telefon: telefon.trim(),
+    }
+
+    const extendedRow = {
+      ...coreRow,
+      device_types: Array.isArray(servis_turleri) ? servis_turleri : [],
+      monthly_service_count: monthlyLabel,
+      plan_interest: planLabel,
+      status: 'beklemede' as const,
+    }
+
+    let { error } = await supabase.from('bayi_basvurulari').insert(extendedRow)
+
+    if (error && /column|schema cache|invalid input syntax|check constraint|23514|PGRST204/i.test(error.message)) {
+      const retry = await supabase.from('bayi_basvurulari').insert({ ...coreRow, status: 'pending' as const })
+      error = retry.error
+    }
 
     if (error) {
       console.error('Basvuru DB error:', error.message)
@@ -105,7 +106,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      id: (data as any)?.id,
       message: 'Başvurunuz başarıyla alındı.',
     })
   } catch (err) {

@@ -2,6 +2,7 @@
  * Supabase satırları ↔ localStorage store formatı dönüştürücüleri
  */
 
+import { parseDeviceImages } from './device-images'
 import { mapDbStatusToStore, mapStoreStatusToDb } from './erp-features'
 import { normalizePaymentMethod } from './payment-method'
 import { decryptPii, encryptPii } from './pii-crypto'
@@ -255,6 +256,7 @@ export function serviceOrderToStore(row: Row): StoreServiceOrder {
     created_at: String(row.created_at ?? new Date().toISOString()),
     updated_at: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
     eta: row.estimated_delivery ? String(row.estimated_delivery) : null,
+    images: parseDeviceImages(row),
   }
 }
 
@@ -791,6 +793,7 @@ export function serviceOrderToDb(row: StoreServiceOrder, tenantId: string, userI
     financial_posted: row.financial_posted === true,
     delivered_at: row.delivered_at ?? null,
     net_profit: row.net_profit ?? null,
+    device_images: row.images ?? [],
     created_by: userId ?? null,
   }
 }

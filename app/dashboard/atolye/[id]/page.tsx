@@ -20,6 +20,7 @@ import {
   type StoreServiceOrder,
 } from '@/lib/store'
 import ExpertiseModal from '@/components/atolye/ExpertiseModal'
+import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
 import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
 import { fetchServiceOrderById, updateServiceOrderRemote } from '@/lib/service-order-bridge'
 import { useUserRole } from '@/lib/role-context'
@@ -63,6 +64,8 @@ export default function AtolyeDetailPage() {
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [showExpertise, setShowExpertise] = useState(false)
   const [technician, setTechnician] = useState<string>('')
+  const [deviceImages, setDeviceImages] = useState<string[]>([])
+  const [savingPhotos, setSavingPhotos] = useState(false)
   const personnel = getPersonnel().filter(p => p.is_active)
   const statusTimeline = getStatusHistory(id)
 
@@ -76,6 +79,7 @@ export default function AtolyeDetailPage() {
       setPrice(o.actual_cost || o.estimated_cost || 0)
       setStatus(o.status || 'waiting_diagnosis')
       setTechnician(o.technician || '')
+      setDeviceImages(o.images || [])
       setParts((o.used_parts || []).map(p => ({
         id: p.id, name: p.name, quantity: p.qty,
         unit_cost: p.unit_buy, unit_price: p.unit_sell,
@@ -94,6 +98,20 @@ export default function AtolyeDetailPage() {
 
   const isDone = status === 'delivered'
 
+  async function persistDeviceImages(next: string[]) {
+    setDeviceImages(next)
+    updateServiceOrder(id, { images: next })
+    setSavingPhotos(true)
+    try {
+      await updateServiceOrderRemote(id, { images: next })
+      setOrder(prev => prev ? { ...prev, images: next } : prev)
+    } catch {
+      toast.error('Fotoğraflar sunucuya kaydedilemedi — yerel kopya saklandı')
+    } finally {
+      setSavingPhotos(false)
+    }
+  }
+
   async function handleSave() {
     if (!order) return
     setSaving(true)
@@ -101,15 +119,19 @@ export default function AtolyeDetailPage() {
       notes, private_note: privateNote, actual_cost: price, estimated_cost: price, status,
       technician: technician || null,
       final_checks: finalChecks,
+      images: deviceImages,
       used_parts: parts.map(p => ({
         id: p.id, name: p.name, qty: p.quantity,
         unit_buy: p.unit_cost, unit_sell: p.unit_price,
       })),
     })
     await updateServiceOrderRemote(id, {
-      status, actual_cost: price, estimated_cost: price, notes,
+      status, actual_cost: price, estimated_cost: price, notes, images: deviceImages,
     })
-    setOrder(prev => prev ? { ...prev, notes, private_note: privateNote, actual_cost: price, status, technician: technician || null } : prev)
+    setOrder(prev => prev ? {
+      ...prev, notes, private_note: privateNote, actual_cost: price, status,
+      technician: technician || null, images: deviceImages,
+    } : prev)
     toast.success('Kaydedildi')
     setSaving(false)
   }
@@ -299,6 +321,13 @@ export default function AtolyeDetailPage() {
           {order.description && (
             <div className="rounded-xl bg-[var(--bg-muted)] p-3 text-sm text-[var(--text-secondary)]">{order.description}</div>
           )}
+
+          <hr className="border-[var(--bg-border)]" />
+          <DevicePhotoGallery
+            images={deviceImages}
+            onChange={next => { void persistDeviceImages(next) }}
+            disabled={isDone || savingPhotos}
+          />
 
           {/* Özel not — sadece ekip görür */}
           <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">

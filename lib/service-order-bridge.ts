@@ -3,6 +3,7 @@
  * UI store formatını (İngilizce status, job_no) kullanır; API/DB Türkçe status + order_no.
  */
 
+import { parseDeviceImages } from './device-images'
 import { mapDbStatusToStore, mapStoreStatusToDb } from './erp-features'
 import {
   getServiceOrders,
@@ -36,6 +37,7 @@ function dbToStore(row: DbRow): StoreServiceOrder {
     created_at: String(row.created_at ?? new Date().toISOString()),
     updated_at: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
     eta: row.estimated_delivery ? String(row.estimated_delivery) : null,
+    images: parseDeviceImages(row),
   }
 }
 
@@ -166,6 +168,7 @@ export interface UpdateServiceOrderPatch {
   fault_description?: string
   technician_notes?: string
   technician?: string | null
+  images?: string[]
 }
 
 export async function updateServiceOrderRemote(
@@ -179,6 +182,7 @@ export async function updateServiceOrderRemote(
   if (patch.notes != null) dbPatch.technician_notes = patch.notes
   if (patch.technician_notes != null) dbPatch.technician_notes = patch.technician_notes
   if (patch.fault_description != null) dbPatch.fault_description = patch.fault_description
+  if (patch.images != null) dbPatch.device_images = patch.images
 
   if (patch.technician !== undefined) {
     updateServiceOrder(id, { technician: patch.technician })
