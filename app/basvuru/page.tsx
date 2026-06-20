@@ -157,23 +157,26 @@ export default function BasvuruPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [turnstileToken, setTurnstileToken] = useState('')
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState(
-    () => process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || '',
-  )
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState('')
+  const [captchaRequired, setCaptchaRequired] = useState(false)
+  const [captchaMisconfigured, setCaptchaMisconfigured] = useState(false)
+  const [captchaConfigLoading, setCaptchaConfigLoading] = useState(true)
   const [turnstileLoadError, setTurnstileLoadError] = useState(false)
   const turnstileRef = useRef<TurnstileHandle>(null)
   const [trialDays, setTrialDays] = useState(30)
   const [planOptions, setPlanOptions] = useState(DEFAULT_PLAN_OPTIONS)
 
   useEffect(() => {
-    if (turnstileSiteKey) return
     fetch('/api/public/turnstile-config')
       .then((r) => r.json())
-      .then((json: { siteKey?: string }) => {
+      .then((json: { siteKey?: string; required?: boolean; misconfigured?: boolean }) => {
+        setCaptchaRequired(Boolean(json.required))
+        setCaptchaMisconfigured(Boolean(json.misconfigured))
         if (json.siteKey?.trim()) setTurnstileSiteKey(json.siteKey.trim())
       })
-      .catch(() => {})
-  }, [turnstileSiteKey])
+      .catch(() => setTurnstileLoadError(true))
+      .finally(() => setCaptchaConfigLoading(false))
+  }, [])
 
   useEffect(() => {
     fetch('/api/public/plans')
@@ -253,11 +256,19 @@ export default function BasvuruPage() {
 
     if (!validate()) return
 
-    if (turnstileSiteKey && !turnstileToken) {
-      setSubmitError('Güvenlik doğrulamasını tamamlayın (CAPTCHA kutusunu bekleyin)')
+    if (captchaConfigLoading) {
+      setSubmitError('Güvenlik doğrulaması yükleniyor, lütfen bekleyin.')
       return
     }
-    if (turnstileSiteKey && turnstileLoadError) {
+    if (captchaMisconfigured) {
+      setSubmitError('CAPTCHA yapılandırması eksik. Site yöneticisine bildirin (TURNSTILE site key).')
+      return
+    }
+    if (captchaRequired && !turnstileToken) {
+      setSubmitError('Güvenlik doğrulamasını tamamlayın (aşağıdaki kutuyu bekleyin).')
+      return
+    }
+    if (captchaRequired && turnstileLoadError) {
       setSubmitError('Güvenlik doğrulaması yüklenemedi. Sayfayı yenileyip tekrar deneyin.')
       return
     }
@@ -272,7 +283,7 @@ export default function BasvuruPage() {
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data.success === false) {
-        if (turnstileSiteKey) turnstileRef.current?.reset()
+        if (captchaRequired) turnstileRef.current?.reset()
         throw new Error(data.error || 'Gönderim başarısız oldu')
       }
 
@@ -666,6 +677,20 @@ export default function BasvuruPage() {
               )}
             </div>
 
+            {captchaConfigLoading && captchaRequired && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs text-slate-500">
+                Güvenlik doğrulaması yükleniyor…
+              </div>
+            )}
+
+            {captchaMisconfigured && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+                CAPTCHA site key Vercel ortam değişkenlerinde tanımlı değil.{' '}
+                <code className="font-mono">NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> veya{' '}
+                <code className="font-mono">TURNSTILE_SITE_KEY</code> ekleyip redeploy edin.
+              </div>
+            )}
+
             {turnstileSiteKey ? (
               <TurnstileWidget
                 ref={turnstileRef}
@@ -692,7 +717,7 @@ export default function BasvuruPage() {
             {/* ── Submit Button ── */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || captchaConfigLoading || captchaMisconfigured || (captchaRequired && !turnstileToken)}
               className="w-full py-4 px-6 rounded-xl text-base font-bold text-white bg-[var(--landing-accent)] hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed shadow-md transition-all flex items-center justify-center gap-2"
             >
               {loading ? (

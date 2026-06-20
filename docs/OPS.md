@@ -36,7 +36,8 @@
 | `STRIPE_SECRET_KEY` (sk_live_) | Online ödeme |
 | `STRIPE_WEBHOOK_SECRET` | Abonelik uzatma |
 | `UPSTASH_REDIS_REST_URL` + `TOKEN` | Rate limit (login, başvuru, takip) |
-| `TURNSTILE_SECRET_KEY` + site key | Başvuru CAPTCHA (prod zorunlu). Cloudflare'de hostname: `integra.aurabilisim.net` |
+| `TURNSTILE_SECRET_KEY` | Başvuru CAPTCHA secret (Cloudflare → Turnstile → Secret Key) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **veya** `TURNSTILE_SITE_KEY` | Site key — **ikisi de Production ortamında** olmalı; hostname: `integra.aurabilisim.net` |
 | `NEXT_PUBLIC_SENTRY_DSN` | Hata izleme |
 | `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial / ödeme hatırlatma e-postası |
 | `CRON_SECRET` | Cron koruması (trial, ödeme, randevu) |
