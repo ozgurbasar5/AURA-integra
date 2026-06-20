@@ -37,7 +37,8 @@
 | `STRIPE_WEBHOOK_SECRET` | Abonelik uzatma |
 | `UPSTASH_REDIS_REST_URL` + `TOKEN` | Rate limit (login, başvuru, takip) |
 | `TURNSTILE_SECRET_KEY` | Başvuru CAPTCHA secret (Cloudflare → Turnstile → Secret Key) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **veya** `TURNSTILE_SITE_KEY` | Site key — **ikisi de Production ortamında** olmalı; hostname: `integra.aurabilisim.net` |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` **veya** `TURNSTILE_SITE_KEY` | Site key — Production ortamında zorunlu |
+| Cloudflare Turnstile hostname | `integra.aurabilisim.net` (widget boş kalırsa burayı kontrol edin) |
 | `NEXT_PUBLIC_SENTRY_DSN` | Hata izleme |
 | `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial / ödeme hatırlatma e-postası |
 | `CRON_SECRET` | Cron koruması (trial, ödeme, randevu) |
@@ -62,4 +63,6 @@ Admin ayarları → Bildirim → **Ödeme Hatırlatma (kaç gün önce)** cron g
 
 1. Vercel: `NEXT_PUBLIC_APP_URL=https://integra.aurabilisim.net`
 2. Supabase Auth → URL Configuration → Site URL aynı domain
-3. Redirect URLs: `https://integra.aurabilisim.net/**`
+3. Redirect URLs:
+   - `https://integra.aurabilisim.net/**`
+   - `https://integra.aurabilisim.net/auth/callback`

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/lib/admin-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { writeAuditLog } from '@/lib/audit-log'
-import { appDashboardUrl, fixMagicLinkRedirect, getServerAppUrl } from '@/lib/app-url'
+import { generateDashboardMagicLink } from '@/lib/magic-link'
 
 export async function POST(request: NextRequest) {
   const auth = await requireSuperAdmin(request)
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     .from('user_profiles')
     .select('id, email, full_name')
     .eq('tenant_id', tenantId)
-    .in('role', ['owner', 'admin'])
+    .in('role', ['owner', 'admin', 'tenant_admin'])
     .eq('is_active', true)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -41,19 +41,10 @@ export async function POST(request: NextRequest) {
   const loginEmail = owner?.email ?? tenant.email
   if (!loginEmail) return NextResponse.json({ error: 'Bayi giriş e-postası bulunamadı' }, { status: 404 })
 
-  const appUrl = getServerAppUrl(request.nextUrl.origin)
-
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'magiclink',
-    email: loginEmail,
-    options: { redirectTo: appDashboardUrl(request.nextUrl.origin) },
-  })
-
-  if (linkErr || !linkData?.properties?.action_link) {
-    return NextResponse.json({ error: linkErr?.message ?? 'Giriş linki oluşturulamadı' }, { status: 500 })
+  const magic = await generateDashboardMagicLink(admin, loginEmail, request.nextUrl.origin)
+  if (!magic.ok) {
+    return NextResponse.json({ error: magic.error }, { status: 500 })
   }
-
-  const actionLink = fixMagicLinkRedirect(linkData.properties.action_link, appUrl)
 
   await writeAuditLog({
     actorId: auth.userId,
@@ -65,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    action_link: actionLink,
+    action_link: magic.link,
     email: loginEmail,
     company_name: tenant.company_name,
   })

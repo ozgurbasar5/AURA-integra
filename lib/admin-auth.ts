@@ -1,39 +1,36 @@
+import type { User } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { getServiceClient } from '@/lib/supabase/service'
+import {
+  ensureSuperAdminProfile,
+  isSuperAdminEmail,
+  requireSuperAdminFromServiceRole,
+} from '@/lib/supabase/auth-helpers'
 import { getUserFromRequest } from '@/lib/supabase/session-from-request'
 
-const PROFILE_CHECK_MS = 5000
-
-async function verifySuperAdminProfile(userId: string): Promise<boolean> {
-  const service = getServiceClient()
-  if (!service) return false
-
-  try {
-    const result = await Promise.race([
-      service.from('user_profiles').select('role, is_active').eq('id', userId).single(),
-      new Promise<{ data: null; error: { message: 'timeout' } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), PROFILE_CHECK_MS)
-      ),
-    ])
-
-    const profile = result.data as { role: string; is_active: boolean } | null
-    return profile?.role === 'super_admin' && profile.is_active !== false
-  } catch {
-    return false
-  }
+function asUser(user: { id: string; email: string }): User {
+  return { id: user.id, email: user.email } as User
 }
 
 export async function requireSuperAdmin(
-  request: NextRequest
+  request: NextRequest,
 ): Promise<{ authorized: true; userId: string } | { authorized: false; error: NextResponse }> {
   const user = await getUserFromRequest(request)
   if (!user) {
     return { authorized: false, error: NextResponse.json({ error: 'Oturum bulunamadı' }, { status: 401 }) }
   }
 
-  const ok = await verifySuperAdminProfile(user.id)
-  if (!ok) {
+  let access = await requireSuperAdminFromServiceRole(asUser(user))
+
+  if (
+    !access.ok &&
+    isSuperAdminEmail(user.email) &&
+    (access.reason === 'not_found' || access.reason === 'not_super_admin')
+  ) {
+    await ensureSuperAdminProfile(asUser(user))
+    access = await requireSuperAdminFromServiceRole(asUser(user))
+  }
+
+  if (!access.ok) {
     return { authorized: false, error: NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }) }
   }
 
@@ -46,6 +43,7 @@ export async function requireSuperAdminFromCookies(): Promise<
 > {
   try {
     const { cookies } = await import('next/headers')
+    const { createServerClient } = await import('@supabase/ssr')
     const cookieStore = cookies()
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -64,8 +62,17 @@ export async function requireSuperAdminFromCookies(): Promise<
     } = await sb.auth.getUser()
     if (error || !user) return { authorized: false }
 
-    const ok = await verifySuperAdminProfile(user.id)
-    if (!ok) return { authorized: false }
+    let access = await requireSuperAdminFromServiceRole(user)
+    if (
+      !access.ok &&
+      isSuperAdminEmail(user.email) &&
+      (access.reason === 'not_found' || access.reason === 'not_super_admin')
+    ) {
+      await ensureSuperAdminProfile(user)
+      access = await requireSuperAdminFromServiceRole(user)
+    }
+
+    if (!access.ok) return { authorized: false }
 
     return { authorized: true, userId: user.id }
   } catch {

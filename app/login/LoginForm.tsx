@@ -74,6 +74,8 @@ export default function LoginForm() {
       suspended: getTenantBlockMessage('suspended'),
       subscription_expired: getTenantBlockMessage('subscription_expired'),
       payment_overdue: getTenantBlockMessage('payment_overdue'),
+      magic_link_failed: 'Giriş linki geçersiz veya süresi dolmuş. Yeni link isteyin.',
+      session_expired: 'Oturumunuz sona erdi. Tekrar giriş yapın.',
     }
 
     if (errorMessages[err]) {

@@ -10,19 +10,28 @@ export function getServerAppUrl(fallbackOrigin?: string): string {
   }
 
   const origin = fallbackOrigin?.trim()
-  if (origin) return origin.replace(/\/$/, '')
+  if (origin && !origin.includes('localhost')) return origin.replace(/\/$/, '')
 
   return 'http://localhost:3000'
 }
 
+export function appAuthCallbackUrl(fallbackOrigin?: string, nextPath = '/dashboard'): string {
+  const base = getServerAppUrl(fallbackOrigin).replace(/\/$/, '')
+  const next = nextPath.startsWith('/') ? nextPath : `/${nextPath}`
+  return `${base}/auth/callback?next=${encodeURIComponent(next)}`
+}
+
 /** Supabase magic link içindeki redirect_to parametresini prod URL ile düzeltir */
 export function fixMagicLinkRedirect(actionLink: string, appUrl: string): string {
+  const callback = appAuthCallbackUrl(appUrl, '/dashboard')
   try {
     const url = new URL(actionLink)
-    url.searchParams.set('redirect_to', `${appUrl.replace(/\/$/, '')}/dashboard`)
+    url.searchParams.set('redirect_to', callback)
     return url.toString()
   } catch {
     return actionLink
+      .replace(/redirect_to=[^&]*/gi, `redirect_to=${encodeURIComponent(callback)}`)
+      .replace(/http:\/\/localhost(?::\d+)?/gi, appUrl.replace(/\/$/, ''))
   }
 }
 

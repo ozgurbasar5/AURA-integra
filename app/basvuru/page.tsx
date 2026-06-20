@@ -696,10 +696,21 @@ export default function BasvuruPage() {
                 ref={turnstileRef}
                 siteKey={turnstileSiteKey}
                 onToken={setTurnstileToken}
-                onError={() => setTurnstileLoadError(true)}
+                onError={() => {
+                  setTurnstileLoadError(true)
+                  setSubmitError(
+                    'CAPTCHA yüklenemedi. Cloudflare Turnstile panelinde hostname olarak integra.aurabilisim.net ekleyin.',
+                  )
+                }}
                 onExpire={() => setTurnstileToken('')}
               />
             ) : null}
+
+            {turnstileLoadError && !turnstileSiteKey && (
+              <p className="text-xs text-red-600 mt-2">
+                Güvenlik doğrulaması yapılandırılamadı. Sayfayı yenileyin.
+              </p>
+            )}
 
             {/* ── Submit Error ── */}
             {submitError && (

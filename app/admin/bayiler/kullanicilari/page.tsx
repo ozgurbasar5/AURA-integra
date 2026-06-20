@@ -133,38 +133,22 @@ export default function BayiKullanicilariPage() {
     if (!newEmail.trim() || !selectedTenant) return
     setAdding(true)
     try {
-      const res  = await fetch(
-        `/api/admin/find-user?email=${encodeURIComponent(newEmail.trim().toLowerCase())}`,
-        { credentials: 'same-origin' }
-      )
-      const json = await res.json()
-
-      if (!res.ok) {
-        toast.error(
-          res.status === 404
-            ? `"${newEmail}" sistemde kayıtlı değil. Supabase → Authentication → Users'dan kontrol edin.`
-            : `Hata: ${json.error || 'Sunucu hatası'}`
-        )
-        return
-      }
-
       const activeCount = users.filter(u => u.is_active).length
       if (activeCount >= maxUsers) {
         toast.error(`Paket limiti: en fazla ${maxUsers} aktif kullanıcı. Plan yükseltin veya pasif kullanıcı silin.`)
         return
       }
 
-      const found = json.user as { id: string; email: string; profile?: { full_name?: string } | null }
-
+      const email = newEmail.trim().toLowerCase()
       const attachRes = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
           tenant_id: selectedTenant.id,
-          user_id: found.id,
+          email,
           role: newRole,
-          full_name: found.profile?.full_name ?? found.email.split('@')[0],
+          full_name: email.split('@')[0],
         }),
       })
       const attachJson = await attachRes.json()
@@ -173,16 +157,36 @@ export default function BayiKullanicilariPage() {
         return
       }
 
+      const row = attachJson.data as {
+        id: string
+        email: string
+        role?: string
+        full_name?: string
+        created?: boolean
+      }
+
       setUsers(prev => [
         ...prev,
         {
-          id: found.id, user_id: found.id, role: newRole, is_active: true,
-          full_name: found.profile?.full_name || found.email.split('@')[0],
-          email: found.email,
+          id: row.id,
+          user_id: row.id,
+          role: row.role ?? newRole,
+          is_active: true,
+          full_name: row.full_name || email.split('@')[0],
+          email: row.email,
           created_at: new Date().toISOString(),
-        }
+        },
       ])
-      toast.success(`✓ ${found.email} → ${selectedTenant.company_name} bayisine eklendi`)
+
+      if (attachJson.magic_link) {
+        window.open(attachJson.magic_link, '_blank', 'noopener,noreferrer')
+        toast.success(`✓ ${row.email} eklendi — giriş linki açıldı`)
+      } else if (row.created) {
+        toast.success(`✓ ${row.email} oluşturuldu ve bayiye eklendi`)
+      } else {
+        toast.success(`✓ ${row.email} → ${selectedTenant.company_name} bayisine eklendi`)
+      }
+
       setShowAddModal(false)
       setNewEmail('')
       setNewRole('teknisyen')
@@ -365,7 +369,7 @@ export default function BayiKullanicilariPage() {
             <h3 className="font-bold text-slate-900 text-lg mb-1">Kullanıcı Ekle</h3>
             <p className="text-sm text-slate-500 mb-5">
               <strong>{selectedTenant?.company_name}</strong> bayisine kullanıcı ekleyin.
-              Supabase&apos;de kayıtlı herhangi bir kullanıcı e-postası girilebilir.
+              Kayıtlı olmayan e-posta için hesap otomatik oluşturulur ve giriş linki açılır.
             </p>
             <div className="space-y-4">
               <div>

@@ -6,6 +6,8 @@ import { getServiceClient } from '@/lib/supabase/service'
 import { getAdminDataClient } from '@/lib/supabase/admin-data'
 import { writeAuditLog } from '@/lib/audit-log'
 import { sanitizeTenantRole } from '@/lib/tenant-roles'
+import { findAuthUserByEmail, generateDashboardMagicLink } from '@/lib/magic-link'
+import { randomBytes } from 'crypto'
 
 export async function GET(request: NextRequest) {
   const auth = await requireSuperAdmin(request)
@@ -85,8 +87,13 @@ export async function POST(request: NextRequest) {
     return attachExistingUser(admin, auth, tenant_id, user_id, role, full_name)
   }
 
-  if (!email || !password) {
-    return NextResponse.json({ error: 'email ve password gerekli (veya user_id ile mevcut kullanıcı bağlayın)' }, { status: 400 })
+  const normalizedEmail = email?.trim().toLowerCase()
+  if (normalizedEmail && !password) {
+    return createOrAttachByEmail(admin, auth, request, tenant_id, normalizedEmail, role, full_name)
+  }
+
+  if (!normalizedEmail || !password) {
+    return NextResponse.json({ error: 'email gerekli (yeni kullanıcı otomatik oluşturulur) veya user_id ile mevcut kullanıcı bağlayın' }, { status: 400 })
   }
 
   const { data: tenant } = await admin
@@ -112,10 +119,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: authUser, error: createErr } = await admin.auth.admin.createUser({
-    email: email.trim().toLowerCase(),
+    email: normalizedEmail,
     password,
     email_confirm: true,
-    user_metadata: { full_name: full_name ?? email.split('@')[0] },
+    user_metadata: { full_name: full_name ?? normalizedEmail.split('@')[0] },
   })
 
   if (createErr || !authUser.user) {
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
 
   const { error: profileErr } = await admin.from('user_profiles').upsert({
     id: authUser.user.id,
-    full_name: full_name ?? email.split('@')[0],
+    full_name: full_name ?? normalizedEmail.split('@')[0],
     role: safeRole,
     tenant_id,
     is_active: true,
@@ -142,11 +149,96 @@ export async function POST(request: NextRequest) {
     action: 'create_tenant_user',
     targetType: 'tenant',
     targetId: tenant_id,
-    metadata: { email, role: safeRole },
+    metadata: { email: normalizedEmail, role: safeRole },
   })
 
   return NextResponse.json({
     data: { id: authUser.user.id, email: authUser.user.email },
+  })
+}
+
+/** E-posta ile kullanıcı bul veya oluştur, bayiye bağla, magic link üret */
+async function createOrAttachByEmail(
+  admin: NonNullable<ReturnType<typeof getServiceClient>>,
+  auth: { userId: string },
+  request: NextRequest,
+  tenant_id: string,
+  email: string,
+  role: string | undefined,
+  full_name: string | undefined,
+) {
+  const existing = await findAuthUserByEmail(admin, email)
+  if (existing) {
+    return attachExistingUser(admin, auth, tenant_id, existing.id, role, full_name ?? existing.email.split('@')[0])
+  }
+
+  const { data: tenant } = await admin
+    .from('tenants')
+    .select('plan_id, subscription_plans(max_users)')
+    .eq('id', tenant_id)
+    .single()
+
+  const maxUsers = (tenant?.subscription_plans as { max_users?: number } | null)?.max_users ?? 99
+  const { count } = await admin
+    .from('user_profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenant_id)
+    .eq('is_active', true)
+
+  if ((count ?? 0) >= maxUsers) {
+    return NextResponse.json(
+      { error: `Paket limiti: en fazla ${maxUsers} aktif kullanıcı` },
+      { status: 403 },
+    )
+  }
+
+  const tempPassword = `${randomBytes(16).toString('hex')}Aa1!`
+  const displayName = full_name?.trim() || email.split('@')[0]
+
+  const { data: authUser, error: createErr } = await admin.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: { full_name: displayName },
+  })
+
+  if (createErr || !authUser.user) {
+    return NextResponse.json({ error: createErr?.message ?? 'Kullanıcı oluşturulamadı' }, { status: 500 })
+  }
+
+  const safeRole = sanitizeTenantRole(role)
+  const { error: profileErr } = await admin.from('user_profiles').upsert({
+    id: authUser.user.id,
+    full_name: displayName,
+    role: safeRole,
+    tenant_id,
+    is_active: true,
+  })
+
+  if (profileErr) {
+    await admin.auth.admin.deleteUser(authUser.user.id)
+    return NextResponse.json({ error: profileErr.message }, { status: 500 })
+  }
+
+  const magic = await generateDashboardMagicLink(admin, email, request.nextUrl.origin)
+
+  await writeAuditLog({
+    actorId: auth.userId,
+    action: 'create_tenant_user',
+    targetType: 'tenant',
+    targetId: tenant_id,
+    metadata: { email, role: safeRole, created: true },
+  })
+
+  return NextResponse.json({
+    data: {
+      id: authUser.user.id,
+      email: authUser.user.email,
+      role: safeRole,
+      full_name: displayName,
+      created: true,
+    },
+    magic_link: magic.ok ? magic.link : undefined,
   })
 }
 
