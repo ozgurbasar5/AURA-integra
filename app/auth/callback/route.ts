@@ -55,5 +55,14 @@ export async function GET(request: NextRequest) {
     return cookieResponse
   }
 
-  return NextResponse.redirect(`${appUrl}/login?error=magic_link_failed`)
+  // #access_token hash sunucuya gelmez — client /auth/session'a aktar
+  const qs = requestUrl.search || ''
+  const html = `<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"/><title>Giriş</title></head><body><p style="font-family:system-ui;text-align:center;margin-top:40vh;color:#64748b">Giriş tamamlanıyor…</p><script>
+(function(){
+  var h=window.location.hash||'';
+  if(h.indexOf('access_token=')!==-1){window.location.replace('/auth/session${qs.replace(/'/g, "\\'")}'+h);return;}
+  window.location.replace('${appUrl}/login?error=magic_link_failed');
+})();
+</script></body></html>`
+  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }

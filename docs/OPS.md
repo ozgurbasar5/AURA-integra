@@ -117,6 +117,7 @@ npm run test:e2e
    - **Redirect URLs:**
      - `https://integra.aurabilisim.net/**`
      - `https://integra.aurabilisim.net/auth/callback**`
+     - `https://integra.aurabilisim.net/auth/session**` (hash token fallback)
      - `http://localhost:3000/auth/callback**` (yalnızca lokal geliştirme)
 3. Lokal admin panelden link üretirken `.env.local` içinde `NEXT_PUBLIC_APP_URL` prod URL olmalı
 4. Eski localhost linkleri çalışmaz — admin panelden yeni magic link oluşturun
