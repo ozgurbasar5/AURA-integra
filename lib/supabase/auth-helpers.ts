@@ -24,6 +24,7 @@ export type LayoutProfile = {
   role: string
   is_active: boolean
   onboarding_completed?: boolean
+  setup_wizard_completed?: boolean
   tenant_id: string | null
   tenants: {
     company_name: string
@@ -228,7 +229,7 @@ export async function fetchLayoutProfileFromDb(
     supabase
       .from('user_profiles')
       .select(
-        'full_name, role, is_active, onboarding_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
+        'full_name, role, is_active, onboarding_completed, setup_wizard_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
       )
       .eq('id', user.id)
       .single()
@@ -246,16 +247,30 @@ export async function fetchLayoutProfileService(
   const admin = getServiceClient()
   if (!admin) return { ok: false, reason: 'error' }
 
-  return fetchFromDb<LayoutProfile>(
-    admin
-      .from('user_profiles')
-      .select(
-        'full_name, role, is_active, onboarding_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
-      )
-      .eq('id', user.id)
-      .single(),
-    6000
+  const fullSelect =
+    'full_name, role, is_active, onboarding_completed, setup_wizard_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
+  const legacySelect =
+    'full_name, role, is_active, onboarding_completed, tenant_id, tenants(company_name, status, subscription_start, subscription_end, plan_id, subscription_plans(name, price))'
+
+  const primary = await fetchFromDb<LayoutProfile>(
+    admin.from('user_profiles').select(fullSelect).eq('id', user.id).single(),
+    6000,
   )
+
+  if (primary.ok) return primary
+
+  const fallback = await fetchFromDb<LayoutProfile>(
+    admin.from('user_profiles').select(legacySelect).eq('id', user.id).single(),
+    6000,
+  )
+  if (fallback.ok) {
+    return {
+      ok: true,
+      fromDb: true,
+      data: { ...fallback.data, setup_wizard_completed: false },
+    }
+  }
+  return primary
 }
 
 /** Bayi için gecikmiş ödeme — service role */
@@ -310,6 +325,7 @@ export function buildOfflineLayoutProfile(user: User): LayoutProfile {
     role: safeRole,
     is_active: true,
     onboarding_completed: false,
+    setup_wizard_completed: false,
     tenant_id: null,
     tenants: null,
   }

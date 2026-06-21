@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantOwner } from '@/lib/supabase/tenant-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { sendSms } from '@/lib/notification-service'
+import { sendMail, isSmtpConfigured } from '@/lib/mail'
 import { getTenantSmsCredentials } from '@/lib/tenant-sms'
 
 /** Entegrasyon bağlantı testi */
@@ -52,11 +53,38 @@ export async function POST(req: NextRequest) {
   }
 
   if (integration === 'smtp') {
-    const ok = !!(process.env.SMTP_EMAIL && process.env.SMTP_PASSWORD)
+    if (!isSmtpConfigured()) {
+      return NextResponse.json({
+        ok: false,
+        integration: 'smtp',
+        error: 'SMTP_EMAIL / SMTP_PASSWORD eksik',
+      })
+    }
+
+    const admin = getServiceClient()
+    if (!admin) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+
+    const { data: profile } = await admin
+      .from('user_profiles')
+      .select('email')
+      .eq('id', auth.userId)
+      .single()
+
+    const email = profile?.email?.trim()
+    if (!email) {
+      return NextResponse.json({ error: 'Profil e-postası tanımlı değil' }, { status: 400 })
+    }
+
+    const result = await sendMail({
+      to: email,
+      subject: 'AURA İntegra SMTP test',
+      html: '<p>Bu bir SMTP bağlantı test mesajıdır. Yapılandırma çalışıyor.</p>',
+    })
+
     return NextResponse.json({
-      ok,
+      ok: result.ok,
       integration: 'smtp',
-      message: ok ? 'SMTP yapılandırması mevcut' : 'SMTP_EMAIL / SMTP_PASSWORD eksik',
+      error: result.error,
     })
   }
 

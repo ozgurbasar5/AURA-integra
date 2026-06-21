@@ -28,6 +28,11 @@
       "description": "Servis kayıtları"
     },
     {
+      "name": "Hızlı Kabul",
+      "url": "/dashboard/kabul",
+      "description": "Cihaz kabul"
+    },
+    {
       "name": "Stok Sayım",
       "url": "/dashboard/stok/sayim",
       "description": "Barkod ile sayım"
@@ -36,6 +41,11 @@
       "name": "Kasa",
       "url": "/dashboard/kasa",
       "description": "Günlük kasa"
+    },
+    {
+      "name": "Müşteri Takip",
+      "url": "/takip",
+      "description": "Portal takip sayfası"
     }
   ]
 }

@@ -1,35 +1,17 @@
 import Link from 'next/link'
 import {
-  Wrench, ShoppingCart, Wallet, Users, BarChart3, Cloud,
-  ArrowRight, CheckCircle2, Building2, Globe, Shield, Zap,
-  Layers, RefreshCw, Headphones,
+  ArrowRight, CheckCircle2, Globe, Shield, Zap,
 } from 'lucide-react'
 import { AuraLogo } from '@/components/landing/AuraLogo'
 import { fmtPrice, getLandingPlans, type LandingPlanCard } from '@/lib/landing-plans'
 import { AURA_CORPORATE, INTEGRA_STATS } from '@/lib/brand-corporate'
-
-const MODULES = [
-  { icon: Wrench, title: 'Teknik Servis & Atölye', desc: 'Kabul, kanban, parça, QC ve teknisyen atama — uçtan uca servis yönetimi.', tags: ['Kanban', 'Parça stok', 'SMS onay'] },
-  { icon: ShoppingCart, title: 'Stok & Satış (POS)', desc: 'Envanter, POS, alış ve kampanya — tek envanter defteri.', tags: ['POS', 'Alış→stok', 'Kritik uyarı'] },
-  { icon: Wallet, title: 'Finans & Kasa', desc: 'Vardiya bazlı kasa, gün sonu raporu ve gelir-gider takibi.', tags: ['Vardiya Z', 'Kasa sync', 'KDV özeti'] },
-  { icon: Users, title: 'Müşteri Portalı', desc: 'Slug bazlı online takip; bayi feature flag ile yönetim.', tags: ['Portal', 'Takip linki', 'Bildirim'] },
-  { icon: BarChart3, title: 'Dashboard & Raporlar', desc: 'Canlı KPI, trend grafikleri ve operasyon özeti.', tags: ['7g grafik', 'Remote KPI', 'Export'] },
-  { icon: Cloud, title: 'Çok Kiracılı Admin', desc: 'Bayi, paket, başvuru ve sağlık paneli — SaaS operasyonu.', tags: ['Bayi CRUD', 'Audit', 'Feature flags'] },
-]
-
-const STEPS = [
-  { n: '01', title: 'Başvuru & Onay', desc: 'Bayi formu admin paneline düşer; deneme hesabınız açılır.' },
-  { n: '02', title: 'Kurulum & Eğitim', desc: 'Bulut erişim — kurulum yok. Veri aktarımı ve kısa onboarding.' },
-  { n: '03', title: 'Canlı Operasyon', desc: 'Stok, servis ve finans aynı gün senkron çalışmaya başlar.' },
-]
-
-const NAV = [
-  { href: '#cozumler', label: 'Çözümler' },
-  { href: '#nasil-calisir', label: 'Süreç' },
-  { href: '#paketler', label: 'Paketler' },
-  { href: '#kurumsal', label: 'Kurumsal' },
-  { href: '/basvuru', label: 'Bayi Başvuru' },
-]
+import { LANDING_NAV } from '@/lib/landing-modules'
+import LandingHeroSection from '@/components/landing/LandingHeroSection'
+import LandingFeatureExplorer from '@/components/landing/LandingFeatureExplorer'
+import LandingBentoGrid from '@/components/landing/LandingBentoGrid'
+import LandingDataFlow from '@/components/landing/LandingDataFlow'
+import LandingProcessSteps from '@/components/landing/LandingProcessSteps'
+import LandingPortalShowcase from '@/components/landing/LandingPortalShowcase'
 
 const CORPORATE_URL = AURA_CORPORATE.url
 
@@ -120,9 +102,9 @@ export default async function HomePage() {
           <Link href="/" className="shrink-0">
             <AuraLogo size="md" variant="dark" product="integra" />
           </Link>
-          <nav className="hidden md:flex items-center gap-7">
-            {NAV.map((l) => (
-              <a key={l.href} href={l.href} className="text-sm font-semibold text-[var(--landing-muted)] hover:text-[var(--landing-accent)] transition-colors">
+          <nav className="hidden lg:flex items-center gap-6">
+            {LANDING_NAV.map((l) => (
+              <a key={l.href} href={l.href} className="text-sm font-semibold text-[var(--landing-muted)] hover:text-[var(--landing-accent)] transition-colors whitespace-nowrap">
                 {l.label}
               </a>
             ))}
@@ -138,150 +120,15 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative pt-14 pb-20 md:pt-20 md:pb-28 landing-surface overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_30%_0%,rgba(14,143,173,0.09),transparent)] pointer-events-none" />
-        <div className="relative max-w-6xl mx-auto px-5 grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <a
-              href={CORPORATE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#a5d8e8] bg-[#e8f6fa] text-[#0c5f73] text-xs font-semibold mb-6 hover:bg-[#d4f0f7] transition-colors"
-            >
-              <Building2 size={14} />
-              AURA Bilişim · {AURA_CORPORATE.tagline}
-              <ArrowRight size={12} />
-            </a>
-            <h1 className="text-4xl sm:text-5xl font-black leading-[1.1] tracking-tight mb-5">
-              <span className="block text-[var(--landing-text)]">Premium entegrasyon,</span>
-              <span className="block hero-gradient-text mt-1">uçtan uca işletme yönetimi</span>
-            </h1>
-            <p className="text-base text-[var(--landing-muted)] leading-relaxed mb-8 max-w-lg">
-              <strong className="text-[var(--landing-text)] font-semibold">AURA İntegra</strong> — bayi ve servis
-              noktaları için stok, servis, finans ve müşteri portalını tek bulut platformunda birleştirir.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 mb-10">
-              <Link href="/basvuru" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-[var(--landing-accent)] text-white font-bold hover:opacity-95 shadow-lg">
-                {trialDays} Gün Ücretsiz Dene <ArrowRight size={18} />
-              </Link>
-              <a href="#cozumler" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-card)] text-[var(--landing-text)] font-semibold hover:border-[var(--landing-accent)]">
-                Çözümleri Keşfet
-              </a>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {trust.map((t) => (
-                <div key={t.label} className="landing-stat rounded-xl border px-4 py-3">
-                  <p className="text-xl font-black text-[#0c5f73]">{t.value}</p>
-                  <p className="text-[11px] text-[var(--landing-muted)] font-semibold mt-0.5">{t.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Dashboard mockup */}
-          <div className="relative">
-            <div className="absolute -inset-3 bg-gradient-to-br from-[#b8dce8]/50 to-[#94c5d8]/30 rounded-3xl blur-xl" />
-            <div className="landing-card relative overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--landing-border)] bg-[#eef3f8]">
-                <span className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="ml-2 text-[10px] text-[var(--landing-muted)] font-mono">integra.aurabilisim.net</span>
-              </div>
-              <div className="p-5 grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Bugün Ciro', val: '₺18.420' },
-                  { label: 'Aktif Servis', val: '24' },
-                  { label: 'Kasa', val: '₺42.8K' },
-                ].map((k) => (
-                  <div key={k.label} className="rounded-lg bg-[#eef3f8] border border-[var(--landing-border)] p-3">
-                    <p className="text-[9px] uppercase tracking-wider text-[var(--landing-muted)] font-bold">{k.label}</p>
-                    <p className="text-lg font-black text-[#0c5f73] mt-0.5">{k.val}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="px-5 pb-5">
-                <div className="h-20 rounded-lg bg-[#eef3f8] border border-[var(--landing-border)] flex items-end gap-1 px-2 pb-1.5">
-                  {[35, 55, 40, 70, 50, 85, 65, 90, 60].map((h, i) => (
-                    <div key={i} className="flex-1 rounded-t bg-gradient-to-t from-[#0e8fad] to-[#5ec4db]" style={{ height: `${h}%` }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Modules */}
-      <section id="cozumler" className="py-20 border-t border-[var(--landing-border)]">
-        <div className="max-w-6xl mx-auto px-5">
-          <div className="text-center mb-12">
-            <p className="text-[var(--landing-accent)] text-xs font-bold uppercase tracking-[0.2em] mb-2">Çözümler</p>
-            <h2 className="text-3xl md:text-4xl font-black text-[var(--landing-text)] mb-3">Modüler entegrasyon platformu</h2>
-            <p className="text-[var(--landing-muted)] max-w-xl mx-auto">Her modül aynı veri modelinde — stok, servis ve finans birbirini besler.</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {MODULES.map((m) => (
-              <article key={m.title} className="landing-card p-5 transition-all duration-300 group">
-                <div className="w-10 h-10 rounded-lg bg-[var(--landing-accent-soft)] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                  <m.icon size={20} className="text-[var(--landing-accent)]" />
-                </div>
-                <h3 className="text-base font-bold text-[var(--landing-text)] mb-1.5">{m.title}</h3>
-                <p className="text-sm text-[var(--landing-muted)] leading-relaxed mb-3">{m.desc}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {m.tags.map((tag) => (
-                    <span key={tag} className="landing-tag">{tag}</span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="nasil-calisir" className="py-20 landing-surface border-t border-[var(--landing-border)]">
-        <div className="max-w-6xl mx-auto px-5">
-          <div className="text-center mb-12">
-            <p className="text-[var(--landing-accent)] text-xs font-bold uppercase tracking-[0.2em] mb-2">Süreç</p>
-            <h2 className="text-3xl font-black text-[var(--landing-text)]">3 adımda canlıya geçin</h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {STEPS.map((s) => (
-              <div key={s.n} className="landing-card p-6">
-                <span className="text-3xl font-black text-[var(--landing-accent-soft)]">{s.n}</span>
-                <h3 className="text-lg font-bold text-[var(--landing-text)] mt-2 mb-2">{s.title}</h3>
-                <p className="text-sm text-[var(--landing-muted)]">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Integrations strip */}
-      <section className="py-14 border-t border-[var(--landing-border)]">
-        <div className="max-w-6xl mx-auto px-5 grid sm:grid-cols-3 gap-6">
-          {[
-            { icon: Layers, title: 'Tek veri modeli', desc: 'Stok hareketi finansı, servis parçayı otomatik günceller.' },
-            { icon: RefreshCw, title: 'Bulut senkron', desc: 'Çok kiracılı yapı — bayi verisi izole, merkezden yönetilir.' },
-            { icon: Headphones, title: 'Admin + destek', desc: 'Paket, başvuru ve bayi operasyonu tek komuta merkezinde.' },
-          ].map((item) => (
-            <div key={item.title} className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-lg bg-[var(--landing-accent-soft)] flex items-center justify-center shrink-0">
-                <item.icon size={20} className="text-[var(--landing-accent)]" />
-              </div>
-              <div>
-                <p className="font-bold text-[var(--landing-text)] text-sm">{item.title}</p>
-                <p className="text-xs text-[var(--landing-muted)] mt-1">{item.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <LandingHeroSection trialDays={trialDays} trust={trust} />
+      <LandingBentoGrid />
+      <LandingFeatureExplorer />
+      <LandingDataFlow />
+      <LandingPortalShowcase />
+      <LandingProcessSteps />
 
       {/* Corporate */}
-      <section id="kurumsal" className="py-20 landing-surface border-t border-[var(--landing-border)]">
+      <section id="kurumsal" className="py-20 landing-surface border-t border-[var(--landing-border)] scroll-mt-20">
         <div className="max-w-6xl mx-auto px-5 grid lg:grid-cols-2 gap-10 items-start">
           <div>
             <p className="text-[var(--landing-accent)] text-xs font-bold uppercase tracking-[0.2em] mb-2">Kurumsal</p>
@@ -326,8 +173,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Pricing — admin ayarlardan */}
-      <section id="paketler" className="py-20 border-t border-[var(--landing-border)]">
+      <section id="paketler" className="py-20 border-t border-[var(--landing-border)] scroll-mt-20">
         <div className="max-w-6xl mx-auto px-5">
           <div className="text-center mb-12">
             <p className="text-[var(--landing-accent)] text-xs font-bold uppercase tracking-[0.2em] mb-2">Paketler</p>
@@ -340,7 +186,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="py-16 border-t border-[var(--landing-border)] bg-gradient-to-br from-[#0e8fad] to-[#1e5f8a]">
         <div className="max-w-3xl mx-auto px-5 text-center">
           <AuraLogo size="lg" variant="light" product="integra" className="justify-center mb-6" />
@@ -356,7 +201,7 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-5 flex flex-col md:flex-row items-center justify-between gap-5">
           <AuraLogo size="md" variant="dark" product="integra" />
           <div className="flex flex-wrap justify-center gap-5 text-sm text-[var(--landing-muted)]">
-            {NAV.map((l) => (
+            {LANDING_NAV.map((l) => (
               <a key={l.href} href={l.href} className="hover:text-[var(--landing-accent)]">{l.label}</a>
             ))}
             <Link href="/login" className="hover:text-[var(--landing-accent)]">Giriş</Link>

@@ -5,16 +5,22 @@ export type SendMailInput = {
   subject: string
   html: string
   text?: string
+  /** Gönderen görünen ad (varsayılan: AURA İntegra) */
+  fromName?: string
+}
+
+export function isSmtpConfigured(): boolean {
+  return !!(process.env.SMTP_EMAIL?.trim() && process.env.SMTP_PASSWORD?.trim())
 }
 
 export async function sendMail(input: SendMailInput): Promise<{ ok: boolean; error?: string }> {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com'
   const port = Number(process.env.SMTP_PORT || 587)
-  const user = process.env.SMTP_EMAIL
-  const pass = process.env.SMTP_PASSWORD
+  const user = process.env.SMTP_EMAIL?.trim()
+  const pass = process.env.SMTP_PASSWORD?.trim()
 
   if (!user || !pass) {
-    return { ok: false, error: 'SMTP yapılandırması eksik' }
+    return { ok: false, error: 'SMTP yapılandırması eksik (SMTP_EMAIL, SMTP_PASSWORD)' }
   }
 
   const transporter = nodemailer.createTransport({
@@ -22,11 +28,12 @@ export async function sendMail(input: SendMailInput): Promise<{ ok: boolean; err
     port,
     secure: port === 465,
     auth: { user, pass },
+    tls: { minVersion: 'TLSv1.2' as const },
   })
 
   try {
     await transporter.sendMail({
-      from: `"AURA İntegra" <${user}>`,
+      from: `"${input.fromName ?? 'AURA İntegra'}" <${user}>`,
       to: input.to,
       subject: input.subject,
       html: input.html,

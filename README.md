@@ -23,12 +23,13 @@ Multi-tenant SaaS ERP for technical service shops and dealer networks.
 
 | Module | Data | API | Notes |
 |--------|------|-----|-------|
-| Atölye / Kabul | Hybrid | Yes | Service orders API + SMS |
-| Stok / POS / Kasa | localStorage + sync | Push | Stok sayım with barcode |
+| Atölye / Kabul | API-first (hybrid cache) | Yes | Service orders API + Storage foto |
+| Stok / POS / Kasa | localStorage + sync | Push + bridge | pos-bridge, cash-bridge, stock-bridge |
 | Bildirimler | localStorage | `/api/notify` | Real SMS/email send |
 | Global search | — | `/api/search` | Cmd+K modal |
-| e-Fatura | localStorage | GIB stub | `/api/tenant/invoices/submit` |
-| AI Asistan | — | `/api/ai` | Gemini (Paket 2+) |
+| e-Fatura | localStorage | Stub + queue | Test modu — docs/EFATURA-ROADMAP.md |
+| AI Asistan | — | `/api/ai` | Gemini 2.5 + kota (Paket 2+) |
+| Müşteri Portalı | — | `/portal/[slug]` | Landing vitrin + public showcase API |
 | Raporlar | Store + DB views | `/api/tenant/reports` | Paket 3 |
 
 ## Environment

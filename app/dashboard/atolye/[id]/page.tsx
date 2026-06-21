@@ -327,6 +327,7 @@ export default function AtolyeDetailPage() {
             images={deviceImages}
             onChange={next => { void persistDeviceImages(next) }}
             disabled={isDone || savingPhotos}
+            orderId={id}
           />
 
           {/* Özel not — sadece ekip görür */}

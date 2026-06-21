@@ -6,8 +6,9 @@ import Link from 'next/link'
 import { Wallet, Lock, Unlock, Loader2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
+import { openCashShiftViaApi, closeCashShiftViaApi } from '@/lib/cash-bridge'
 import {
-  getOpenCashShift, getCashShifts, openCashShift, closeCashShift,
+  getOpenCashShift, getCashShifts,
   getCashSummary, onStoreChange, attachShiftReport, type CashShift,
 } from '@/lib/store'
 import { buildShiftReport, suggestOpeningCash } from '@/lib/eod-report'
@@ -57,24 +58,26 @@ export default function KasaPage() {
 
   function handleOpen() {
     const bal = Number(opening) || 0
-    openCashShift(bal, cashier)
-    toast.success('Vardiya açıldı')
-    setOpening('')
-    refresh()
+    void openCashShiftViaApi(bal, cashier).then(() => {
+      toast.success('Vardiya açıldı')
+      setOpening('')
+      refresh()
+    }).catch(err => toast.error(err instanceof Error ? err.message : 'Vardiya açılamadı'))
   }
 
   function handleClose() {
     const bal = Number(closing)
     if (Number.isNaN(bal)) { toast.error('Kapanış tutarı girin'); return }
-    const result = closeCashShift(bal, cashier, notes)
-    if (!result) { toast.error('Açık vardiya yok'); return }
-    const report = buildShiftReport(result, getBusinessBranding().shopName)
-    attachShiftReport(result.id, report as unknown as Record<string, unknown>)
-    toast.success(`Vardiya kapandı · Fark: ${fmt(result.difference || 0)}`)
-    setClosing('')
-    setNotes('')
-    refresh()
-    router.push(`/dashboard/kasa/rapor/${result.id}`)
+    void closeCashShiftViaApi(bal, cashier, notes).then(result => {
+      if (!result) { toast.error('Açık vardiya yok'); return }
+      const report = buildShiftReport(result, getBusinessBranding().shopName)
+      attachShiftReport(result.id, report as unknown as Record<string, unknown>)
+      toast.success(`Vardiya kapandı · Fark: ${fmt(result.difference || 0)}`)
+      setClosing('')
+      setNotes('')
+      refresh()
+      router.push(`/dashboard/kasa/rapor/${result.id}`)
+    }).catch(err => toast.error(err instanceof Error ? err.message : 'Vardiya kapatılamadı'))
   }
 
   if (!mounted) {

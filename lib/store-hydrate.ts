@@ -148,7 +148,7 @@ export async function hydrateFromSupabase(): Promise<boolean> {
 async function pushModule(module: keyof StoreData | 'notificationSettings') {
   if (syncing) return
   if (module === 'serviceOrders') return
-  incrementPending()
+  incrementPending(String(module))
   try {
     const store = getStore()
     if (module === 'notificationSettings') {
@@ -158,7 +158,7 @@ async function pushModule(module: keyof StoreData | 'notificationSettings') {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ module: 'notificationSettings', settings: settingsForPush(store.notificationSettings) }),
       })
-      if (!res.ok) setSyncError('Ayarlar kaydedilemedi')
+      if (!res.ok) setSyncError('Ayarlar kaydedilemedi', [String(module)])
       return
     }
 
@@ -171,7 +171,7 @@ async function pushModule(module: keyof StoreData | 'notificationSettings') {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ module: 'serviceExpenses', items: flat }),
       })
-      if (!res.ok) setSyncError('Servis giderleri kaydedilemedi')
+      if (!res.ok) setSyncError('Servis giderleri kaydedilemedi', [String(module)])
       return
     }
 
@@ -184,11 +184,14 @@ async function pushModule(module: keyof StoreData | 'notificationSettings') {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ module, items }),
     })
-    if (!res.ok) setSyncError('Veri kaydedilemedi')
+    const json = await res.json().catch(() => ({})) as { failedModules?: string[]; error?: string }
+    if (!res.ok) {
+      setSyncError(json.error || 'Veri kaydedilemedi', json.failedModules ?? [String(module)])
+    }
   } catch {
-    setSyncError('Çevrimdışı')
+    setSyncError('Çevrimdışı', [String(module)])
   } finally {
-    decrementPending()
+    decrementPending(String(module))
   }
 }
 

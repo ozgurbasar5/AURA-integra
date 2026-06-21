@@ -18,7 +18,18 @@ export default function AuraAI() {
     { role: "assistant", content: "Selam ustam! Aura Bilişim atölyesinde bugün ne yapıyoruz? Arıza tespiti mi, kodlama mı?" }
   ]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [aiRemaining, setAiRemaining] = useState<number | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    fetch('/api/tenant/limits', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(json => {
+        const lim = json.limits as { ai_messages_remaining?: number }
+        if (lim?.ai_messages_remaining != null) setAiRemaining(lim.ai_messages_remaining)
+      })
+      .catch(() => {})
+  }, [isOpen])
 
   // Mesaj gelince en alta kaydır
   const scrollToBottom = () => {
@@ -88,7 +99,9 @@ export default function AuraAI() {
               <Cpu size={20} className="text-cyan-200" />
               <div>
                 <h3 className="font-bold text-sm leading-none">Aura AI</h3>
-                <span className="text-[10px] text-cyan-100 opacity-80">Teknik Asistan</span>
+                <span className="text-[10px] text-cyan-100 opacity-80">
+                  Teknik Asistan{aiRemaining != null ? ` · ${aiRemaining} mesaj kaldı` : ''}
+                </span>
               </div>
             </div>
             <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-1 rounded-full transition">

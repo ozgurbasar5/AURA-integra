@@ -42,6 +42,9 @@
 | Cloudflare Turnstile widget modu | **Interactive** (Managed + `interaction-only` boş kutu yapabilir) |
 | `NEXT_PUBLIC_SENTRY_DSN` | Hata izleme |
 | `SMTP_EMAIL` + `SMTP_PASSWORD` | Trial / ödeme hatırlatma e-postası |
+| `SMTP_HOST` + `SMTP_PORT` | Turk Ticaret: `smtp.turkticaret.net:465` (SSL) veya `:587` (STARTTLS) |
+
+Lokal SMTP test: `npm run test:smtp` (alıcı opsiyonel: `npm run test:smtp -- siz@email.com`)
 | `CRON_SECRET` | Cron koruması (trial, ödeme, randevu) |
 | `NEXT_PUBLIC_APP_URL` | Magic link redirect — prod: `https://integra.aurabilisim.net` |
 
@@ -75,6 +78,36 @@ Admin ayarları → Bildirim → **Ödeme Hatırlatma (kaç gün önce)** cron g
 - Dashboard widget: `GET /api/tenant/fx-rates` (auth gerekli)
 - Kaynak: `https://www.tcmb.gov.tr/kurlar/today.xml` — sunucu tarafında 1 saat cache
 - USD / EUR / GBP alış-satış (banknot)
+
+## Bekleyen Supabase migration'ları
+
+Production SQL Editor'da sırayla çalıştırın (`npm run check:migrations` dosya listesini doğrular):
+
+| Dosya | Amaç |
+|-------|------|
+| `20260620_basvuru_legacy_sync.sql` | Başvuru legacy kolon sync |
+| `20260626_service_order_device_images.sql` | Cihaz fotoğrafları JSONB |
+| `20260627_user_onboarding_flags.sql` | Sihirbaz/tur bir kez |
+| `20260628_maturity_sprint.sql` | Storage bucket, e-Fatura kuyruk, AI kota tabloları |
+
+Storage bucket oluşturulduktan sonra cihaz fotoğrafları URL olarak saklanır (base64 yerine).
+
+## AI kota env
+
+| Değişken | Amaç |
+|----------|------|
+| `GEMINI_API_KEY` | Google AI Studio API key (gemini-2.5-flash-lite) |
+| `UPSTASH_REDIS_REST_URL` + `TOKEN` | AI rate limit (`/api/ai`) |
+
+Detay: `docs/AI-COST-PLAN.md`
+
+## E2E test
+
+```bash
+npm run test:e2e
+# Opsiyonel: E2E_TEST_EMAIL, E2E_TEST_PASSWORD (auth akışları)
+# Turnstile bypass: TURNSTILE_BYPASS_SECRET (test only)
+```
 
 ## Magic link (bayi panele giriş)
 

@@ -60,10 +60,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
           status: tenant.status,
         }}
         user={{
+          id: user.id,
           full_name: profile.full_name,
           email: user.email ?? '',
           role: normalizeTenantRole(profile.role),
           onboarding_completed: profile.onboarding_completed ?? false,
+          setup_wizard_completed: profile.setup_wizard_completed ?? false,
         }}
       >
         {children}

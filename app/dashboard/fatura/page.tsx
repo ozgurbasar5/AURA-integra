@@ -85,7 +85,11 @@ export default function FaturaPage() {
       })
       const json = await res.json()
       if (res.ok) {
-        toast.success(json.message || 'GIB kuyruğuna alındı')
+        const updated = invoices.map(i =>
+          i.id === inv.id ? { ...i, status: 'gonderildi' as const, gib_reference: json.gib_reference } : i,
+        )
+        saveAll(updated)
+        toast.success(json.message || 'GIB kuyruğuna alındı (test modu)')
       } else {
         toast.error(json.error || 'Gönderilemedi')
       }

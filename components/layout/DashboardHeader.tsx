@@ -6,51 +6,58 @@ import { useUserRole } from '@/lib/role-context'
 import { Bell, Cloud, CloudOff, Loader2, Search, HelpCircle } from 'lucide-react'
 import Link from 'next/link'
 import { getSyncState, subscribeSyncState, type SyncState } from '@/lib/sync-status'
+import SyncPanel from '@/components/sync/SyncPanel'
 
 interface Props {
   companyName: string
   onOpenSearch?: () => void
 }
 
-function SyncBadge({ state }: { state: SyncState }) {
+function SyncBadge({ state, onClick }: { state: SyncState; onClick: () => void }) {
+  const cls = 'flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full cursor-pointer transition-opacity hover:opacity-80'
   if (state.status === 'syncing') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-sky-500/10 text-sky-600" title="Senkronize ediliyor">
+      <button type="button" onClick={onClick} className={`${cls} bg-sky-500/10 text-sky-600`} title="Senkronize ediliyor">
         <Loader2 size={11} className="animate-spin shrink-0" />
         <span className="hidden sm:inline">Senkronize</span>
-      </span>
+      </button>
     )
   }
   if (state.status === 'pending') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-600" title="Kaydediliyor">
+      <button type="button" onClick={onClick} className={`${cls} bg-amber-500/10 text-amber-600`} title="Kaydediliyor">
         <Cloud size={11} className="shrink-0" />
         <span className="hidden sm:inline">Bekliyor ({state.pendingCount})</span>
-      </span>
+      </button>
     )
   }
   if (state.status === 'error') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/10 text-red-600" title={state.lastError ?? ''}>
+      <button type="button" onClick={onClick} className={`${cls} bg-red-500/10 text-red-600`} title={state.lastError ?? ''}>
         <CloudOff size={11} className="shrink-0" />
         <span className="hidden sm:inline">Hata</span>
-      </span>
+      </button>
     )
   }
   if (state.status === 'synced') {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600" title={state.lastSyncAt ?? ''}>
+      <button type="button" onClick={onClick} className={`${cls} bg-emerald-500/10 text-emerald-600`} title={state.lastSyncAt ?? ''}>
         <Cloud size={11} className="shrink-0" />
         <span className="hidden sm:inline">Senkron</span>
-      </span>
+      </button>
     )
   }
-  return null
+  return (
+    <button type="button" onClick={onClick} className={`${cls} bg-slate-500/10 text-slate-600`} title="Senkronizasyon">
+      <Cloud size={11} className="shrink-0" />
+    </button>
+  )
 }
 
 export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
   const { homeLabel, role } = useUserRole()
   const [syncState, setSyncState] = useState<SyncState>(getSyncState())
+  const [syncPanelOpen, setSyncPanelOpen] = useState(false)
 
   useEffect(() => subscribeSyncState(setSyncState), [])
 
@@ -61,7 +68,7 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
         <h2 className="text-sm font-bold text-[var(--text-primary)] truncate">{companyName}</h2>
       </div>
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        <SyncBadge state={syncState} />
+        <SyncBadge state={syncState} onClick={() => setSyncPanelOpen(true)} />
         {onOpenSearch && (
           <button
             type="button"
@@ -93,6 +100,7 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
           {role.replace('_', ' ')}
         </span>
       </div>
+      <SyncPanel open={syncPanelOpen} onClose={() => setSyncPanelOpen(false)} />
     </header>
   )
 }

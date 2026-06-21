@@ -10,4 +10,7 @@ export const WA = {
   clipboard: String.fromCodePoint(0x1f4cb),
   wrench: String.fromCodePoint(0x1f527),
   memo: String.fromCodePoint(0x1f4dd),
+  check: String.fromCodePoint(0x2705),
+  link: String.fromCodePoint(0x1f517),
+  wave: String.fromCodePoint(0x1f44b),
 } as const

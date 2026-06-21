@@ -2,19 +2,25 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, ExternalLink } from 'lucide-react'
+import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, ExternalLink, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
-import { createServiceOrderRemote } from '@/lib/service-order-bridge'
-import {
-  generateNextJobNo, onStoreChange,
-} from '@/lib/store'
+import { createServiceOrderRemote, updateServiceOrderRemote } from '@/lib/service-order-bridge'
+import { onStoreChange } from '@/lib/store'
 import { buildTrackingUrl as trackUrl } from '@/lib/erp-features'
 import { getPortalSlug } from '@/lib/business-branding'
 import ServicePrintSheet, { type ServicePrintData } from '@/components/atolye/ServicePrintSheet'
+import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
+import { uploadDevicePhoto } from '@/lib/device-photo-storage'
+
+async function dataUrlToFile(dataUrl: string, index: number): Promise<File> {
+  const res = await fetch(dataUrl)
+  const blob = await res.blob()
+  return new File([blob], `kabul-${index}.jpg`, { type: blob.type || 'image/jpeg' })
+}
 
 export default function KabulPage() {
   const router = useRouter()
@@ -25,6 +31,8 @@ export default function KabulPage() {
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
   const [previewTab, setPreviewTab] = useState<'fis' | 'wa'>('fis')
   const [showWaPreview, setShowWaPreview] = useState(false)
+  const [pendingPhotos, setPendingPhotos] = useState<string[]>([])
+  const [trackingLink, setTrackingLink] = useState<string | null>(null)
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
@@ -58,7 +66,6 @@ export default function KabulPage() {
       return
     }
     setSaving(true)
-    const jobNo = generateNextJobNo()
     const { order: created, synced, error } = await createServiceOrderRemote({
       customer_name: form.customer_name,
       customer_phone: form.customer_phone,
@@ -75,6 +82,24 @@ export default function KabulPage() {
     }
     const slug = getPortalSlug()
     const track = trackUrl(created.job_no, slug)
+    setTrackingLink(track)
+
+    let uploadedImages: string[] = []
+    if (pendingPhotos.length && created.id) {
+      for (let i = 0; i < Math.min(pendingPhotos.length, 3); i++) {
+        try {
+          const file = await dataUrlToFile(pendingPhotos[i], i)
+          const url = await uploadDevicePhoto(created.id, file)
+          uploadedImages.push(url)
+        } catch {
+          /* devam */
+        }
+      }
+      if (uploadedImages.length) {
+        await updateServiceOrderRemote(created.id, { images: uploadedImages })
+      }
+    }
+
     const smsMsg = `${getBusinessBranding().shopName}: Cihazınız alındı. Takip: ${track}`
     fetch('/api/notify', {
       method: 'POST',
@@ -93,7 +118,9 @@ export default function KabulPage() {
       description: form.description,
       status: 'Bekliyor',
       createdAt: new Date().toISOString(),
+      trackingUrl: track,
     })
+    setPendingPhotos([])
     if (synced) {
       toast.success(`${created.job_no} oluşturuldu`)
     } else {
@@ -163,6 +190,13 @@ export default function KabulPage() {
                 ))}
               </div>
             </div>
+            <div data-tour="kabul-foto">
+              <DevicePhotoGallery
+                images={pendingPhotos}
+                onChange={setPendingPhotos}
+                disabled={saving}
+              />
+            </div>
             <button type="submit" disabled={saving} data-tour="kabul-kayit-btn" className="btn-primary w-full py-4 text-base rounded-2xl">
               {saving ? <Loader2 className="animate-spin mx-auto" size={20} /> : 'Kaydı Oluştur & Atölyeye Git'}
             </button>
@@ -176,8 +210,18 @@ export default function KabulPage() {
                 <CheckCircle2 size={40} className="mx-auto text-emerald-500 mb-2" />
                 <p className="font-mono text-xl font-black text-slate-900">{lastJob}</p>
                 <code className="block text-[10px] bg-slate-100 p-2 rounded-lg break-all mt-2 text-slate-600">
-                  {typeof window !== 'undefined' ? trackUrl(lastJob, getPortalSlug()) : `/takip?q=${lastJob}`}
+                  {trackingLink ?? (typeof window !== 'undefined' ? trackUrl(lastJob, getPortalSlug()) : `/takip?q=${lastJob}`)}
                 </code>
+                <button
+                  type="button"
+                  className="mt-2 btn-secondary btn-sm inline-flex items-center gap-1.5"
+                  onClick={() => {
+                    const link = trackingLink ?? trackUrl(lastJob, getPortalSlug())
+                    void navigator.clipboard.writeText(link).then(() => toast.success('Portal linki kopyalandı'))
+                  }}
+                >
+                  <Copy size={14} /> Portal linkini kopyala
+                </button>
               </div>
 
               <div className="flex gap-2">

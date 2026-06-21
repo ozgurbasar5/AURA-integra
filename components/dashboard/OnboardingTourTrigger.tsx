@@ -6,14 +6,19 @@ import { useUserRole } from '@/lib/role-context'
 import OnboardingSlideOverlay from '@/components/onboarding/OnboardingSlideOverlay'
 
 type Props = {
+  userId: string
   onboardingCompleted: boolean
 }
 
-export default function OnboardingTourTrigger({ onboardingCompleted }: Props) {
+export default function OnboardingTourTrigger({
+  userId,
+  onboardingCompleted,
+}: Props) {
   const planLevel = usePlanLevel()
   const { role, isOwner } = useUserRole()
 
   const tour = useOnboardingTour({
+    userId,
     role,
     isOwner,
     planLevel,

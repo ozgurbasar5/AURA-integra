@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
+import { sendMail, isSmtpConfigured } from '@/lib/mail'
 import { sendSms } from '@/lib/notification-service'
 import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
@@ -59,26 +59,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: smsResult.ok, status: smsResult.status, error: smsResult.error })
     }
 
-    // Env kontrol — SMS-only path needs no SMTP
-    const smtpEmail = process.env.SMTP_EMAIL
-    const smtpPassword = process.env.SMTP_PASSWORD
-
     if (!to) {
       return NextResponse.json({ error: 'Alıcı zorunludur.' }, { status: 400 })
     }
 
-    if (!smtpEmail || !smtpPassword) {
+    if (!isSmtpConfigured()) {
       return NextResponse.json({ error: 'E-posta yapılandırması eksik.' }, { status: 500 })
     }
 
     if (!type) {
       return NextResponse.json({ error: 'type veya message gerekli' }, { status: 400 })
     }
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: smtpEmail, pass: smtpPassword },
-    })
 
     let htmlContent = ''
     const customerName = escapeHtml(data?.customerName || 'Müşteri')
@@ -124,12 +115,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Geçersiz bildirim türü.' }, { status: 400 })
     }
 
-    await transporter.sendMail({
-      from: `"Aura Bilişim Servis" <${smtpEmail}>`,
+    const mailResult = await sendMail({
       to,
       subject: subject || 'Cihaz Durum Bilgilendirmesi',
       html: htmlContent,
+      fromName: 'Aura Bilişim Servis',
     })
+
+    if (!mailResult.ok) {
+      console.error('Mail hatası:', mailResult.error)
+      return NextResponse.json({ success: false, error: mailResult.error ?? 'Mail gönderilemedi' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, message: 'Mail gönderildi' })
   } catch (error) {

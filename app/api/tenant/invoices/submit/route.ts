@@ -75,6 +75,16 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', body.invoice_id)
 
+  try {
+    await admin.from('efatura_queue').insert({
+      tenant_id: auth.tenantId,
+      invoice_id: body.invoice_id,
+      payload: invoice,
+      status: result.provider === 'stub' ? 'pending' : 'submitted',
+      gib_reference: result.gib_reference,
+    })
+  } catch { /* tablo yoksa sessiz */ }
+
   return NextResponse.json({
     ok: true,
     gib_reference: result.gib_reference,

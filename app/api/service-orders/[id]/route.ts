@@ -90,6 +90,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       fault_description?: string
       closed_at?: string | null
       device_images?: string[]
+      used_parts?: unknown[]
+      approval_status?: string
+      delivered_at?: string | null
     }
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -107,6 +110,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
       patch.device_images = body.device_images
     }
+    if (body.used_parts != null && Array.isArray(body.used_parts)) {
+      const { data: existing } = await supabase
+        .from('service_orders')
+        .select('metadata')
+        .eq('id', params.id)
+        .eq('tenant_id', profile.tenant_id)
+        .maybeSingle()
+      const meta = (existing?.metadata as Record<string, unknown>) ?? {}
+      patch.metadata = { ...meta, used_parts: body.used_parts }
+    }
+    if (body.approval_status != null) patch.approval_status = body.approval_status
+    if (body.delivered_at !== undefined) patch.closed_at = body.delivered_at
     if (body.status === 'teslim' || body.status === 'delivered') {
       patch.closed_at = body.closed_at ?? new Date().toISOString()
     }

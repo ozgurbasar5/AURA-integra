@@ -169,6 +169,9 @@ export interface UpdateServiceOrderPatch {
   technician_notes?: string
   technician?: string | null
   images?: string[]
+  used_parts?: unknown[]
+  approval_status?: string
+  delivered_at?: string | null
 }
 
 export async function updateServiceOrderRemote(
@@ -183,6 +186,9 @@ export async function updateServiceOrderRemote(
   if (patch.technician_notes != null) dbPatch.technician_notes = patch.technician_notes
   if (patch.fault_description != null) dbPatch.fault_description = patch.fault_description
   if (patch.images != null) dbPatch.device_images = patch.images
+  if (patch.used_parts != null) dbPatch.used_parts = patch.used_parts
+  if (patch.approval_status != null) dbPatch.approval_status = patch.approval_status
+  if (patch.delivered_at !== undefined) dbPatch.delivered_at = patch.delivered_at
 
   if (patch.technician !== undefined) {
     updateServiceOrder(id, { technician: patch.technician })

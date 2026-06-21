@@ -5,22 +5,40 @@ import Link from 'next/link'
 import { X, ChevronRight, ChevronLeft, Sparkles, Store, MessageSquare, Wallet } from 'lucide-react'
 import { getNotificationSettings } from '@/lib/store'
 import { getBusinessBranding } from '@/lib/business-branding'
+import {
+  patchOnboardingFlags,
+  readLocalSetupWizardDone,
+  writeLocalSetupWizardDone,
+} from '@/lib/onboarding/persistence'
 
-const STORAGE_KEY = 'aura_setup_wizard_done'
 const OPEN_EVENT = 'aura-open-setup-wizard'
 
 type Step = 'welcome' | 'brand' | 'sms' | 'kasa' | 'done'
 
-export function resetSetupWizard() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(STORAGE_KEY)
-    window.dispatchEvent(new Event(OPEN_EVENT))
-  }
+type Props = {
+  userId: string
+  setupWizardCompleted: boolean
 }
 
-export default function SetupWizard() {
+export function resetSetupWizard(userId?: string) {
+  if (typeof window === 'undefined') return
+  if (userId) {
+    localStorage.removeItem(`aura_setup_wizard_done_${userId}`)
+  } else {
+    localStorage.removeItem('aura_setup_wizard_done')
+  }
+  window.dispatchEvent(new Event(OPEN_EVENT))
+}
+
+export default function SetupWizard({ userId, setupWizardCompleted }: Props) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('welcome')
+  const [dismissed, setDismissed] = useState(setupWizardCompleted)
+
+  const alreadyDone =
+    setupWizardCompleted ||
+    dismissed ||
+    (userId ? readLocalSetupWizardDone(userId) : false)
 
   useEffect(() => {
     const onReopen = () => {
@@ -32,22 +50,31 @@ export default function SetupWizard() {
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (localStorage.getItem(STORAGE_KEY) === '1') return
+    if (typeof window === 'undefined' || !userId || alreadyDone) return
     const s = getNotificationSettings()
     const needsSetup = !s.shop_name?.trim() || s.shop_name === 'AURA İntegra'
     if (needsSetup) {
-      const t = setTimeout(() => setOpen(true), 800)
+      const t = setTimeout(() => setOpen(true), 1200)
       return () => clearTimeout(t)
     }
-  }, [])
+    // Marka ayarlı — sihirbazı bir daha gösterme
+    void persistDone()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, alreadyDone])
+
+  const persistDone = useCallback(async () => {
+    if (!userId) return
+    writeLocalSetupWizardDone(userId)
+    setDismissed(true)
+    setOpen(false)
+    await patchOnboardingFlags({ setup_wizard_completed: true })
+  }, [userId])
 
   const close = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, '1')
-    setOpen(false)
-  }, [])
+    void persistDone()
+  }, [persistDone])
 
-  if (!open) return null
+  if (!open || alreadyDone) return null
 
   const brand = getBusinessBranding()
   const steps: Step[] = ['welcome', 'brand', 'sms', 'kasa', 'done']
@@ -70,7 +97,7 @@ export default function SetupWizard() {
             <Sparkles size={22} />
             <h2 className="text-lg font-black">Kurulum Sihirbazı</h2>
           </div>
-          <p className="text-sm text-white/80 mt-1">3 dakikada panelinizi hazırlayın</p>
+          <p className="text-sm text-white/80 mt-1">İlk girişte bir kez — 3 dakikada panelinizi hazırlayın</p>
           <div className="flex gap-1 mt-4">
             {steps.map((s, i) => (
               <div
@@ -86,7 +113,7 @@ export default function SetupWizard() {
             <>
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                 AURA İntegra&apos;ya hoş geldiniz. Bu kısa rehber marka bilgisi, SMS ve kasa ayarlarını
-                yapmanıza yardımcı olur.
+                yapmanıza yardımcı olur — yalnızca ilk girişinizde gösterilir.
               </p>
               <ul className="text-sm space-y-2 text-[var(--text-primary)]">
                 <li className="flex gap-2"><Store size={16} className="text-[var(--accent)] shrink-0" /> Mağaza adı ve logo</li>

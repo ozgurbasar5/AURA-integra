@@ -10,8 +10,9 @@ import {
 import { formatCurrency } from '@/lib/validators'
 import confetti from 'canvas-confetti'
 import { PAYMENT_METHODS } from '@/lib/constants'
+import { completePosSaleViaApi } from '@/lib/pos-bridge'
 import {
-  getStock, getSales, getFinanceSummary, completeSaleViaApi,
+  getStock, getSales, getFinanceSummary,
   getCampaigns,
   onStoreChange, type StockItem, type Sale
 } from '@/lib/store'
@@ -137,7 +138,7 @@ export default function SatisPage() {
     }))
 
     try {
-      await completeSaleViaApi(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
+      await completePosSaleViaApi(saleItems, customerName || 'Walk-in', paymentMethod, vatRate)
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } })
       toast.success(`Satış tamamlandı! ${formatCurrency(total)} — Stok güncellendi, gelir finansa yansıdı ✅`)
       setCart([])

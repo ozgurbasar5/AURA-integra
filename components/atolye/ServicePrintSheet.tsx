@@ -15,6 +15,8 @@ export interface ServicePrintData {
   price?: number
   notes?: string
   createdAt?: string
+  /** Müşteri takip portalı QR değeri */
+  trackingUrl?: string
 }
 
 function fmt(n: number) {
@@ -67,12 +69,12 @@ export default function ServicePrintSheet({
             <p className="text-xs text-slate-500 mt-2">{date}</p>
             <div className="mt-3 inline-block p-2 border border-slate-300 rounded-lg bg-white">
               <QRCodeSVG
-                value={data.imei && data.imei !== '-' ? data.imei : data.jobNo}
+                value={data.trackingUrl || data.jobNo}
                 size={72}
                 level="M"
                 includeMargin={false}
               />
-              <p className="text-[8px] text-slate-500 mt-1 font-mono">Kabul QR</p>
+              <p className="text-[8px] text-slate-500 mt-1 font-mono">Takip QR</p>
             </div>
           </div>
         </header>

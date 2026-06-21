@@ -21,15 +21,11 @@ function delay(ms: number) {
   return new Promise<void>(r => setTimeout(r, ms))
 }
 
-async function markOnboardingCompleted(completed: boolean) {
-  try {
-    await fetch('/api/tenant/onboarding', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ onboarding_completed: completed }),
-    })
-  } catch { /* sessiz */ }
-}
+import {
+  patchOnboardingFlags,
+  readLocalOnboardingDone,
+  writeLocalOnboardingDone,
+} from './persistence'
 
 async function waitForTourBlockersClear() {
   const end = Date.now() + 12000
@@ -40,6 +36,7 @@ async function waitForTourBlockersClear() {
 }
 
 type Options = {
+  userId: string
   role: string
   isOwner: boolean
   planLevel: number
@@ -48,6 +45,7 @@ type Options = {
 }
 
 export function useOnboardingTour({
+  userId,
   role,
   isOwner,
   planLevel,
@@ -99,6 +97,11 @@ export function useOnboardingTour({
     setPlaying(true)
   }, [])
 
+  const tourDoneInitially =
+    onboardingCompleted || (userId ? readLocalOnboardingDone(userId) : false)
+
+  const [tourDone, setTourDone] = useState(tourDoneInitially)
+
   const finishTour = useCallback(async () => {
     if (completingRef.current) return
     completingRef.current = true
@@ -106,9 +109,11 @@ export function useOnboardingTour({
     setPlaying(false)
     setSpotlight(null)
     expectedRouteRef.current = null
-    await markOnboardingCompleted(true)
+    setTourDone(true)
+    if (userId) writeLocalOnboardingDone(userId)
+    await patchOnboardingFlags({ onboarding_completed: true })
     completingRef.current = false
-  }, [])
+  }, [userId])
 
   const revealStep = useCallback(
     async (index: number) => {
@@ -204,11 +209,11 @@ export function useOnboardingTour({
   }, [active, playing, currentStep])
 
   useEffect(() => {
-    if (!autoStart || onboardingCompleted || autoStartedRef.current) return
+    if (!autoStart || tourDone || autoStartedRef.current) return
     autoStartedRef.current = true
-    const t = window.setTimeout(() => void startTour(), 2800)
+    const t = window.setTimeout(() => void startTour(), 4500)
     return () => clearTimeout(t)
-  }, [autoStart, onboardingCompleted, startTour])
+  }, [autoStart, tourDone, startTour])
 
   useEffect(() => {
     if (!pendingRestartRef.current) return

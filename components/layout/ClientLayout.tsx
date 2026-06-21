@@ -28,7 +28,14 @@ interface Props {
     subscription_end?: string
     status?: string
   }
-  user: { full_name: string; email: string; role: string; onboarding_completed: boolean }
+  user: {
+    id: string
+    full_name: string
+    email: string
+    role: string
+    onboarding_completed: boolean
+    setup_wizard_completed: boolean
+  }
   children: React.ReactNode
 }
 
@@ -59,8 +66,11 @@ export default function ClientLayout({ tenant, user, children }: Props) {
       <RoleProvider role={user.role}>
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
       {showAi && <AuraAI />}
-      <SetupWizard />
-      <OnboardingTourTrigger onboardingCompleted={user.onboarding_completed} />
+      <SetupWizard userId={user.id} setupWizardCompleted={user.setup_wizard_completed} />
+      <OnboardingTourTrigger
+        userId={user.id}
+        onboardingCompleted={user.onboarding_completed}
+      />
       <div className="flex h-screen bg-[var(--bg-base)] overflow-hidden">
         <SidebarErrorBoundary>
           <TenantSidebar tenant={tenant} user={user} onOpenSearch={openSearch} />

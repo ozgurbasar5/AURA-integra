@@ -8,20 +8,33 @@ import {
   MAX_DEVICE_PHOTO_BYTES,
   readDevicePhotoFile,
 } from '@/lib/device-images'
+import {
+  uploadDevicePhoto,
+  deleteDevicePhoto,
+  isStorageUrl,
+} from '@/lib/device-photo-storage'
 
 interface DevicePhotoGalleryProps {
   images: string[]
   onChange: (images: string[]) => void
   disabled?: boolean
+  /** Storage upload için servis kaydı id — verilirse URL olarak yüklenir */
+  orderId?: string
 }
 
-export default function DevicePhotoGallery({ images, onChange, disabled }: DevicePhotoGalleryProps) {
+export default function DevicePhotoGallery({
+  images,
+  onChange,
+  disabled,
+  orderId,
+}: DevicePhotoGalleryProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
 
   const atLimit = images.length >= MAX_DEVICE_PHOTOS
+  const useStorage = Boolean(orderId)
 
   async function addFiles(fileList: FileList | File[]) {
     if (disabled || uploading) return
@@ -41,8 +54,13 @@ export default function DevicePhotoGallery({ images, onChange, disabled }: Devic
     const next = [...images]
     try {
       for (const file of files.slice(0, remaining)) {
-        const dataUrl = await readDevicePhotoFile(file)
-        next.push(dataUrl)
+        if (useStorage && orderId) {
+          const url = await uploadDevicePhoto(orderId, file)
+          next.push(url)
+        } else {
+          const dataUrl = await readDevicePhotoFile(file)
+          next.push(dataUrl)
+        }
       }
       onChange(next)
       if (files.length > remaining) {
@@ -58,8 +76,20 @@ export default function DevicePhotoGallery({ images, onChange, disabled }: Devic
     }
   }
 
-  function removeAt(index: number) {
+  async function removeAt(index: number) {
     if (disabled) return
+    const url = images[index]
+    if (useStorage && orderId && isStorageUrl(url)) {
+      try {
+        const remaining = await deleteDevicePhoto(orderId, url)
+        onChange(remaining)
+        toast.success('Fotoğraf kaldırıldı')
+        return
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Silme başarısız')
+        return
+      }
+    }
     onChange(images.filter((_, i) => i !== index))
     toast.success('Fotoğraf kaldırıldı')
   }
@@ -74,6 +104,7 @@ export default function DevicePhotoGallery({ images, onChange, disabled }: Devic
           </p>
           <span className="text-[10px] text-[var(--text-muted)]">
             {images.length}/{MAX_DEVICE_PHOTOS} · max {Math.round(MAX_DEVICE_PHOTO_BYTES / 1024)} KB
+            {useStorage && ' · bulut'}
           </span>
         </div>
 
@@ -97,7 +128,7 @@ export default function DevicePhotoGallery({ images, onChange, disabled }: Devic
                   </button>
                   <button
                     type="button"
-                    onClick={() => removeAt(index)}
+                    onClick={() => void removeAt(index)}
                     className="p-1.5 rounded-lg bg-red-500/90 text-white hover:bg-red-600"
                     title="Sil"
                   >
@@ -146,6 +177,7 @@ export default function DevicePhotoGallery({ images, onChange, disabled }: Devic
               ref={inputRef}
               type="file"
               accept="image/png,image/jpeg,image/jpg,image/webp"
+              capture="environment"
               multiple
               className="hidden"
               disabled={uploading || atLimit}

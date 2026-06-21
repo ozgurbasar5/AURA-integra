@@ -13,6 +13,7 @@ const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
 
 const AdminChurnPanel = dynamic(() => import('./AdminChurnPanel'), { ssr: false })
 const AdminOpsAlerts = dynamic(() => import('@/components/admin/AdminOpsAlerts'), { ssr: false })
+const ModuleMaturityPanel = dynamic(() => import('@/components/admin/ModuleMaturityPanel'), { ssr: false })
 
 interface TenantRow {
   id: string
@@ -86,6 +87,11 @@ export default async function AdminDashboardPage() {
       </div>
 
       <AdminOpsAlerts />
+
+      <div className="card p-5">
+        <h2 className="text-white font-bold text-sm mb-3">Modül Olgunluğu</h2>
+        <ModuleMaturityPanel />
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {METRICS.map(m => {

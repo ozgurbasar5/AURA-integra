@@ -827,6 +827,24 @@ export function hydrateStoreFromRemote(data: Partial<StoreData>): void {
     if (preserveIfEmpty.includes(key) && typeof val === 'object' && val !== null && !Array.isArray(val) && Object.keys(val as object).length === 0) {
       continue
     }
+    if (key === 'serviceOrders' && Array.isArray(val) && Array.isArray(store.serviceOrders)) {
+      const remote = val as StoreServiceOrder[]
+      const byId = new Map(store.serviceOrders.map(o => [o.id, o]))
+      for (const r of remote) {
+        const local = byId.get(r.id)
+        if (!local) {
+          byId.set(r.id, r)
+          continue
+        }
+        const localTs = new Date(local.updated_at ?? local.created_at).getTime()
+        const remoteTs = new Date(r.updated_at ?? r.created_at).getTime()
+        byId.set(r.id, remoteTs >= localTs ? r : local)
+      }
+      store.serviceOrders = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      continue
+    }
     // eslint-disable-next-line -- legacy store dynamic key assignment
     ;(store as any)[key] = val
   }

@@ -22,7 +22,7 @@ export function getEfaturaProviderLabel(): string {
   const p = (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
   if (p === 'nes' && process.env.NES_EFATURA_API_KEY) return 'NES (aktif)'
   if (p === 'logo' && process.env.LOGO_EFATURA_URL) return 'Logo (aktif)'
-  return 'Stub (test modu)'
+  return 'Test modu — GIB\'e gönderilmez'
 }
 
 function providerName(): string {
@@ -50,7 +50,7 @@ export async function submitInvoiceToGib(
   return {
     ok: true,
     gib_reference: ref,
-    message: 'Stub mod: GIB kuyruğuna alındı (EFATURA_PROVIDER=nes|logo ile gerçek entegratör)',
+    message: 'Test modu: GIB\'e gönderilmedi — kuyruğa alındı (gelir artınca NES/Logo bağlanır)',
     provider: 'stub',
   }
 }
