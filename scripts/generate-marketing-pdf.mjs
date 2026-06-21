@@ -21,6 +21,7 @@ console.log('→ PDF oluşturuluyor…')
 const browser = await chromium.launch()
 const page = await browser.newPage()
 await page.goto(pathToFileURL(htmlPath).href, { waitUntil: 'networkidle' })
+await page.waitForTimeout(1500)
 await page.pdf({
   path: pdfPath,
   format: 'A4',

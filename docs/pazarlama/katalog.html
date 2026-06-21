@@ -1,775 +1,671 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AURA İntegra — Saha Satış Kataloğu 2026</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --brand: #0e8fad;
-      --brand-dark: #0e5568;
-      --brand-deep: #0a3d4d;
-      --accent: #2563eb;
-      --gold: #f59e0b;
-      --green: #10b981;
-      --text: #0f172a;
-      --muted: #64748b;
-      --paper: #ffffff;
-      --soft: #f1f5f9;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-      color: var(--text);
-      background: #cbd5e1;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    .page {
-      width: 210mm;
-      min-height: 297mm;
-      margin: 12px auto;
-      background: var(--paper);
-      position: relative;
-      overflow: hidden;
-      page-break-after: always;
-      box-shadow: 0 8px 40px rgba(0,0,0,.12);
-    }
-    @media print {
-      body { background: white; }
-      .page { margin: 0; box-shadow: none; }
-    }
-    @page { size: A4; margin: 0; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AURA İntegra — Saha Satış Kataloğu 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root{--brand:#0e8fad;--brand-dark:#0e5568;--brand-deep:#0a3d4d;--accent:#2563eb;--gold:#f59e0b;--green:#10b981;--text:#0f172a;--muted:#64748b;--paper:#fff;--soft:#f1f5f9;--sidebar:#0e5568}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter','Segoe UI',system-ui,sans-serif;color:var(--text);background:#94a3b8;font-size:10px;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;height:297mm;margin:10px auto;background:var(--paper);position:relative;overflow:hidden;page-break-after:always;box-shadow:0 6px 32px rgba(0,0,0,.15);display:flex;flex-direction:column}
+.page:last-child{page-break-after:auto}
+@media print{body{background:#fff}.page{margin:0;box-shadow:none}}
+@page{size:A4;margin:0}
 
-    /* ── Cover ── */
-    .cover {
-      background: linear-gradient(145deg, #0a3d4d 0%, #0e5568 40%, #0e8fad 100%);
-      color: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 18mm 16mm;
-    }
-    .cover-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.2);
-      padding: 8px 16px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .cover h1 {
-      font-size: 42px;
-      font-weight: 900;
-      line-height: 1.05;
-      margin-top: 24mm;
-    }
-    .cover h1 span { color: #7dd3fc; }
-    .cover-sub {
-      font-size: 18px;
-      color: rgba(255,255,255,.85);
-      max-width: 140mm;
-      line-height: 1.5;
-      margin-top: 8mm;
-    }
-    .cover-stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 4mm;
-      margin-top: 14mm;
-    }
-    .cover-stat {
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 12px;
-      padding: 5mm;
-      text-align: center;
-    }
-    .cover-stat strong { display: block; font-size: 22px; font-weight: 900; }
-    .cover-stat span { font-size: 10px; opacity: .8; }
-    .cover-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      border-top: 1px solid rgba(255,255,255,.2);
-      padding-top: 6mm;
-      font-size: 11px;
-      opacity: .9;
-    }
+/* layout helpers */
+.px{padding-left:14mm;padding-right:14mm}
+.py{padding-top:10mm;padding-bottom:10mm}
+.flex-col{display:flex;flex-direction:column}
+.flex-1{flex:1;min-height:0}
+.gap-2{gap:2mm}.gap-3{gap:3mm}.gap-4{gap:4mm}
+.row{display:flex;gap:3mm}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:3mm}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:2.5mm}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm}
 
-    /* ── Inner pages ── */
-    .inner { padding: 14mm 16mm; }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 2px solid var(--soft);
-      padding-bottom: 4mm;
-      margin-bottom: 8mm;
-    }
-    .page-header .logo {
-      font-weight: 900;
-      font-size: 14px;
-      color: var(--brand-dark);
-    }
-    .page-header .logo span { color: var(--brand); }
-    .page-header .num {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--muted);
-    }
-    h2 {
-      font-size: 26px;
-      font-weight: 900;
-      color: var(--brand-dark);
-      margin-bottom: 4mm;
-      line-height: 1.2;
-    }
-    h3 {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--brand);
-      margin: 6mm 0 3mm;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-    p, li { font-size: 11.5px; line-height: 1.65; color: #334155; }
-    .lead { font-size: 13px; color: var(--muted); margin-bottom: 6mm; max-width: 165mm; }
+/* typography */
+h1{font-size:28px;font-weight:900;line-height:1.1}
+h2{font-size:16px;font-weight:800;color:var(--brand-dark);margin-bottom:2mm}
+h3{font-size:11px;font-weight:700;color:var(--brand-dark)}
+.sub{font-size:9px;color:var(--muted);line-height:1.4}
+.label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-    .card {
-      background: var(--soft);
-      border-radius: 10px;
-      padding: 5mm;
-      border: 1px solid #e2e8f0;
-    }
-    .card-accent {
-      background: linear-gradient(135deg, #ecfeff, #f0f9ff);
-      border-color: #a5f3fc;
-    }
-    .card h4 { font-size: 12px; font-weight: 800; margin-bottom: 2mm; color: var(--brand-dark); }
-    .card p { font-size: 10.5px; }
-    .icon-circle {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-      margin-bottom: 3mm;
-    }
+/* page header */
+.pg-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--brand);padding-bottom:2.5mm;margin-bottom:4mm;flex-shrink:0}
+.pg-head .brand-mark{display:flex;align-items:center;gap:2mm;font-size:9px;font-weight:800;color:var(--brand-dark)}
+.pg-head .pg-num{font-size:8px;color:var(--muted);font-weight:600}
+.pg-foot{margin-top:auto;padding-top:3mm;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7.5px;color:var(--muted);flex-shrink:0}
 
-    .flow {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--brand-deep);
-      border-radius: 14px;
-      padding: 6mm 4mm;
-      margin: 6mm 0;
-    }
-    .flow-step {
-      text-align: center;
-      color: white;
-      flex: 1;
-    }
-    .flow-step .dot {
-      width: 44px; height: 44px;
-      background: var(--brand);
-      border-radius: 50%;
-      margin: 0 auto 2mm;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      border: 2px solid rgba(255,255,255,.3);
-    }
-    .flow-step strong { display: block; font-size: 10px; }
-    .flow-arrow { color: rgba(255,255,255,.4); font-size: 18px; padding: 0 2mm; }
+/* badges & tags */
+.badge{display:inline-flex;align-items:center;padding:1.5px 6px;border-radius:999px;font-size:7.5px;font-weight:700;background:var(--brand);color:#fff}
+.badge-gold{background:var(--gold)}.badge-green{background:var(--green)}.badge-dark{background:var(--brand-dark)}
+.tag{display:inline-block;padding:1px 5px;border-radius:4px;font-size:7px;font-weight:600;background:#e0f2fe;color:#0369a1;margin:1px}
+.tag-gray{background:#f1f5f9;color:#475569}
 
-    .checklist { list-style: none; margin: 4mm 0; }
-    .checklist li {
-      padding: 2mm 0 2mm 6mm;
-      position: relative;
-      font-size: 11px;
-    }
-    .checklist li::before {
-      content: '✓';
-      position: absolute;
-      left: 0;
-      color: var(--green);
-      font-weight: 900;
-    }
+/* cards */
+.card{border:1px solid #e2e8f0;border-radius:6px;padding:2.5mm;background:#fff}
+.card-accent{border-left:3px solid var(--brand)}
+.card-soft{background:var(--soft);border-color:#e2e8f0}
+.mod-card{padding:2mm;border-radius:5px;border:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;gap:1mm}
+.mod-card h4{font-size:9px;font-weight:700;color:var(--text)}
+.mod-card p{font-size:8px;color:var(--muted);line-height:1.35;flex:1}
+.stat-pill{background:linear-gradient(135deg,var(--brand-dark),var(--brand));color:#fff;border-radius:5px;padding:2mm;text-align:center}
+.stat-pill strong{display:block;font-size:14px;font-weight:900}
+.stat-pill span{font-size:7px;opacity:.85}
 
-    .pricing {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 4mm;
-      margin-top: 5mm;
-    }
-    .plan {
-      border: 2px solid #e2e8f0;
-      border-radius: 14px;
-      padding: 5mm;
-      position: relative;
-    }
-    .plan.featured {
-      border-color: var(--brand);
-      background: linear-gradient(180deg, #f0fdfa, white);
-      transform: scale(1.02);
-    }
-    .plan-badge {
-      position: absolute;
-      top: -3mm; right: 4mm;
-      background: var(--brand);
-      color: white;
-      font-size: 9px;
-      font-weight: 800;
-      padding: 2px 10px;
-      border-radius: 999px;
-    }
-    .plan-name { font-size: 13px; font-weight: 900; color: var(--brand-dark); }
-    .plan-price { font-size: 28px; font-weight: 900; color: var(--brand); margin: 2mm 0; }
-    .plan-price small { font-size: 12px; font-weight: 600; color: var(--muted); }
-    .plan ul { list-style: none; margin-top: 3mm; }
-    .plan li { font-size: 9.5px; padding: 1.5mm 0; border-bottom: 1px solid #f1f5f9; }
+/* script boxes */
+.script-box{background:linear-gradient(135deg,#fef3c7,#fff7ed);border:1px solid #fcd34d;border-left:4px solid var(--gold);border-radius:6px;padding:2.5mm;margin-bottom:2mm}
+.script-box strong{display:block;font-size:9px;color:#92400e;margin-bottom:1mm}
+.script-box p{font-size:8.5px;color:#78350f;line-height:1.45;font-style:italic}
+.talk-box{background:#ecfdf5;border:1px solid #6ee7b7;border-left:4px solid var(--green);border-radius:6px;padding:2.5mm}
+.talk-box strong{display:block;font-size:9px;color:#065f46;margin-bottom:1mm}
+.talk-box p{font-size:8.5px;color:#047857;line-height:1.45}
 
-    .screenshot {
-      background: linear-gradient(180deg, #1e293b, #0f172a);
-      border-radius: 12px;
-      padding: 4mm;
-      color: white;
-      min-height: 55mm;
-      position: relative;
-      overflow: hidden;
-    }
-    .screenshot-bar {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 3mm;
-    }
-    .screenshot-bar span {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #475569;
-    }
-    .screenshot-bar span:nth-child(1) { background: #ef4444; }
-    .screenshot-bar span:nth-child(2) { background: #f59e0b; }
-    .screenshot-bar span:nth-child(3) { background: #22c55e; }
-    .mock-ui {
-      background: rgba(255,255,255,.06);
-      border-radius: 8px;
-      padding: 3mm;
-      font-size: 9px;
-    }
-    .mock-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 2mm;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
-    .mock-badge {
-      background: #0e8fad;
-      padding: 1px 6px;
-      border-radius: 4px;
-      font-size: 8px;
-    }
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:8px}
+th,td{padding:1.5mm 2mm;border:1px solid #e2e8f0;text-align:left}
+th{background:var(--brand-dark);color:#fff;font-weight:700;font-size:7.5px}
+td.yes{text-align:center;color:var(--green);font-weight:800}
+td.no{text-align:center;color:#cbd5e1}
+tr:nth-child(even) td{background:#f8fafc}
 
-    .script-box {
-      background: #fffbeb;
-      border-left: 4px solid var(--gold);
-      padding: 5mm;
-      border-radius: 0 10px 10px 0;
-      margin: 4mm 0;
-    }
-    .script-box strong { color: #92400e; font-size: 11px; }
-    .script-box p { font-size: 11px; color: #78350f; margin-top: 2mm; font-style: italic; }
+/* pricing */
+.plan{border-radius:8px;padding:4mm;border:2px solid #e2e8f0;display:flex;flex-direction:column;gap:2mm;flex:1}
+.plan.featured{border-color:var(--brand);background:linear-gradient(180deg,#f0fdfa,#fff);box-shadow:0 4px 16px rgba(14,143,173,.15)}
+.plan-name{font-size:11px;font-weight:800;color:var(--brand-dark)}
+.plan-price{font-size:22px;font-weight:900;color:var(--brand)}
+.plan-price small{font-size:10px;font-weight:600;color:var(--muted)}
+.plan ul{list-style:none;font-size:8px;color:var(--muted)}
+.plan ul li{padding:1mm 0;border-bottom:1px solid #f1f5f9}
+.plan ul li::before{content:"✓ ";color:var(--green);font-weight:800}
 
-    .cta-back {
-      background: linear-gradient(160deg, var(--brand-dark), var(--brand));
-      color: white;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 20mm;
-    }
-    .cta-back h2 { color: white; font-size: 32px; margin-bottom: 6mm; }
-    .cta-back p { color: rgba(255,255,255,.9); font-size: 14px; max-width: 130mm; }
-    .cta-url {
-      display: inline-block;
-      margin-top: 10mm;
-      background: white;
-      color: var(--brand-dark);
-      font-weight: 900;
-      font-size: 16px;
-      padding: 4mm 10mm;
-      border-radius: 999px;
-    }
-    .qr-placeholder {
-      width: 32mm; height: 32mm;
-      background: white;
-      border-radius: 8px;
-      margin-top: 8mm;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      color: var(--brand-dark);
-      font-weight: 700;
-    }
+/* SVG mockup frame */
+.mock{border-radius:6px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,.08);background:#fff;flex-shrink:0}
+.mock svg{display:block;width:100%;height:auto}
 
-    .tag {
-      display: inline-block;
-      background: #e0f2fe;
-      color: #0369a1;
-      font-size: 9px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 999px;
-      margin: 1px;
-    }
-    .compare-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 4mm; }
-    .compare-table th, .compare-table td { border: 1px solid #e2e8f0; padding: 2.5mm; text-align: left; }
-    .compare-table th { background: var(--soft); font-weight: 800; }
-  </style>
+/* cover */
+.cover{background:linear-gradient(145deg,#0a3d4d 0%,#0e5568 38%,#0e8fad 100%);color:#fff;padding:16mm 14mm;display:flex;flex-direction:column;justify-content:space-between}
+.cover-top{display:flex;justify-content:space-between;align-items:flex-start}
+.cover-logo{display:flex;align-items:center;gap:4mm}
+.cover-logo svg{width:18mm;height:18mm}
+.cover-logo-text{font-size:22px;font-weight:900;letter-spacing:-.02em}
+.cover-logo-text span{display:block;font-size:9px;font-weight:600;opacity:.75;letter-spacing:.12em;text-transform:uppercase;margin-top:1mm}
+.cover-badge{display:inline-flex;padding:2mm 4mm;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.cover-mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:6mm 0}
+.cover h1{font-size:36px;font-weight:900;line-height:1.05}
+.cover h1 em{font-style:normal;color:#7dd3fc}
+.cover-sub{font-size:13px;opacity:.88;max-width:130mm;line-height:1.5;margin-top:4mm}
+.cover-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin-top:6mm}
+.cover-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:3mm;text-align:center}
+.cover-stat strong{display:block;font-size:18px;font-weight:900}
+.cover-stat span{font-size:7.5px;opacity:.8}
+.cover-previews{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm;margin-top:5mm}
+.cover-preview{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:2mm;overflow:hidden}
+.cover-preview .lbl{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-bottom:1.5mm;text-align:center}
+.cover-footer{display:flex;justify-content:space-between;align-items:flex-end;font-size:8px;opacity:.75}
+
+/* back cover */
+.back-cover{background:linear-gradient(160deg,#0a3d4d,#0e5568 50%,#0e8fad);color:#fff;padding:16mm 14mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center}
+.back-cover h2{font-size:26px;font-weight:900;color:#fff;margin-bottom:3mm}
+.back-cta{background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);border-radius:12px;padding:6mm;margin:4mm 0}
+.back-cta .url{font-size:18px;font-weight:900;color:#7dd3fc;margin:2mm 0}
+.back-cta .email{font-size:11px;opacity:.85}
+.qr-box{width:28mm;height:28mm;background:#fff;border-radius:8px;margin:0 auto;display:flex;align-items:center;justify-content:center}
+.flow-bar{display:flex;align-items:center;gap:1mm;margin:3mm 0}
+.flow-node{flex:1;text-align:center;padding:2mm;border-radius:6px;background:var(--soft);border:1px solid #e2e8f0;font-size:7.5px;font-weight:700;color:var(--brand-dark)}
+.flow-arrow{color:var(--brand);font-size:10px;font-weight:900}
+.highlight-bar{background:linear-gradient(90deg,var(--brand-dark),var(--brand));color:#fff;padding:2mm 3mm;border-radius:5px;font-size:8px;font-weight:600;margin-bottom:3mm}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:4mm;flex:1;min-height:0}
+.split-6040{display:grid;grid-template-columns:3fr 2fr;gap:4mm;flex:1;min-height:0}
+.icon-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:2px;vertical-align:middle}
+</style>
 </head>
 <body>
 
-<!-- SAYFA 1 — KAPAK -->
+<!-- PAGE 1: COVER -->
 <section class="page cover">
-  <div class="cover-badge">AURA Bilişim · Teknoloji Üssü</div>
-  <div>
-    <h1>AURA <span>İntegra</span></h1>
-    <p class="cover-sub">Teknik servis, stok, satış ve müşteri portalını tek bulut panelde birleştiren bayi entegrasyon platformu. Kurulum yok — tarayıcıdan aç, çalışmaya başla.</p>
+  <div class="cover-top">
+    <div class="cover-logo">
+      <svg viewBox="0 0 100 100" fill="none"><defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs><path d="M50 12 L22 40 L22 52 L12 52 L12 35 L45 2 Z" fill="#f8fafc" stroke="#06b6d4" stroke-width="0.8"/><path d="M50 88 L78 60 L78 48 L88 48 L88 65 L55 98 Z" fill="#f8fafc" stroke="#06b6d4" stroke-width="0.8"/><circle cx="50" cy="50" r="22" stroke="#06b6d4" stroke-width="0.75" stroke-dasharray="3 2" opacity="0.5"/><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="url(#lg)"/><circle cx="50" cy="50" r="2.5" fill="#fff"/></svg>
+      <div class="cover-logo-text">AURA İntegra<span>AURA Bilişim · 2026</span></div>
+    </div>
+    <div class="cover-badge">Saha Satış Kataloğu</div>
+  </div>
+  <div class="cover-mid">
+    <h1>Teknik Servis &amp; Perakende<br/><em>Tek Defter Platformu</em></h1>
+    <p class="cover-sub">Kabulden teslimata, stoktan kasaya, müşteri portalından bayi yönetimine — telefon/tablet servis mağazaları için bulut tabanlı, çok kiracılı SaaS çözümü.</p>
     <div class="cover-stats">
-      <div class="cover-stat"><strong>40+</strong><span>Modül &amp; özellik</span></div>
-      <div class="cover-stat"><strong>&lt;2 dk</strong><span>Ort. cihaz kabul</span></div>
-      <div class="cover-stat"><strong>7/24</strong><span>Müşteri portalı</span></div>
+      <div class="cover-stat"><strong>30+</strong><span>Modül &amp; Özellik</span></div>
+      <div class="cover-stat"><strong>&lt;2 dk</strong><span>Ort. Kabul Süresi</span></div>
+      <div class="cover-stat"><strong>7/24</strong><span>Müşteri Portalı</span></div>
+      <div class="cover-stat"><strong>3</strong><span>Kümülatif Paket</span></div>
+    </div>
+    <div class="cover-previews">
+      <div class="cover-preview"><div class="lbl">Dashboard</div><svg viewBox="0 0 180 100"><rect width="180" height="100" fill="#f8fafc"/><rect width="36" height="100" fill="#0e5568"/><rect x="42" y="6" width="50" height="22" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="96" y="6" width="50" height="22" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="150" y="6" width="24" height="22" rx="3" fill="#0e8fad" opacity=".3"/><rect x="42" y="32" width="132" height="62" rx="3" fill="#fff" stroke="#e2e8f0"/><polyline points="50,80 70,65 90,70 110,50 130,55 150,40 165,45" fill="none" stroke="#0e8fad" stroke-width="2"/><rect x="50" y="38" width="30" height="4" rx="1" fill="#cbd5e1"/><rect x="50" y="46" width="50" height="3" rx="1" fill="#e2e8f0"/></svg></div>
+      <div class="cover-preview"><div class="lbl">Atölye Kanban</div><svg viewBox="0 0 180 100"><rect width="180" height="100" fill="#f8fafc"/><rect width="36" height="100" fill="#0e5568"/><text x="48" y="14" font-size="6" fill="#64748b" font-weight="700">BEKLEYEN</text><text x="88" y="14" font-size="6" fill="#64748b" font-weight="700">İŞLEMDE</text><text x="128" y="14" font-size="6" fill="#64748b" font-weight="700">HAZIR</text><rect x="44" y="18" width="38" height="28" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="84" y="18" width="38" height="28" rx="3" fill="#fff" stroke="#0e8fad" stroke-width="1.5"/><rect x="124" y="18" width="38" height="28" rx="3" fill="#fff" stroke="#10b981"/><rect x="48" y="22" width="20" height="3" rx="1" fill="#cbd5e1"/><rect x="48" y="28" width="14" height="2" rx="1" fill="#e2e8f0"/><rect x="88" y="22" width="20" height="3" rx="1" fill="#0e8fad" opacity=".5"/><rect x="44" y="50" width="38" height="28" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="84" y="50" width="38" height="28" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="124" y="50" width="38" height="28" rx="3" fill="#fff" stroke="#e2e8f0"/></svg></div>
+      <div class="cover-preview"><div class="lbl">Müşteri Portalı</div><svg viewBox="0 0 180 100"><rect width="180" height="100" fill="#0e5568"/><rect x="30" y="8" width="120" height="84" rx="6" fill="#fff"/><rect x="38" y="16" width="60" height="6" rx="2" fill="#0e8fad" opacity=".4"/><rect x="38" y="28" width="104" height="4" rx="1" fill="#e2e8f0"/><rect x="38" y="36" width="80" height="3" rx="1" fill="#f1f5f9"/><circle cx="48" cy="52" r="4" fill="#10b981"/><rect x="56" y="49" width="50" height="3" rx="1" fill="#cbd5e1"/><circle cx="48" cy="64" r="4" fill="#0e8fad"/><rect x="56" y="61" width="40" height="3" rx="1" fill="#cbd5e1"/><circle cx="48" cy="76" r="4" fill="#f59e0b"/><rect x="56" y="73" width="55" height="3" rx="1" fill="#cbd5e1"/><rect x="38" y="84" width="30" height="6" rx="3" fill="#0e8fad"/></svg></div>
     </div>
   </div>
   <div class="cover-footer">
-    <div>
-      <strong>Saha Satış Kataloğu</strong><br />
-      Bayi ziyareti · Demo · Paket sunumu · 2026
-    </div>
-    <div style="text-align:right">
-      integra.aurabilisim.net<br />
-      destek@aurabilisim.com
-    </div>
+    <span>integra.aurabilisim.net</span>
+    <span>destek@aurabilisim.com</span>
+    <span>© 2026 AURA Bilişim</span>
   </div>
 </section>
 
-<!-- SAYFA 2 — VİZYON -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">02</div></div>
-  <h2>Neden AURA İntegra?</h2>
-  <p class="lead">Telefoncu, bilgisayarcı ve teknik servis bayileri hâlâ Excel, WhatsApp grupları ve kağıt fişlerle çalışıyor. AURA İntegra, sahadan doğan ihtiyaçlarla tasarlandı — AURA Bilişim'in kendi operasyon deneyiminin ürünleşmiş hali.</p>
-
-  <div class="grid-2" style="margin-top:6mm">
-    <div class="card card-accent">
-      <div class="icon-circle" style="background:#dbeafe">📒</div>
-      <h4>Tek Defter, Tek Gerçek</h4>
-      <p>Kabul, atölye, stok, POS ve kasa aynı veritabanında. Çift kayıt, kayıp iş emri ve stok farkı tarih olur.</p>
-    </div>
-    <div class="card card-accent">
-      <div class="icon-circle" style="background:#d1fae5">☁️</div>
-      <h4>Bulut — Kurulum Yok</h4>
-      <p>Web tabanlı SaaS. Sunucu, yedekleme ve güncelleme AURA tarafında. Bayi sadece tarayıcı açar.</p>
-    </div>
-    <div class="card card-accent">
-      <div class="icon-circle" style="background:#fef3c7">📱</div>
-      <h4>Müşteri Self-Servis</h4>
-      <p>Her bayinin kendi portal linki. Müşteri cihaz durumunu canlı görür; SMS ve WhatsApp ile bilgilendirilir.</p>
-    </div>
-    <div class="card card-accent">
-      <div class="icon-circle" style="background:#ede9fe">🏢</div>
-      <h4>Çok Kiracılı Mimari</h4>
-      <p>Her bayi izole tenant. Merkez admin panelinden tüm ağ tek ekrandan yönetilir — franchise modeline hazır.</p>
-    </div>
-  </div>
-
-  <h3>Kimler İçin?</h3>
-  <ul class="checklist">
-    <li>Mobil telefon / tablet teknik servisleri</li>
-    <li>Bilgisayar ve elektronik tamir atölyeleri</li>
-    <li>Yedek parça satan telefoncu / aksesuar bayileri</li>
-    <li>Çok şubeli servis zincirleri ve franchise ağları</li>
-    <li>Stok + servis + vitrin satışını bir arada yapan mağazalar</li>
-  </ul>
-</section>
-
-<!-- SAYFA 3 — GÜNLÜK AKIŞ -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">03</div></div>
-  <h2>Günlük Operasyon Akışı</h2>
-  <p class="lead">Müşteri kapıdan girer → cihaz teslim alınır → atölyede tamir edilir → stoktan parça düşülür → müşteri portal/SMS ile bilgilendirilir → teslim ve tahsilat. Hepsi tek panelde.</p>
-
-  <div class="flow">
-    <div class="flow-step"><div class="dot">📋</div><strong>Kabul</strong></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="dot">🔧</div><strong>Atölye</strong></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="dot">📦</div><strong>Stok</strong></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="dot">💳</div><strong>Satış</strong></div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step"><div class="dot">🌐</div><strong>Portal</strong></div>
-  </div>
-
-  <div class="script-box">
-    <strong>Saha cümlesi:</strong>
-    <p>«Müşteriniz cihazı bıraktığında 2 dakikada kabul fişi, QR etiket ve WhatsApp mesajı hazır. Müşteri evine gidip linkten takip eder — siz aramadan «oldu mu?» diye sorulmaz.»</p>
-  </div>
-
-  <h3>Panelde Nereden Başlanır?</h3>
-  <table class="compare-table">
-    <tr><th>Adım</th><th>Menü</th><th>Süre</th></tr>
-    <tr><td>1. Cihaz kabul</td><td>Dashboard → Hızlı Kabul</td><td>~2 dk</td></tr>
-    <tr><td>2. Atölye takip</td><td>Atölye → Kanban pano</td><td>Sürekli</td></tr>
-    <tr><td>3. Parça kullanım</td><td>İş emri → Parça ekle</td><td>Otomatik stok düşüm</td></tr>
-    <tr><td>4. Müşteri bilgi</td><td>Portal / SMS / WhatsApp</td><td>1 tık</td></tr>
-    <tr><td>5. Teslim &amp; tahsilat</td><td>POS veya kasa vardiyası</td><td>Anlık</td></tr>
-  </table>
-</section>
-
-<!-- SAYFA 4 — HIZLI KABUL -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">04</div></div>
-  <h2>Hızlı Kabul Modülü</h2>
-  <p class="lead">Servisin giriş kapısı. Müşteri bilgisi, cihaz detayı, arıza notu, fotoğraf, KVKK onayı ve servis numarası tek formda.</p>
-
-  <div class="grid-2">
-    <div>
-      <ul class="checklist">
-        <li>Otomatik iş emri numarası (job no)</li>
-        <li>8 adede kadar cihaz fotoğrafı (bulut depolama)</li>
-        <li>QR servis etiketi yazdırma</li>
-        <li>WhatsApp hazır mesaj + portal linki</li>
-        <li>Servis fişi yazdırma (A4 / termal)</li>
-        <li>Müşteri CRM'e otomatik kayıt</li>
-      </ul>
-      <div style="margin-top:5mm">
-        <span class="tag">KVKK</span>
-        <span class="tag">QR</span>
-        <span class="tag">Foto</span>
-        <span class="tag">API-first</span>
+<!-- PAGE 2: INTRO -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> AURA İntegra</div><span class="pg-num">02 / 20</span></div>
+  <div class="highlight-bar">Saha satış açılışı — «Mağazanızda kaç farklı defter tutuyorsunuz?»</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-3">
+      <div><h2>Kimler İçin?</h2><p class="sub">Telefon, tablet ve elektronik teknik servis mağazaları; çok şubeli bayi ağları; stok + servis + perakende satışı bir arada yürüten işletmeler.</p></div>
+      <div class="grid-2 gap-3">
+        <div class="card card-accent"><h3>Sorun</h3><p class="sub" style="margin-top:1mm">Excel + WhatsApp + kağıt fiş. Stok ile servis ayrı. Müşteri «cihazım ne durumda?» diye arıyor. Kasa gün sonu saatler sürüyor.</p></div>
+        <div class="card card-accent" style="border-color:var(--green)"><h3>Çözüm</h3><p class="sub" style="margin-top:1mm">Tek bulut platform: kabul → atölye → stok → kasa → portal. Her işlem anlık senkron. Müşteri kendi takip eder.</p></div>
+      </div>
+      <div class="talk-box"><strong>Satış cümlesi</strong><p>«AURA İntegra ile kabul 2 dakika, müşteri portalı 7/24 açık, stok her satışta düşer. Siz işinize bakın — defter tutmayı bize bırakın.»</p></div>
+      <h2 style="margin-top:2mm">Günlük Akış — Tek Defter</h2>
+      <div class="flow-bar">
+        <div class="flow-node">📋 Kabul</div><span class="flow-arrow">→</span>
+        <div class="flow-node">🔧 Atölye</div><span class="flow-arrow">→</span>
+        <div class="flow-node">📦 Stok</div><span class="flow-arrow">→</span>
+        <div class="flow-node">💰 Finans</div><span class="flow-arrow">→</span>
+        <div class="flow-node">🌐 Portal</div>
+      </div>
+      <div class="grid-3 gap-2" style="margin-top:2mm">
+        <div class="stat-pill"><strong>₺450</strong><span>Başlangıç paketi</span></div>
+        <div class="stat-pill"><strong>14 gün</strong><span>Ücretsiz deneme</span></div>
+        <div class="stat-pill"><strong>%100</strong><span>Bulut · Yedekli</span></div>
       </div>
     </div>
-    <div class="screenshot">
-      <div class="screenshot-bar"><span></span><span></span><span></span></div>
-      <div style="font-size:10px;font-weight:700;margin-bottom:3mm">Hızlı Kabul — Önizleme</div>
-      <div class="mock-ui">
-        <div class="mock-row"><span>Müşteri</span><span>Ahmet Y.</span></div>
-        <div class="mock-row"><span>Cihaz</span><span>iPhone 14 Pro</span></div>
-        <div class="mock-row"><span>Arıza</span><span>Ekran kırık</span></div>
-        <div class="mock-row"><span>İş No</span><span class="mock-badge">SRV-2026-0847</span></div>
-        <div class="mock-row"><span>Durum</span><span style="color:#7dd3fc">● Teslim alındı</span></div>
+    <div class="flex-col gap-3">
+      <h2>Canlı Dashboard</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 320 220"><rect width="320" height="220" fill="#f1f5f9"/><rect width="56" height="220" fill="#0e5568"/><rect x="8" y="12" width="40" height="5" rx="1" fill="#fff" opacity=".9"/><rect x="8" y="24" width="40" height="4" rx="1" fill="#0e8fad" opacity=".6"/><rect x="8" y="34" width="40" height="4" rx="1" fill="#fff" opacity=".3"/><rect x="8" y="44" width="40" height="4" rx="1" fill="#fff" opacity=".3"/><rect x="8" y="54" width="40" height="4" rx="1" fill="#fff" opacity=".3"/><rect x="64" y="8" width="248" height="28" fill="#fff"/><rect x="72" y="16" width="80" height="6" rx="2" fill="#0e5568" opacity=".2"/><rect x="260" y="14" width="40" height="10" rx="5" fill="#0e8fad"/><rect x="64" y="42" width="76" height="48" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="72" y="58" font-size="7" fill="#64748b">Bugün Ciro</text><text x="72" y="78" font-size="14" fill="#0e8fad" font-weight="bold">₺12.450</text><rect x="148" y="42" width="76" height="48" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="156" y="58" font-size="7" fill="#64748b">Açık Servis</text><text x="156" y="78" font-size="14" fill="#f59e0b" font-weight="bold">23</text><rect x="232" y="42" width="76" height="48" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="240" y="58" font-size="7" fill="#64748b">Kritik Stok</text><text x="240" y="78" font-size="14" fill="#ef4444" font-weight="bold">5</text><rect x="64" y="98" width="160" height="80" rx="4" fill="#fff" stroke="#e2e8f0"/><polyline points="76,160 96,140 116,145 136,120 156,130 176,100 196,110 216,90" fill="none" stroke="#0e8fad" stroke-width="2.5"/><rect x="232" y="98" width="76" height="80" rx="4" fill="#fff" stroke="#e2e8f0"/><circle cx="270" cy="138" r="28" fill="none" stroke="#e2e8f0" stroke-width="8"/><circle cx="270" cy="138" r="28" fill="none" stroke="#10b981" stroke-width="8" stroke-dasharray="120 60" transform="rotate(-90 270 138)"/><text x="256" y="142" font-size="10" fill="#0e5568" font-weight="bold">87%</text><rect x="64" y="186" width="244" height="28" rx="4" fill="#fff" stroke="#e2e8f0"/><rect x="72" y="194" width="60" height="4" rx="1" fill="#cbd5e1"/><rect x="72" y="202" width="40" height="3" rx="1" fill="#e2e8f0"/><rect x="200" y="194" width="30" height="8" rx="4" fill="#10b981" opacity=".3"/><rect x="240" y="194" width="30" height="8" rx="4" fill="#0e8fad" opacity=".3"/><rect x="280" y="194" width="20" height="8" rx="4" fill="#f59e0b" opacity=".3"/></svg></div>
+      <div class="script-box"><strong>Demo ipucu</strong><p>«Şu an ekranda gördüğünüz KPI'lar canlı — telefonunuzdan da aynı veriyi görürsünüz. Gecenin 11'inde bile.»</p></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim · Saha Kataloğu</span><span>integra.aurabilisim.net</span></div>
+</section>
+
+<!-- PAGE 3: HIZLI ISLEMLER -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Hızlı İşlemler</div><span class="pg-num">03 / 20</span></div>
+  <div class="highlight-bar">⚡ Günlük operasyonu saniyeler içinde başlatın</div>
+  <div class="split-6040 flex-1">
+    <div class="flex-col gap-3">
+      <div class="grid-2 gap-2 flex-1">
+        <div class="mod-card"><h4><span class="icon-dot" style="background:#0e8fad"></span>Hızlı Kabul</h4><p>Cihaz kabul formu, QR etiket, WhatsApp mesajı ve servis fişi tek akışta.</p><div><span class="tag">QR etiket</span><span class="tag">KVKK</span><span class="tag">Fiş yazdır</span></div><div class="badge badge-green" style="margin-top:1mm">&lt; 2 dk ort.</div></div>
+        <div class="mod-card"><h4><span class="icon-dot" style="background:#2563eb"></span>Satış &amp; POS</h4><p>Barkodlu satış, çoklu ödeme, stok düşümü ve kasa entegrasyonu.</p><div><span class="tag">Barkod</span><span class="tag">Nakit/KK</span><span class="tag">KDV</span></div></div>
+        <div class="mod-card"><h4><span class="icon-dot" style="background:#7c3aed"></span>Alış &amp; Tedarik</h4><p>Tedarikçiden alım → stok girişi → maliyet takibi otomatik.</p><div><span class="tag">Alış→stok</span><span class="tag">Fatura</span><span class="tag">Tedarikçi</span></div></div>
+        <div class="mod-card"><h4><span class="icon-dot" style="background:#059669"></span>Kasa Vardiyası</h4><p>Vardiya aç/kapa, Z raporu, nakit sayım ve gün sonu mutabakatı.</p><div><span class="tag">Vardiya Z</span><span class="tag">Sayım</span><span class="tag">EOD</span></div><div class="badge" style="margin-top:1mm">7/24 sync</div></div>
       </div>
-      <div style="margin-top:4mm;display:flex;gap:2mm">
-        <div style="flex:1;background:#0e8fad;border-radius:6px;padding:2mm;text-align:center;font-size:8px">WhatsApp Gönder</div>
-        <div style="flex:1;background:rgba(255,255,255,.15);border-radius:6px;padding:2mm;text-align:center;font-size:8px">Fiş Yazdır</div>
+      <div class="script-box"><strong>«Excel yeterli» itirazı</strong><p>«Excel'de stok düşmez, müşteri aramaz, fiş basmaz. Kabul anında QR basıyoruz — müşteri linke tıklayıp takip ediyor.»</p></div>
+    </div>
+    <div class="flex-col gap-2">
+      <h2>Hızlı Kabul Ekranı</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 240 280"><rect width="240" height="280" fill="#f1f5f9"/><rect width="48" height="280" fill="#0e5568"/><rect x="56" y="10" width="176" height="260" rx="6" fill="#fff" stroke="#e2e8f0"/><text x="68" y="28" font-size="9" fill="#0e5568" font-weight="bold">Yeni Kabul</text><rect x="68" y="36" width="70" height="8" rx="2" fill="#f1f5f9" stroke="#e2e8f0"/><rect x="144" y="36" width="70" height="8" rx="2" fill="#f1f5f9" stroke="#e2e8f0"/><rect x="68" y="50" width="146" height="8" rx="2" fill="#f1f5f9" stroke="#e2e8f0"/><rect x="68" y="64" width="146" height="40" rx="3" fill="#fef3c7" stroke="#fcd34d"/><text x="76" y="78" font-size="7" fill="#92400e">Arıza: Ekran kırık, dokunmatik çalışmıyor</text><rect x="68" y="112" width="60" height="50" rx="3" fill="#e0f2fe" stroke="#0e8fad"/><text x="82" y="142" font-size="16" fill="#0e8fad">QR</text><rect x="136" y="112" width="78" height="50" rx="3" fill="#f1f5f9"/><rect x="144" y="120" width="30" height="30" rx="2" fill="#cbd5e1"/><rect x="178" y="120" width="30" height="30" rx="2" fill="#cbd5e1"/><rect x="68" y="170" width="70" height="12" rx="6" fill="#0e8fad"/><text x="88" y="179" font-size="7" fill="#fff" font-weight="bold">Kabul Et</text><rect x="144" y="170" width="70" height="12" rx="6" fill="#fff" stroke="#0e8fad"/><text x="158" y="179" font-size="7" fill="#0e8fad">Fiş Yazdır</text><rect x="68" y="192" width="146" height="60" rx="3" fill="#ecfdf5" stroke="#6ee7b7"/><text x="76" y="206" font-size="7" fill="#065f46" font-weight="bold">WhatsApp Önizleme</text><text x="76" y="218" font-size="6" fill="#047857">Sayın Ahmet Y., iPhone 13 cihazınız</text><text x="76" y="228" font-size="6" fill="#047857">kabul edildi. Takip: integra.aurabilisim.net/p/...</text></svg></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>destek@aurabilisim.com</span></div>
+</section>
+
+<!-- PAGE 4: ATOLYE -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Teknik Servis &amp; Atölye</div><span class="pg-num">04 / 20</span></div>
+  <div class="highlight-bar">🔧 Kabulden teslimata uçtan uca servis yönetimi</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="mock" style="flex:1"><svg viewBox="0 0 300 200"><rect width="300" height="200" fill="#f1f5f9"/><rect width="52" height="200" fill="#0e5568"/><rect x="60" y="8" width="232" height="184" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="68" y="24" font-size="8" fill="#64748b" font-weight="700">BEKLEYEN</text><text x="148" y="24" font-size="8" fill="#64748b" font-weight="700">İŞLEMDE</text><text x="228" y="24" font-size="8" fill="#64748b" font-weight="700">HAZIR</text><line x1="140" y1="16" x2="140" y2="188" stroke="#e2e8f0"/><line x1="220" y1="16" x2="220" y2="188" stroke="#e2e8f0"/><rect x="66" y="30" width="66" height="44" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="72" y="36" width="40" height="4" rx="1" fill="#cbd5e1"/><rect x="72" y="44" width="28" height="3" rx="1" fill="#e2e8f0"/><rect x="72" y="52" width="20" height="6" rx="3" fill="#f59e0b" opacity=".4"/><rect x="66" y="80" width="66" height="44" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="146" y="30" width="66" height="44" rx="3" fill="#fff" stroke="#0e8fad" stroke-width="1.5"/><rect x="152" y="36" width="40" height="4" rx="1" fill="#0e8fad" opacity=".5"/><rect x="152" y="52" width="24" height="6" rx="3" fill="#0e8fad" opacity=".3"/><rect x="146" y="80" width="66" height="44" rx="3" fill="#fff" stroke="#0e8fad" stroke-width="1.5"/><rect x="226" y="30" width="58" height="44" rx="3" fill="#fff" stroke="#10b981"/><rect x="232" y="36" width="36" height="4" rx="1" fill="#10b981" opacity=".5"/><rect x="226" y="80" width="58" height="44" rx="3" fill="#fff" stroke="#10b981"/><rect x="66" y="130" width="66" height="44" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="146" y="130" width="66" height="44" rx="3" fill="#fff" stroke="#e2e8f0"/></svg></div>
+      <div class="talk-box"><strong>Satış cümlesi</strong><p>«24 adımlı servis durumu — teknisyen hangi cihazda, parça kullandı, QC geçti mi, hepsi kanban'da.»</p></div>
+    </div>
+    <div class="flex-col gap-2 flex-1">
+      <div class="mod-card"><h4>Atölye &amp; Kanban</h4><p>Durum panosu, teknisyen atama, parça kullanımı ve kalite kontrol listesi.</p><div><span class="tag">Kanban</span><span class="tag">QC</span><span class="tag">Parça</span></div></div>
+      <div class="mod-card"><h4>Cihaz Fotoğrafları</h4><p>Kabul anında cihaz görselleri — hasar kaydı ve delil arşivi.</p><div><span class="tag">PNG/JPG</span><span class="tag">8 foto</span><span class="tag">Bulut</span></div></div>
+      <div class="mod-card"><h4>Ekspertiz &amp; Teşhis</h4><p>Görsel teşhis şeması, onay linki ve müşteri SMS/WhatsApp bildirimi.</p><div><span class="tag">Onay linki</span><span class="tag">SMS</span><span class="tag">WA</span></div></div>
+      <div class="mod-card"><h4>Garanti &amp; Randevu</h4><p>Garanti belgesi, randevu takvimi ve teslim protokolü.</p><div><span class="tag">6 ay</span><span class="tag">Randevu</span><span class="tag">Belge</span></div></div>
+      <div class="script-box"><strong>Demo adımı (dk 5-7)</strong><p>«Şimdi bu iPhone'u "İşlemde" sütununa sürükleyelim. Parça ekleyince stok otomatik düşecek — görelim.»</p></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>04 / 20</span></div>
+</section>
+
+<!-- PAGE 5: STOK -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Stok &amp; Envanter</div><span class="pg-num">05 / 20</span></div>
+  <div class="highlight-bar">📦 Tek envanter defteri — servis, POS ve alış senkron</div>
+  <div class="split-6040 flex-1">
+    <div class="flex-col gap-3">
+      <div class="mod-card"><h4>Stok Yönetimi</h4><p>SKU, barkod, kritik stok uyarısı ve marka uyumluluk filtresi.</p><div><span class="tag">Barkod</span><span class="tag">Kritik uyarı</span><span class="tag">Kategori</span></div><div class="badge badge-green">Anlık hareket</div></div>
+      <div class="mod-card"><h4>Stok Sayım</h4><p>Barkod/kamera ile hızlı sayım ve fark raporu.</p><div><span class="tag">Kamera</span><span class="tag">Sayım</span><span class="tag">Export</span></div></div>
+      <div class="mod-card"><h4>Tedarik Siparişleri</h4><p>Tedarikçi siparişi, teslim takibi ve otomatik stok girişi.</p><div><span class="tag">Sipariş</span><span class="tag">Tedarikçi</span><span class="tag">Takip</span></div></div>
+      <div class="grid-3 gap-2">
+        <div class="stat-pill"><strong>1</strong><span>Envanter</span></div>
+        <div class="stat-pill"><strong>0</strong><span>Çift kayıt</span></div>
+        <div class="stat-pill"><strong>⚡</strong><span>Anlık sync</span></div>
       </div>
+      <div class="script-box"><strong>«Stok ayrı tutuyoruz»</strong><p>«Serviste parça kullanınca stok düşer, POS'ta satınca düşer, alış girince artar. Tek tablo — Excel'de 3 defter yok.»</p></div>
+    </div>
+    <div class="flex-col gap-2">
+      <h2>Stok Paneli</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 240 260"><rect width="240" height="260" fill="#f1f5f9"/><rect width="48" height="260" fill="#0e5568"/><rect x="56" y="8" width="176" height="244" rx="4" fill="#fff" stroke="#e2e8f0"/><rect x="64" y="16" width="60" height="10" rx="5" fill="#0e8fad"/><text x="78" y="24" font-size="7" fill="#fff">Tümü</text><rect x="130" y="16" width="50" height="10" rx="5" fill="#f1f5f9" stroke="#e2e8f0"/><rect x="186" y="16" width="38" height="10" rx="5" fill="#fef2f2" stroke="#fca5a5"/><text x="192" y="24" font-size="6" fill="#ef4444">Kritik</text><rect x="64" y="32" width="160" height="14" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><text x="72" y="42" font-size="6" fill="#64748b">🔍 Barkod / SKU ara...</text><rect x="64" y="52" width="160" height="16" rx="2" fill="#f8fafc"/><rect x="68" y="58" width="50" height="4" rx="1" fill="#cbd5e1"/><rect x="130" y="58" width="20" height="4" rx="1" fill="#10b981" opacity=".4"/><rect x="160" y="58" width="15" height="4" rx="1" fill="#e2e8f0"/><rect x="64" y="72" width="160" height="16" rx="2" fill="#fff" stroke="#e2e8f0"/><rect x="68" y="78" width="55" height="4" rx="1" fill="#0e8fad" opacity=".4"/><rect x="130" y="78" width="20" height="4" rx="1" fill="#f59e0b" opacity=".4"/><rect x="160" y="78" width="15" height="4" rx="1" fill="#e2e8f0"/><rect x="64" y="92" width="160" height="16" rx="2" fill="#fff" stroke="#e2e8f0"/><rect x="68" y="98" width="45" height="4" rx="1" fill="#cbd5e1"/><rect x="130" y="98" width="20" height="4" rx="1" fill="#ef4444" opacity=".5"/><rect x="160" y="98" width="15" height="4" rx="1" fill="#e2e8f0"/><rect x="64" y="120" width="76" height="40" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="72" y="134" font-size="7" fill="#64748b">Toplam SKU</text><text x="72" y="150" font-size="12" fill="#0e5568" font-weight="bold">847</text><rect x="148" y="120" width="76" height="40" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="156" y="134" font-size="7" fill="#64748b">Kritik</text><text x="156" y="150" font-size="12" fill="#ef4444" font-weight="bold">5</text><rect x="64" y="168" width="160" height="70" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="72" y="180" width="140" height="6" rx="1" fill="#0e8fad" opacity=".3"/><rect x="72" y="192" width="100" height="6" rx="1" fill="#10b981" opacity=".3"/><rect x="72" y="204" width="120" height="6" rx="1" fill="#f59e0b" opacity=".3"/><rect x="72" y="216" width="80" height="6" rx="1" fill="#ef4444" opacity=".3"/></svg></div>
     </div>
   </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
 </section>
 
-<!-- SAYFA 5 — ATÖLYE -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">05</div></div>
-  <h2>Atölye &amp; Kanban</h2>
-  <p class="lead">24 adımlı servis durum akışı. Teknisyen atama, parça kullanımı, kalite kontrol ve teslim — sürükle-bırak kanban pano.</p>
-
-  <div class="grid-3">
-    <div class="card"><h4>Kanban Pano</h4><p>Beklemede → Tamirde → Parça bekliyor → Hazır → Teslim. Görsel durum takibi.</p></div>
-    <div class="card"><h4>Parça &amp; Maliyet</h4><p>Stoktan parça seçimi, otomatik maliyet hesabı, müşteri onay linki.</p></div>
-    <div class="card"><h4>Kalite Kontrol</h4><p>QC checklist, teslim öncesi son kontrol adımı.</p></div>
-    <div class="card"><h4>Teknisyen</h4><p>İş atama, performans ve iş yükü dağılımı.</p></div>
-    <div class="card"><h4>Ekspertiz</h4><p>Teşhis notu, fiyat onayı SMS/e-posta.</p></div>
-    <div class="card"><h4>Garanti</h4><p>Garanti belgesi, süre takibi, randevu entegrasyonu.</p></div>
+<!-- PAGE 6: FINANS -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Finans &amp; Raporlar</div><span class="pg-num">06 / 20</span></div>
+  <div class="highlight-bar">💰 Kasa, gelir-gider, e-fatura ve canlı KPI</div>
+  <div class="grid-4 gap-2" style="margin-bottom:3mm">
+    <div class="mod-card"><h4>Gelir &amp; Gider</h4><p>Nakit, KK, havale — kategori bazlı muhasebe özeti.</p><div><span class="tag">Kategori</span><span class="tag">Ödeme</span></div></div>
+    <div class="mod-card"><h4>Dashboard &amp; Raporlar</h4><p>Bugün özeti, trend grafikleri, kalite donut ve TCMB döviz widget.</p><div><span class="tag">KPI</span><span class="tag">TCMB</span></div></div>
+    <div class="mod-card"><h4>E-Fatura</h4><p>Fatura durumu, entegratör bağlantısı ve arşiv.</p><div><span class="tag">E-Fatura</span><span class="tag">Arşiv</span></div></div>
+    <div class="mod-card"><h4>Komisyon</h4><p>Personel komisyon hesabı ve dönemsel özet.</p><div><span class="tag">Personel</span><span class="tag">Oran</span></div></div>
   </div>
-
-  <div class="script-box" style="margin-top:8mm">
-    <strong>İtiraz: «Zaten defter tutuyoruz»</strong>
-    <p>«Defter müşteriye link göndermez, stok düşmez, teknisyen «benim işim nerede?» diye sormaz. Kanban panoda herkes aynı ekrana bakar.»</p>
+  <div class="split flex-1">
+    <div class="mock flex-1"><svg viewBox="0 0 280 180"><rect width="280" height="180" fill="#f1f5f9"/><rect width="50" height="180" fill="#0e5568"/><rect x="58" y="8" width="214" height="164" rx="4" fill="#fff" stroke="#e2e8f0"/><rect x="66" y="16" width="60" height="36" rx="3" fill="#ecfdf5" stroke="#6ee7b7"/><text x="74" y="30" font-size="7" fill="#64748b">Gelir</text><text x="74" y="44" font-size="11" fill="#10b981" font-weight="bold">₺48.2K</text><rect x="132" y="16" width="60" height="36" rx="3" fill="#fef2f2" stroke="#fca5a5"/><text x="140" y="30" font-size="7" fill="#64748b">Gider</text><text x="140" y="44" font-size="11" fill="#ef4444" font-weight="bold">₺12.1K</text><rect x="198" y="16" width="66" height="36" rx="3" fill="#eff6ff" stroke="#93c5fd"/><text x="206" y="30" font-size="7" fill="#64748b">Net</text><text x="206" y="44" font-size="11" fill="#2563eb" font-weight="bold">₺36.1K</text><rect x="66" y="58" width="130" height="70" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><polyline points="76,118 96,100 116,105 136,85 156,90 176,70 186,75" fill="none" stroke="#0e8fad" stroke-width="2"/><rect x="204" y="58" width="60" height="70" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="212" y="70" width="44" height="5" rx="1" fill="#10b981" opacity=".5"/><rect x="212" y="80" width="36" height="5" rx="1" fill="#0e8fad" opacity=".5"/><rect x="212" y="90" width="28" height="5" rx="1" fill="#f59e0b" opacity=".5"/><rect x="66" y="136" width="198" height="28" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="74" y="144" width="50" height="4" rx="1" fill="#cbd5e1"/><rect x="74" y="152" width="70" height="3" rx="1" fill="#e2e8f0"/></svg></div>
+    <div class="flex-col gap-2 flex-1">
+      <div class="talk-box"><strong>Paket 3 kapanış</strong><p>«Finans paketiyle gün sonu 5 dakika. Z raporu, komisyon, e-fatura — muhasebeciye export.»</p></div>
+      <div class="script-box"><strong>«Muhasebeci halleder»</strong><p>«Muhasebeci geçmişe bakar, siz anlık görürsünüz. Kasa açığı bugün fark edilir, ay sonunda değil.»</p></div>
+      <div class="card card-soft"><h3>Canlı KPI Özellikleri</h3><ul class="sub" style="margin-top:2mm;padding-left:4mm"><li>Bugün ciro, açık servis, kritik stok</li><li>TCMB döviz kuru widget</li><li>Trend grafikleri (7/30 gün)</li><li>Export: Excel, PDF</li></ul></div>
+    </div>
   </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>06 / 20</span></div>
 </section>
 
-<!-- SAYFA 6 — STOK & POS -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">06</div></div>
-  <h2>Stok, Satış &amp; Kasa</h2>
-  <p class="lead">Tek envanter defteri: serviste kullanılan parça, vitrin satışı ve tedarik alımı aynı stok kartına işlenir.</p>
-
-  <div class="grid-2">
-    <div class="card">
-      <h4>📦 Stok Yönetimi</h4>
-      <ul class="checklist">
-        <li>SKU, barkod, marka/model uyumluluk</li>
-        <li>Kritik stok uyarısı</li>
-        <li>Barkod/kamera ile sayım</li>
-        <li>Tedarik siparişi → otomatik giriş</li>
-      </ul>
-    </div>
-    <div class="card">
-      <h4>🛒 Satış &amp; POS</h4>
-      <ul class="checklist">
-        <li>Barkodlu hızlı satış</li>
-        <li>Nakit / kredi kartı / havale</li>
-        <li>Anlık stok düşümü</li>
-        <li>KDV ve fiş çıktısı</li>
-      </ul>
-    </div>
-  </div>
-
-  <h3>Kasa Vardiyası</h3>
-  <p>Vardiya aç → satışları topla → gün sonu Z raporu → nakit sayım. Finans modülü ile entegre.</p>
-
-  <div class="script-box">
-    <strong>Saha cümlesi:</strong>
-    <p>«Parça sattınız ama stokta hâlâ 5 görünüyor — müşteri gelince «var» dersiniz, rafta yok. AURA'da satış anında stok düşer; serviste parça takılınca da aynı.»</p>
-  </div>
-</section>
-
-<!-- SAYFA 7 — MÜŞTERİ PORTALI -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">07</div></div>
-  <h2>Müşteri Portalı &amp; Vitrin</h2>
-  <p class="lead">Her bayinin kendi slug URL'si: <strong>integra.aurabilisim.net/portal/[bayi-adı]</strong> veya özel alt domain. Müşteri 7/24 cihaz durumunu görür.</p>
-
-  <div class="grid-2">
-    <div>
-      <h3>Portal Özellikleri</h3>
-      <ul class="checklist">
-        <li>Canlı servis durumu timeline</li>
-        <li>İş emri geçmişi</li>
-        <li>WhatsApp iletişim butonu</li>
-        <li>KVKK uyumlu veri gösterimi</li>
-        <li>Public vitrin / showcase API</li>
-      </ul>
-      <h3 style="margin-top:5mm">Bayi Paneli — Müşteri Portalı Yönetimi</h3>
-      <ul class="checklist">
-        <li>Toplu SMS &amp; WhatsApp şablonları</li>
-        <li>Müşteri listesi ve segment</li>
-        <li>Portal link kopyala / önizle</li>
-        <li>SMS bildirim logu</li>
-      </ul>
-    </div>
-    <div class="screenshot">
-      <div class="screenshot-bar"><span></span><span></span><span></span></div>
-      <div style="font-size:10px;font-weight:700;margin-bottom:3mm;color:#7dd3fc">Müşteri Portalı</div>
-      <div class="mock-ui">
-        <div class="mock-row"><span>SRV-0847</span><span class="mock-badge">Tamirde</span></div>
-        <div style="padding:2mm;font-size:8px;opacity:.7">● Teslim alındı — 12 Haz<br/>● Teşhis yapıldı — 13 Haz<br/>● <strong style="color:#7dd3fc">Parça sipariş edildi — 14 Haz</strong></div>
-        <div class="mock-row"><span>Tahmini</span><span>2-3 gün</span></div>
+<!-- PAGE 7: MUSTERI & PORTAL -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Müşteri &amp; Portal</div><span class="pg-num">07 / 20</span></div>
+  <div class="highlight-bar">👥 CRM, online takip ve iletişim kanalları</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="grid-2 gap-2 flex-1">
+        <div class="mod-card"><h4>Müşteri CRM</h4><p>Profil, geçmiş servisler, segment ve iletişim kayıtları.</p><div><span class="tag">Segment</span><span class="tag">KVKK</span></div></div>
+        <div class="mod-card"><h4>Müşteri Portalı</h4><p>Slug bazlı takip sayfası — müşteri cihaz durumunu canlı görür.</p><div><span class="tag">Slug URL</span><span class="tag">Timeline</span></div><div class="badge badge-green">7/24</div></div>
+        <div class="mod-card"><h4>Müşteri Siparişleri</h4><p>Ön sipariş, stok bekleyen talepler ve teslimat takibi.</p><div><span class="tag">Ön sipariş</span><span class="tag">Takip</span></div></div>
+        <div class="mod-card"><h4>SMS &amp; Bildirim</h4><p>Durum SMS'i, NetGSM entegrasyonu ve bildirim logu.</p><div><span class="tag">NetGSM</span><span class="tag">Durum SMS</span></div></div>
       </div>
-      <div style="margin-top:4mm;background:#25D366;border-radius:6px;padding:2mm;text-align:center;font-size:9px">WhatsApp ile Sor</div>
+      <div class="script-box"><strong>Demo vurgusu (dk 8-10)</strong><p>«Müşteriniz telefonu bıraktı. WhatsApp'tan link gitti. Artık sizi aramıyor — portalda "Ekran değişimi" adımını görüyor.»</p></div>
+    </div>
+    <div class="flex-col gap-2">
+      <h2>Müşteri Portalı</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 260 240"><rect width="260" height="240" fill="#0e5568"/><rect x="30" y="12" width="200" height="216" rx="8" fill="#fff"/><rect x="42" y="24" width="80" height="8" rx="2" fill="#0e8fad" opacity=".4"/><rect x="42" y="38" width="120" height="5" rx="1" fill="#cbd5e1"/><rect x="42" y="48" width="90" height="4" rx="1" fill="#e2e8f0"/><rect x="42" y="60" width="176" height="60" rx="4" fill="#f8fafc" stroke="#e2e8f0"/><rect x="50" y="70" width="50" height="40" rx="3" fill="#cbd5e1"/><rect x="108" y="72" width="60" height="4" rx="1" fill="#0e5568" opacity=".5"/><rect x="108" y="80" width="40" height="3" rx="1" fill="#64748b"/><rect x="108" y="88" width="30" height="8" rx="4" fill="#10b981" opacity=".3"/><text x="50" y="140" font-size="7" fill="#64748b" font-weight="700">DURUM ZAMAN ÇİZGİSİ</text><circle cx="54" cy="154" r="4" fill="#10b981"/><line x1="54" y1="158" x2="54" y2="170" stroke="#e2e8f0"/><rect x="64" y="150" width="80" height="4" rx="1" fill="#cbd5e1"/><text x="64" y="164" font-size="6" fill="#64748b">Kabul edildi · 10:32</text><circle cx="54" cy="178" r="4" fill="#0e8fad"/><rect x="64" y="174" width="90" height="4" rx="1" fill="#0e8fad" opacity=".5"/><text x="64" y="188" font-size="6" fill="#64748b">Teşhis · Onay bekleniyor</text><circle cx="54" cy="200" r="4" fill="#e2e8f0"/><rect x="64" y="196" width="70" height="4" rx="1" fill="#e2e8f0"/><rect x="42" y="212" width="60" height="10" rx="5" fill="#0e8fad"/><text x="58" y="220" font-size="7" fill="#fff" font-weight="bold">Onayla</text></svg></div>
     </div>
   </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
 </section>
 
-<!-- SAYFA 8 — BİLDİRİMLER & AI -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">08</div></div>
-  <h2>SMS, WhatsApp &amp; AI Asistan</h2>
-
-  <div class="grid-2">
-    <div class="card card-accent">
-      <h4>📲 SMS (Netgsm)</h4>
-      <p>Durum bildirimi, fiyat onayı, teslime hazır mesajları. Tenant bazlı Netgsm ayarı veya global fallback. Emoji-safe metin.</p>
+<!-- PAGE 8: MAGAZA -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Mağaza &amp; Vitrin</div><span class="pg-num">08 / 20</span></div>
+  <div class="highlight-bar">🏪 Vitrin cihazları, kampanya ve ikinci el</div>
+  <div class="split-6040 flex-1">
+    <div class="flex-col gap-3">
+      <div class="mod-card"><h4>Vitrin &amp; İkinci El</h4><p>Showcase cihazları, fiyatlandırma ve vitrin yönetimi.</p><div><span class="tag">Vitrin</span><span class="tag">2. el</span><span class="tag">Fiyat</span></div></div>
+      <div class="mod-card"><h4>Kampanya &amp; Fırsat</h4><p>Dönemsel kampanyalar, indirim kuralları ve fırsat vitrini.</p><div><span class="tag">Kampanya</span><span class="tag">İndirim</span></div></div>
+      <div class="mod-card"><h4>Varlık Yönetimi</h4><p>Demirbaş, ekipman ve amortisman takibi.</p><div><span class="tag">Demirbaş</span><span class="tag">Ekipman</span></div></div>
+      <div class="talk-box"><strong>Satış cümlesi</strong><p>«Vitrindeki 2. el iPhone'u showcase'e koyun — müşteri portalında görünsün, fiyat güncel kalsın.»</p></div>
+      <div class="script-box"><strong>«Sadece servis» bayisi</strong><p>«Paket 1'de stok+POS var. Vitrin modülü Paket 3'te — ama servis+satış bir arada olan mağazalar için altın değerinde.»</p></div>
     </div>
-    <div class="card card-accent">
-      <h4>💬 WhatsApp</h4>
-      <p>Otomatik API değil — hazır mesaj + wa.me linki. Kabul, portal, ödeme hatırlatıcı. Emoji codepoint güvenli.</p>
-    </div>
-    <div class="card card-accent">
-      <h4>📧 E-posta</h4>
-      <p>Trial hatırlatma, ödeme bildirimi, müşteri durum maili. SMTP (Turk Ticaret / kurumsal mail).</p>
-    </div>
-    <div class="card card-accent">
-      <h4>🤖 Aura AI</h4>
-      <p>Gemini tabanlı panel asistanı. Stok, servis ve rapor sorularına yanıt. Paket kotası ile maliyet kontrolü.</p>
+    <div class="flex-col gap-2">
+      <h2>Vitrin Showcase</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 240 220"><rect width="240" height="220" fill="#f1f5f9"/><rect width="48" height="220" fill="#0e5568"/><rect x="56" y="8" width="176" height="204" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="64" y="24" font-size="8" fill="#0e5568" font-weight="bold">Vitrin Cihazları</text><rect x="64" y="32" width="52" height="70" rx="4" fill="#f8fafc" stroke="#e2e8f0"/><rect x="70" y="38" width="40" height="40" rx="3" fill="#cbd5e1"/><rect x="70" y="82" width="30" height="4" rx="1" fill="#0e8fad" opacity=".5"/><rect x="70" y="90" width="20" height="4" rx="1" fill="#10b981" opacity=".5"/><rect x="122" y="32" width="52" height="70" rx="4" fill="#f8fafc" stroke="#e2e8f0"/><rect x="128" y="38" width="40" height="40" rx="3" fill="#cbd5e1"/><rect x="128" y="82" width="30" height="4" rx="1" fill="#0e8fad" opacity=".5"/><rect x="180" y="32" width="44" height="70" rx="4" fill="#fef3c7" stroke="#fcd34d"/><rect x="186" y="38" width="32" height="40" rx="3" fill="#fde68a"/><rect x="186" y="82" width="24" height="4" rx="1" fill="#f59e0b" opacity=".5"/><text x="64" y="118" font-size="7" fill="#64748b" font-weight="700">AKTİF KAMPANYALAR</text><rect x="64" y="124" width="160" height="24" rx="3" fill="#fef2f2" stroke="#fca5a5"/><text x="72" y="138" font-size="7" fill="#ef4444">%15 Ekran değişimi — Haziran</text><rect x="64" y="154" width="160" height="24" rx="3" fill="#eff6ff" stroke="#93c5fd"/><text x="72" y="168" font-size="7" fill="#2563eb">2. El iPhone fırsatları</text><rect x="64" y="186" width="70" height="12" rx="6" fill="#0e8fad"/><text x="82" y="195" font-size="7" fill="#fff">Yeni Ekle</text></svg></div>
     </div>
   </div>
-
-  <h3>Admin — Ödeme Hatırlatıcı</h3>
-  <p>Merkez admin panelinden bayi abonelik vadesi yaklaşınca <strong>E-posta</strong> veya <strong>WhatsApp</strong> hatırlatıcı tek tıkla.</p>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>08 / 20</span></div>
 </section>
 
-<!-- SAYFA 9 — FİNANS & RAPOR -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">09</div></div>
-  <h2>Finans, Raporlar &amp; e-Fatura Yol Haritası</h2>
-
-  <div class="grid-3">
-    <div class="card"><h4>Gelir / Gider</h4><p>Kategori bazlı nakit akışı, ödeme tipi takibi.</p></div>
-    <div class="card"><h4>Dashboard KPI</h4><p>Bugün satış, açık servis, stok uyarısı — canlı widget.</p></div>
-    <div class="card"><h4>TCMB Döviz</h4><p>Canlı kur widget (USD/EUR/GBP).</p></div>
-    <div class="card"><h4>Komisyon</h4><p>Personel komisyon hesabı.</p></div>
-    <div class="card"><h4>Export</h4><p>Muhasebe export, dönem raporları.</p></div>
-    <div class="card"><h4>e-Fatura</h4><p>Test modu + kuyruk. NES/Logo entegrasyon yol haritası hazır.</p></div>
+<!-- PAGE 9: YONETIM -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Yönetim &amp; Ekip</div><span class="pg-num">09 / 20</span></div>
+  <div class="highlight-bar">👔 Personel, şube, görevler ve yetkilendirme</div>
+  <div class="grid-4 gap-2" style="margin-bottom:3mm">
+    <div class="mod-card"><h4>Personel &amp; Roller</h4><p>Teknisyen, satış, kasa, muhasebe — rol bazlı sidebar ve yetki.</p><div><span class="tag">Rol</span><span class="tag">Yetki</span></div></div>
+    <div class="mod-card"><h4>Çok Şube</h4><p>Şube seçici, şube bazlı rapor ve merkezi yönetim.</p><div><span class="tag">Şube</span><span class="tag">Merkez</span></div></div>
+    <div class="mod-card"><h4>Yapılacaklar</h4><p>Görev listesi, öncelik, kategori ve ekip ataması.</p><div><span class="tag">Görev</span><span class="tag">Atama</span></div></div>
+    <div class="mod-card"><h4>Yurt Dışı / TR Kayıt</h4><p>IMEI kontrol, çalıntı listesi ve yabancı cihaz kaydı.</p><div><span class="tag">IMEI</span><span class="tag">Kontrol</span></div></div>
   </div>
-
-  <p style="margin-top:6mm;font-size:10px;color:var(--muted)">Not: e-Fatura GIB entegrasyonu gelir artınca NES veya Logo adapter ile aktif edilir. Bugün test modu ve kuyruk altyapısı mevcuttur.</p>
-</section>
-
-<!-- SAYFA 10 — ADMIN PLATFORM -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">10</div></div>
-  <h2>Merkez Admin &amp; Bayi Ağı</h2>
-  <p class="lead">Franchise veya bayi ağı işletiyorsanız — tüm tenant'lar tek komuta merkezinden yönetilir.</p>
-
-  <div class="grid-2">
-    <ul class="checklist">
-      <li>Bayi CRUD, paket atama, deneme süresi</li>
-      <li>Başvuru formu + Turnstile CAPTCHA</li>
-      <li>Magic link ile panele giriş (destek)</li>
-      <li>Tenant sağlık skoru &amp; churn müdahalesi</li>
-      <li>Audit log — kim ne yaptı</li>
-      <li>Platform ayarları, paket vitrin yönetimi</li>
-      <li>Cron: trial, ödeme, randevu hatırlatma</li>
-    </ul>
-    <div class="screenshot" style="min-height:70mm">
-      <div class="screenshot-bar"><span></span><span></span><span></span></div>
-      <div style="font-size:10px;font-weight:700;margin-bottom:3mm">Super Admin Panel</div>
-      <div class="mock-ui">
-        <div class="mock-row"><span>Bayi</span><span>42 aktif</span></div>
-        <div class="mock-row"><span>Deneme</span><span>8</span></div>
-        <div class="mock-row"><span>Vadesi yakın</span><span style="color:#fbbf24">3 ⚠</span></div>
-        <div class="mock-row"><span>Health &lt; 50</span><span style="color:#f87171">1</span></div>
+  <div class="split flex-1">
+    <div class="mock flex-1"><svg viewBox="0 0 280 170"><rect width="280" height="170" fill="#f1f5f9"/><rect width="50" height="170" fill="#0e5568"/><rect x="8" y="12" width="34" height="4" rx="1" fill="#fff" opacity=".9"/><rect x="8" y="22" width="34" height="4" rx="1" fill="#fff" opacity=".4"/><rect x="8" y="32" width="34" height="4" rx="1" fill="#fff" opacity=".4"/><rect x="58" y="8" width="214" height="154" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="66" y="24" font-size="8" fill="#0e5568" font-weight="bold">Personel &amp; Roller</text><rect x="66" y="32" width="198" height="20" rx="2" fill="#f8fafc" stroke="#e2e8f0"/><rect x="72" y="40" width="40" height="4" rx="1" fill="#cbd5e1"/><rect x="130" y="40" width="30" height="4" rx="1" fill="#0e8fad" opacity=".4"/><rect x="180" y="40" width="30" height="4" rx="1" fill="#10b981" opacity=".4"/><rect x="66" y="58" width="198" height="20" rx="2" fill="#fff" stroke="#e2e8f0"/><rect x="72" y="66" width="35" height="4" rx="1" fill="#cbd5e1"/><rect x="130" y="66" width="30" height="4" rx="1" fill="#f59e0b" opacity=".4"/><rect x="66" y="86" width="94" height="60" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><text x="74" y="100" font-size="7" fill="#64748b">Şube: Kadıköy</text><text x="74" y="112" font-size="7" fill="#64748b">Şube: Beşiktaş</text><text x="74" y="124" font-size="7" fill="#64748b">Şube: Ankara</text><rect x="168" y="86" width="96" height="60" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="176" y="96" width="60" height="4" rx="1" fill="#cbd5e1"/><rect x="176" y="106" width="50" height="4" rx="1" fill="#e2e8f0"/><rect x="176" y="116" width="40" height="8" rx="4" fill="#ef4444" opacity=".3"/></svg></div>
+    <div class="flex-col gap-2 flex-1">
+      <div class="card card-accent"><h3>Rol Bazlı Erişim</h3><p class="sub" style="margin-top:1mm">Teknisyen sadece atölye görür. Kasiyer POS+stok. Müdür tüm raporlar. Sidebar otomatik filtrelenir.</p></div>
+      <div class="script-box"><strong>«Çok şubeliyiz»</strong><p>«Paket 2'de 2 şube, Paket 3'te 5 şube. Merkezden tüm şubelerin KPI'sını tek ekranda görürsünüz.»</p></div>
+      <div class="grid-2 gap-2">
+        <div class="stat-pill"><strong>6</strong><span>Kullanıcı (P2)</span></div>
+        <div class="stat-pill"><strong>12</strong><span>Kullanıcı (P3)</span></div>
       </div>
     </div>
   </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>destek@aurabilisim.com</span></div>
 </section>
 
-<!-- SAYFA 11 — PAKETLER -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">11</div></div>
-  <h2>Paketler &amp; Fiyatlandırma</h2>
-  <p class="lead">Kümülatif lisans: üst paket, alt paketlerin tüm modüllerini içerir. 30 gün deneme süresi.</p>
+<!-- PAGE 10: PLATFORM -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Platform &amp; Admin</div><span class="pg-num">10 / 20</span></div>
+  <div class="highlight-bar">☁️ Çok kiracılı SaaS — bayi ağı tek komuta merkezinde</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="mod-card"><h4>Super Admin</h4><p>Bayi CRUD, paket yönetimi, başvuru onayı ve tenant sağlığı.</p><div><span class="tag">Bayi</span><span class="tag">Paket</span><span class="tag">Audit</span></div><div class="badge badge-dark">Multi-tenant</div></div>
+      <div class="mod-card"><h4>API &amp; Entegrasyon</h4><p>REST API, webhook, public takip endpoint ve API key yönetimi.</p><div><span class="tag">REST</span><span class="tag">Webhook</span></div></div>
+      <div class="mod-card"><h4>Global Arama</h4><p>IMEI, barkod, müşteri ve iş emri — kamera ile tarama.</p><div><span class="tag">IMEI</span><span class="tag">Barkod</span></div></div>
+      <div class="mod-card"><h4>Abonelik &amp; Paket</h4><p>Kümülatif lisans, deneme süresi ve feature flag yönetimi.</p><div><span class="tag">Deneme</span><span class="tag">Flag</span></div></div>
+      <div class="talk-box"><strong>Bayi ağı satışı</strong><p>«Distribütör müsünüz? Super Admin ile tüm bayilerinizi tek panelden yönetin — churn, gelir, sağlık skoru.»</p></div>
+    </div>
+    <div class="flex-col gap-2">
+      <h2>Super Admin Paneli</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 260 230"><rect width="260" height="230" fill="#0a3d4d"/><rect x="8" y="8" width="244" height="214" rx="6" fill="#f8fafc"/><rect x="8" y="8" width="244" height="28" rx="6" fill="#1e40af"/><text x="20" y="26" font-size="9" fill="#fff" font-weight="bold">AURA Platform Admin</text><rect x="16" y="44" width="56" height="24" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="24" y="58" font-size="7" fill="#64748b">Bayiler</text><text x="24" y="64" font-size="10" fill="#1e40af" font-weight="bold">47</text><rect x="78" y="44" width="56" height="24" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="86" y="58" font-size="7" fill="#64748b">MRR</text><text x="86" y="64" font-size="10" fill="#10b981" font-weight="bold">₺38K</text><rect x="140" y="44" width="56" height="24" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="148" y="58" font-size="7" fill="#64748b">Churn</text><text x="148" y="64" font-size="10" fill="#f59e0b" font-weight="bold">2.1%</text><rect x="202" y="44" width="42" height="24" rx="3" fill="#fff" stroke="#e2e8f0"/><text x="210" y="58" font-size="7" fill="#64748b">Sağlık</text><text x="210" y="64" font-size="10" fill="#0e8fad" font-weight="bold">94</text><rect x="16" y="76" width="228" height="130" rx="3" fill="#fff" stroke="#e2e8f0"/><rect x="24" y="86" width="60" height="4" rx="1" fill="#cbd5e1"/><rect x="100" y="86" width="30" height="4" rx="1" fill="#10b981" opacity=".4"/><rect x="150" y="86" width="30" height="4" rx="1" fill="#0e8fad" opacity=".4"/><rect x="24" y="98" width="55" height="4" rx="1" fill="#cbd5e1"/><rect x="100" y="98" width="30" height="4" rx="1" fill="#f59e0b" opacity=".4"/><rect x="24" y="110" width="50" height="4" rx="1" fill="#cbd5e1"/><rect x="100" y="110" width="30" height="4" rx="1" fill="#10b981" opacity=".4"/><rect x="16" y="212" width="80" height="4" rx="1" fill="#64748b" opacity=".3"/></svg></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
+</section>
 
-  <div class="pricing">
+<!-- PAGE 11: POS -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Satış &amp; POS</div><span class="pg-num">11 / 20</span></div>
+  <div class="highlight-bar">🛒 Barkodlu satış, çoklu ödeme, anlık stok düşümü</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="mock flex-1"><svg viewBox="0 0 300 200"><rect width="300" height="200" fill="#f1f5f9"/><rect width="52" height="200" fill="#0e5568"/><rect x="60" y="8" width="140" height="184" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="68" y="24" font-size="8" fill="#0e5568" font-weight="bold">Sepet</text><rect x="68" y="32" width="124" height="16" rx="2" fill="#f8fafc" stroke="#e2e8f0"/><rect x="74" y="38" width="60" height="4" rx="1" fill="#cbd5e1"/><rect x="160" y="38" width="24" height="4" rx="1" fill="#0e8fad" opacity=".5"/><rect x="68" y="52" width="124" height="16" rx="2" fill="#fff" stroke="#e2e8f0"/><rect x="74" y="58" width="50" height="4" rx="1" fill="#cbd5e1"/><rect x="160" y="58" width="24" height="4" rx="1" fill="#0e8fad" opacity=".5"/><rect x="68" y="72" width="124" height="16" rx="2" fill="#fff" stroke="#e2e8f0"/><rect x="74" y="78" width="55" height="4" rx="1" fill="#cbd5e1"/><rect x="160" y="78" width="24" height="4" rx="1" fill="#0e8fad" opacity=".5"/><line x1="68" y1="100" x2="192" y2="100" stroke="#e2e8f0"/><text x="68" y="116" font-size="9" fill="#0e5568" font-weight="bold">Toplam: ₺4.250</text><rect x="68" y="124" width="38" height="14" rx="7" fill="#10b981" opacity=".3"/><text x="78" y="134" font-size="7" fill="#065f46">Nakit</text><rect x="110" y="124" width="38" height="14" rx="7" fill="#2563eb" opacity=".3"/><text x="118" y="134" font-size="7" fill="#1e40af">KK</text><rect x="152" y="124" width="40" height="14" rx="7" fill="#0e8fad"/><text x="160" y="134" font-size="7" fill="#fff">Öde</text><rect x="208" y="8" width="84" height="184" rx="4" fill="#fff" stroke="#e2e8f0"/><text x="216" y="24" font-size="7" fill="#64748b">Barkod Tara</text><rect x="216" y="30" width="68" height="50" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-dasharray="4 2"/><text x="232" y="58" font-size="20" fill="#64748b">⌁</text><rect x="216" y="88" width="30" height="24" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="252" y="88" width="32" height="24" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="216" y="118" width="30" height="24" rx="3" fill="#f8fafc" stroke="#e2e8f0"/><rect x="252" y="118" width="32" height="24" rx="3" fill="#f8fafc" stroke="#e2e8f0"/></svg></div>
+    </div>
+    <div class="flex-col gap-2 flex-1">
+      <h2>POS Özellikleri</h2>
+      <div class="card card-soft"><ul class="sub" style="padding-left:4mm"><li>Barkod okuyucu / kamera desteği</li><li>Nakit, kredi kartı, havale, karma ödeme</li><li>Otomatik KDV hesaplama</li><li>Stok anlık düşüm — servis stoku ile aynı envanter</li><li>Fiş yazdırma ve e-fatura tetikleme</li><li>Kasa vardiyası ile entegre Z raporu</li></ul></div>
+      <div class="script-box"><strong>Demo adımı (dk 3-4)</strong><p>«Barkodu okutun — stok düştü, kasa güncellendi. Serviste parça kullanınca da aynı stok tablosu.»</p></div>
+      <div class="grid-3 gap-2">
+        <div class="stat-pill"><strong>Anlık</strong><span>Stok sync</span></div>
+        <div class="stat-pill"><strong>Multi</strong><span>Ödeme tipi</span></div>
+        <div class="stat-pill"><strong>KDV</strong><span>Otomatik</span></div>
+      </div>
+      <div class="talk-box"><strong>Perakende + servis mağazası</strong><p>«Aksesuar satarken stok düşer, tamirde parça kullanınca da düşer. Tek envanter — kayıp parça yok.»</p></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>11 / 20</span></div>
+</section>
+
+<!-- PAGE 12: AI CHAT -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> AURA AI Asistan</div><span class="pg-num">12 / 20</span></div>
+  <div class="highlight-bar">🤖 Yapay zeka destekli operasyon asistanı — her ekranda</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="card"><h3>AI Yetenekleri</h3><ul class="sub" style="margin-top:2mm;padding-left:4mm;line-height:1.6"><li>Stok ve servis sorguları doğal dilde</li><li>Arıza teşhis önerileri</li><li>Rapor özetleri ve KPI yorumlama</li><li>Müşteri iletişim taslakları</li><li>Platform kullanım rehberliği</li></ul></div>
+      <div class="grid-2 gap-2">
+        <div class="card card-soft"><h3>QR Servis Etiketi</h3><p class="sub">Kabul anında yazdırılabilir QR fiş.</p></div>
+        <div class="card card-soft"><h3>Fiş &amp; Barkod Yazdır</h3><p class="sub">Servis fişi ve barkod etiket şablonları.</p></div>
+        <div class="card card-soft"><h3>Bildirim Merkezi</h3><p class="sub">SMS, e-posta ve sistem bildirimleri.</p></div>
+        <div class="card card-soft"><h3>Randevu Takvimi</h3><p class="sub">Müşteri randevuları ve hatırlatma.</p></div>
+      </div>
+      <div class="script-box"><strong>«AI ne işe yarar?»</strong><p>«"Bugün kaç açık servis var?" diye sorun — cevap verir. Teknisyen arıza koduna takıldığında teşhis önerir.»</p></div>
+    </div>
+    <div class="flex-col gap-2">
+      <h2>AI Chat Arayüzü</h2>
+      <div class="mock flex-1"><svg viewBox="0 0 240 260"><rect width="240" height="260" fill="#f1f5f9"/><rect width="48" height="260" fill="#0e5568"/><rect x="160" y="20" width="72" height="220" rx="8" fill="#fff" stroke="#e2e8f0" filter="drop-shadow(0 2px 6px rgba(0,0,0,.1))"/><rect x="160" y="20" width="72" height="24" rx="8" fill="#0e8fad"/><text x="172" y="36" font-size="7" fill="#fff" font-weight="bold">AURA AI</text><rect x="168" y="52" width="56" height="28" rx="6" fill="#f1f5f9"/><text x="174" y="64" font-size="5.5" fill="#64748b">Bugün kaç açık</text><text x="174" y="72" font-size="5.5" fill="#64748b">servis var?</text><rect x="168" y="86" width="56" height="40" rx="6" fill="#ecfdf5" stroke="#6ee7b7"/><text x="174" y="98" font-size="5.5" fill="#065f46">23 açık servis</text><text x="174" y="106" font-size="5.5" fill="#065f46">var. 5'i kritik</text><text x="174" y="114" font-size="5.5" fill="#065f46">stok bekliyor.</text><rect x="168" y="132" width="56" height="24" rx="6" fill="#f1f5f9"/><text x="174" y="146" font-size="5.5" fill="#64748b">Kritik stokları</text><text x="174" y="154" font-size="5.5" fill="#64748b">listele</text><rect x="168" y="162" width="56" height="36" rx="6" fill="#ecfdf5" stroke="#6ee7b7"/><text x="174" y="174" font-size="5" fill="#065f46">1. iPhone 13 ekran</text><text x="174" y="182" font-size="5" fill="#065f46">2. Samsung S23 bat.</text><text x="174" y="190" font-size="5" fill="#065f46">3. Type-C kablo...</text><rect x="168" y="206" width="48" height="14" rx="7" fill="#f8fafc" stroke="#e2e8f0"/><text x="176" y="216" font-size="6" fill="#94a3b8">Mesaj yaz...</text><circle cx="218" cy="213" r="8" fill="#0e8fad"/><rect x="56" y="40" width="90" height="60" rx="4" fill="#fff" stroke="#e2e8f0" opacity=".6"/><rect x="56" y="110" width="90" height="40" rx="4" fill="#fff" stroke="#e2e8f0" opacity=".4"/></svg></div>
+      <div class="talk-box"><strong>Fark yaratıcı</strong><p>«Rakiplerde yok. Personel eğitim süresini yarıya indirir — AI her soruya anında cevap verir.»</p></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>destek@aurabilisim.com</span></div>
+</section>
+
+<!-- PAGE 13: MUSTERI PORTALI DETAY -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Müşteri Portalı — Derinlemesine</div><span class="pg-num">13 / 20</span></div>
+  <div class="highlight-bar">🌐 integra.aurabilisim.net/p/[slug] — Müşteriniz 7/24 takip eder, sizi aramaz</div>
+  <div class="split-6040 flex-1">
+    <div class="flex-col gap-2">
+      <div class="mock flex-1"><svg viewBox="0 0 280 240"><rect width="280" height="240" fill="#e2e8f0"/><rect x="20" y="10" width="120" height="220" rx="12" fill="#0e5568" stroke="#334155" stroke-width="2"/><rect x="28" y="24" width="104" height="192" rx="4" fill="#fff"/><rect x="36" y="32" width="60" height="6" rx="2" fill="#0e8fad" opacity=".5"/><rect x="36" y="44" width="80" height="4" rx="1" fill="#cbd5e1"/><rect x="36" y="56" width="88" height="50" rx="4" fill="#f8fafc" stroke="#e2e8f0"/><rect x="44" y="64" width="36" height="34" rx="2" fill="#cbd5e1"/><rect x="84" y="68" width="32" height="4" rx="1" fill="#0e5568" opacity=".4"/><rect x="84" y="76" width="24" height="3" rx="1" fill="#64748b"/><rect x="84" y="84" width="20" height="6" rx="3" fill="#10b981" opacity=".4"/><circle cx="44" cy="120" r="3" fill="#10b981"/><rect x="52" y="117" width="60" height="3" rx="1" fill="#cbd5e1"/><circle cx="44" cy="132" r="3" fill="#0e8fad"/><rect x="52" y="129" width="70" height="3" rx="1" fill="#0e8fad" opacity=".5"/><circle cx="44" cy="144" r="3" fill="#e2e8f0"/><rect x="52" y="141" width="50" height="3" rx="1" fill="#e2e8f0"/><rect x="36" y="158" width="50" height="10" rx="5" fill="#0e8fad"/><rect x="160" y="10" width="100" height="220" rx="8" fill="#fff" stroke="#e2e8f0"/><text x="172" y="30" font-size="8" fill="#0e5568" font-weight="bold">Masaüstü Görünüm</text><rect x="172" y="40" width="76" height="170" rx="4" fill="#f8fafc" stroke="#e2e8f0"/><rect x="180" y="52" width="50" height="5" rx="1" fill="#0e8fad" opacity=".4"/><rect x="180" y="64" width="60" height="80" rx="3" fill="#fff" stroke="#e2e8f0"/></svg></div>
+    </div>
+    <div class="flex-col gap-2">
+      <div class="card card-accent"><h3>Portal Özellikleri</h3><ul class="sub" style="margin-top:2mm;padding-left:4mm;line-height:1.55"><li>Slug bazlı benzersiz URL (marka gizliliği)</li><li>Canlı durum zaman çizgisi (timeline)</li><li>Cihaz fotoğrafları görüntüleme</li><li>Ekspertiz onay linki (tek tık onay/red)</li><li>WhatsApp paylaşım butonu</li><li>KVKK uyumlu — müşteri izni kayıtlı</li></ul></div>
+      <div class="script-box"><strong>En güçlü satış argümanı</strong><p>«Günde 20 "cihazım ne durumda?" araması alıyorsanız, portal bunu sıfıra indirir. Personel tamire odaklanır.»</p></div>
+      <div class="grid-2 gap-2">
+        <div class="stat-pill"><strong>-80%</strong><span>Arama trafiği</span></div>
+        <div class="stat-pill"><strong>+40%</strong><span>Müşteri memnuniyeti</span></div>
+      </div>
+      <div class="talk-box"><strong>Kapanış cümlesi</strong><p>«Müşteriniz mutlu, personeliniz verimli. Portal Paket 2'den itibaren aktif — demo'da canlı göstereyim.»</p></div>
+    </div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
+</section>
+
+<!-- PAGE 14: MODUL OZET -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Tüm Modüller — Özet Harita</div><span class="pg-num">14 / 20</span></div>
+  <div class="highlight-bar">30+ modül · 8 kategori · Kümülatif paket yapısı</div>
+  <div class="flex-1 flex-col gap-2">
+    <div class="grid-4 gap-2" style="flex:1">
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Hızlı</span><h4 style="font-size:8px">Hızlı Kabul</h4><p style="font-size:7px">QR · KVKK · Fiş</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Hızlı</span><h4 style="font-size:8px">Satış &amp; POS</h4><p style="font-size:7px">Barkod · Nakit/KK</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Hızlı</span><h4 style="font-size:8px">Alış &amp; Tedarik</h4><p style="font-size:7px">Alış→stok · Fatura</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Hızlı</span><h4 style="font-size:8px">Kasa Vardiyası</h4><p style="font-size:7px">Z raporu · EOD</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Atölye</span><h4 style="font-size:8px">Kanban</h4><p style="font-size:7px">QC · Parça · 24 adım</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Atölye</span><h4 style="font-size:8px">Cihaz Foto</h4><p style="font-size:7px">8 foto · Bulut</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Atölye</span><h4 style="font-size:8px">Ekspertiz</h4><p style="font-size:7px">Onay linki · SMS</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm">Atölye</span><h4 style="font-size:8px">Garanti</h4><p style="font-size:7px">Randevu · Belge</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-gold" style="font-size:6px;margin-bottom:1mm">Stok</span><h4 style="font-size:8px">Stok Yönetimi</h4><p style="font-size:7px">Barkod · Kritik uyarı</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-gold" style="font-size:6px;margin-bottom:1mm">Stok</span><h4 style="font-size:8px">Stok Sayım</h4><p style="font-size:7px">Kamera · Export</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-gold" style="font-size:6px;margin-bottom:1mm">Stok</span><h4 style="font-size:8px">Tedarik</h4><p style="font-size:7px">Sipariş · Takip</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-green" style="font-size:6px;margin-bottom:1mm">Finans</span><h4 style="font-size:8px">Gelir/Gider</h4><p style="font-size:7px">Kategori · Ödeme</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-green" style="font-size:6px;margin-bottom:1mm">Finans</span><h4 style="font-size:8px">Dashboard</h4><p style="font-size:7px">KPI · TCMB</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-green" style="font-size:6px;margin-bottom:1mm">Finans</span><h4 style="font-size:8px">E-Fatura</h4><p style="font-size:7px">Arşiv · Durum</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-green" style="font-size:6px;margin-bottom:1mm">Finans</span><h4 style="font-size:8px">Komisyon</h4><p style="font-size:7px">Personel · Oran</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-dark" style="font-size:6px;margin-bottom:1mm">Müşteri</span><h4 style="font-size:8px">CRM</h4><p style="font-size:7px">Segment · KVKK</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-dark" style="font-size:6px;margin-bottom:1mm">Müşteri</span><h4 style="font-size:8px">Portal</h4><p style="font-size:7px">Slug · Timeline</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-dark" style="font-size:6px;margin-bottom:1mm">Müşteri</span><h4 style="font-size:8px">Siparişler</h4><p style="font-size:7px">Ön sipariş · Takip</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge badge-dark" style="font-size:6px;margin-bottom:1mm">Müşteri</span><h4 style="font-size:8px">SMS</h4><p style="font-size:7px">NetGSM · Log</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#ec4899">Mağaza</span><h4 style="font-size:8px">Vitrin</h4><p style="font-size:7px">2.el · Fiyat</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#ec4899">Mağaza</span><h4 style="font-size:8px">Kampanya</h4><p style="font-size:7px">İndirim · Fırsat</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#ec4899">Mağaza</span><h4 style="font-size:8px">Varlık</h4><p style="font-size:7px">Demirbaş · Takip</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#6366f1">Yönetim</span><h4 style="font-size:8px">Personel</h4><p style="font-size:7px">Rol · Yetki</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#6366f1">Yönetim</span><h4 style="font-size:8px">Çok Şube</h4><p style="font-size:7px">Merkez · Scope</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#6366f1">Yönetim</span><h4 style="font-size:8px">Yapılacaklar</h4><p style="font-size:7px">Görev · Atama</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#6366f1">Yönetim</span><h4 style="font-size:8px">IMEI Kontrol</h4><p style="font-size:7px">Çalıntı · Kayıt</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#1e40af">Platform</span><h4 style="font-size:8px">Super Admin</h4><p style="font-size:7px">Bayi · Audit</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#1e40af">Platform</span><h4 style="font-size:8px">API</h4><p style="font-size:7px">REST · Webhook</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#1e40af">Platform</span><h4 style="font-size:8px">Global Arama</h4><p style="font-size:7px">IMEI · Barkod</p></div>
+      <div class="mod-card" style="padding:1.5mm"><span class="badge" style="font-size:6px;margin-bottom:1mm;background:#1e40af">Platform</span><h4 style="font-size:8px">Abonelik</h4><p style="font-size:7px">Deneme · Flag</p></div>
+    </div>
+  </div>
+  <div class="grid-4 gap-2" style="margin:3mm 0">
+    <div class="mod-card" style="padding:1.5mm"><h4 style="font-size:8px">Paket 1</h4><p style="font-size:7px">Stok, POS, Müşteri, Fatura, Alış</p></div>
+    <div class="mod-card" style="padding:1.5mm;border-color:var(--brand)"><h4 style="font-size:8px">Paket 2 +</h4><p style="font-size:7px">Servis, Atölye, Portal, Garanti, Personel</p></div>
+    <div class="mod-card" style="padding:1.5mm"><h4 style="font-size:8px">Paket 3 +</h4><p style="font-size:7px">Finans, Raporlar, Mağaza, Kampanya, Varlık</p></div>
+    <div class="mod-card" style="padding:1.5mm"><h4 style="font-size:8px">Platform</h4><p style="font-size:7px">Super Admin, API, Multi-tenant (AURA)</p></div>
+  </div>
+  <div class="flow-bar" style="margin-bottom:3mm">
+    <div class="flow-node" style="background:#ecfdf5;border-color:#6ee7b7">Kabul</div><span class="flow-arrow">→</span>
+    <div class="flow-node" style="background:#e0f2fe;border-color:#0e8fad">Atölye</div><span class="flow-arrow">→</span>
+    <div class="flow-node" style="background:#fef3c7;border-color:#fcd34d">Stok</div><span class="flow-arrow">→</span>
+    <div class="flow-node" style="background:#ecfdf5;border-color:#6ee7b7">Kasa</div><span class="flow-arrow">→</span>
+    <div class="flow-node" style="background:#eff6ff;border-color:#93c5fd">Portal</div><span class="flow-arrow">→</span>
+    <div class="flow-node" style="background:#f3e8ff;border-color:#c4b5fd">Rapor</div>
+  </div>
+  <div class="script-box"><strong>«Çok modül, kafam karışır»</strong><p>«Paketler kümülatif — sadece ihtiyacınız olanı alırsınız. Stok+satış ile başlayın, servis büyüyünce Paket 2'ye geçin. Veri kaybolmaz.»</p></div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>14 / 20</span></div>
+</section>
+
+<!-- PAGE 15: FEATURE MATRIX -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Özellik Matrisi</div><span class="pg-num">15 / 20</span></div>
+  <div class="highlight-bar">Paket karşılaştırma — saha satışta masaya koyun</div>
+  <div class="flex-1" style="overflow:hidden">
+    <table>
+      <thead><tr><th>Özellik</th><th>Stok &amp; Satış<br/>₺450</th><th>Teknik Servis<br/>₺750</th><th>Finans &amp; Analitik<br/>₺1200</th></tr></thead>
+      <tbody>
+        <tr><td>Stok &amp; Envanter</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Satış &amp; POS</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Müşteri CRM</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Fatura &amp; Alış</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Kullanıcı / Şube</td><td>3 / 1</td><td>6 / 2</td><td>12 / 5</td></tr>
+        <tr><td>Teknik Servis &amp; Atölye</td><td class="no">—</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Kanban &amp; QC</td><td class="no">—</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Müşteri Portalı</td><td class="no">—</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Garanti &amp; Randevu</td><td class="no">—</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Personel &amp; IMEI</td><td class="no">—</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Finans &amp; Gelir/Gider</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td>Dashboard &amp; KPI</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td>E-Fatura &amp; Komisyon</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td>Mağaza &amp; Kampanya</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+        <tr><td>AURA AI Asistan</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Bulut &amp; Yedekleme</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>14 Gün Deneme</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Öncelikli Destek</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="talk-box" style="margin-top:3mm"><strong>Matris kullanımı</strong><p>«Hangi satır sizin için kritik? Çoğu servis mağazası Teknik Servis paketinde — portal ve atölye olmadan dönüşüm yarıda kalır.»</p></div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
+</section>
+
+<!-- PAGE 16: PRICING -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Paketler &amp; Fiyatlandırma</div><span class="pg-num">16 / 20</span></div>
+  <div class="highlight-bar">Kümülatif paketler — üst paket alt paketlerin tümünü içerir</div>
+  <div class="row flex-1" style="align-items:stretch">
     <div class="plan">
       <div class="plan-name">Stok &amp; Satış</div>
+      <div class="badge badge-dark">Paket 1 · Level 1</div>
       <div class="plan-price">₺450<small>/ay</small></div>
       <ul>
-        <li>✓ Stok &amp; envanter</li>
-        <li>✓ Satış &amp; POS</li>
-        <li>✓ Müşteri yönetimi</li>
-        <li>✓ Fatura &amp; irsaliye</li>
-        <li>✓ Alış / tedarik</li>
-        <li>3 kullanıcı · 1 şube</li>
+        <li>Stok &amp; Envanter Yönetimi</li>
+        <li>Satış &amp; POS</li>
+        <li>Müşteri Yönetimi</li>
+        <li>Fatura &amp; İrsaliye</li>
+        <li>Alış / Tedarik</li>
+        <li>3 Kullanıcı · 1 Şube</li>
       </ul>
+      <div class="script-box" style="margin-top:auto"><strong>Hedef</strong><p>Küçük satış noktası, sadece stok+POS ihtiyacı.</p></div>
     </div>
     <div class="plan featured">
-      <div class="plan-badge">EN POPÜLER</div>
-      <div class="plan-name">Teknik Servis</div>
+      <div class="plan-name">Teknik Servis <span class="badge badge-gold" style="margin-left:2mm">Vitrin</span></div>
+      <div class="badge">Paket 2 · Level 2</div>
       <div class="plan-price">₺750<small>/ay</small></div>
       <ul>
-        <li>✓ Stok &amp; Satış (dahil)</li>
-        <li>✓ Atölye &amp; kanban</li>
-        <li>✓ Cihaz &amp; arıza takibi</li>
-        <li>✓ Müşteri portalı</li>
-        <li>✓ Garanti &amp; randevu</li>
-        <li>6 kullanıcı · 2 şube</li>
+        <li>Stok &amp; Satış (dahil)</li>
+        <li>Teknik Servis &amp; Atölye</li>
+        <li>Cihaz &amp; Arıza Takibi</li>
+        <li>Müşteri Portalı</li>
+        <li>Garanti &amp; Randevu</li>
+        <li>6 Kullanıcı · 2 Şube</li>
       </ul>
+      <div class="script-box" style="margin-top:auto"><strong>En çok satan</strong><p>Servis mağazalarının %80'i bu pakette başlar.</p></div>
     </div>
     <div class="plan">
       <div class="plan-name">Finans &amp; Analitik</div>
+      <div class="badge badge-green">Paket 3 · Level 3</div>
       <div class="plan-price">₺1200<small>/ay</small></div>
       <ul>
-        <li>✓ Teknik Servis (dahil)</li>
-        <li>✓ Finans &amp; kasa</li>
-        <li>✓ Gelişmiş raporlar</li>
-        <li>✓ Vitrin &amp; kampanya</li>
-        <li>✓ Öncelikli destek</li>
-        <li>12 kullanıcı · 5 şube</li>
+        <li>Teknik Servis (dahil)</li>
+        <li>Finans &amp; Nakit Akışı</li>
+        <li>Dashboard &amp; Analitik</li>
+        <li>E-Fatura &amp; Komisyon</li>
+        <li>Mağaza &amp; Kampanya</li>
+        <li>12 Kullanıcı · 5 Şube</li>
       </ul>
+      <div class="script-box" style="margin-top:auto"><strong>Hedef</strong><p>Çok şubeli, finans odaklı büyüyen işletmeler.</p></div>
     </div>
   </div>
-
-  <p style="margin-top:8mm;font-size:10px;text-align:center;color:var(--muted)">Yıllık ödeme indirimi · Stripe online ödeme · Özel kurumsal teklif için iletişime geçin</p>
-</section>
-
-<!-- SAYFA 12 — SAHA SATIŞ SENARYOSU -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">12</div></div>
-  <h2>Saha Ziyareti — 15 Dakikalık Demo Senaryosu</h2>
-
-  <table class="compare-table">
-    <tr><th>Dk</th><th>Adım</th><th>Ne gösterilir?</th></tr>
-    <tr><td>0–2</td><td>Tanışma</td><td>Kapak + «tek defter» vizyonu</td></tr>
-    <tr><td>2–5</td><td>Kabul demo</td><td>Telefondan kabul formu → QR fiş → WA mesajı</td></tr>
-    <tr><td>5–8</td><td>Atölye</td><td>Kanban'da kart sürükle → durum değişimi</td></tr>
-    <tr><td>8–10</td><td>Portal</td><td>Müşteri gözüyle portal linki aç</td></tr>
-    <tr><td>10–12</td><td>Stok/POS</td><td>Parça satışı → stok düşümü</td></tr>
-    <tr><td>12–15</td><td>Kapanış</td><td>Paket tablosu + 30 gün deneme + başvuru QR</td></tr>
-  </table>
-
-  <h3>Sık İtirazlar &amp; Yanıtlar</h3>
-  <div class="grid-2" style="margin-top:4mm">
-    <div class="script-box"><strong>«Pahalı»</strong><p>«Günde 1 kayıp parça veya 1 kaçan müşteri zaten aylık bedeli çıkarır. 750 TL = günde 25 TL.»</p></div>
-    <div class="script-box"><strong>«Excel yeter»</strong><p>«Excel müşteriye link göndermez, stok düşmez, teknisyen mobilde göremez.»</p></div>
-    <div class="script-box"><strong>«Kurulum zor»</strong><p>«Tarayıcı aç, giriş yap. Veri taşıma için destek veriyoruz — 30 gün deneme bedava.»</p></div>
-    <div class="script-box"><strong>«İnternet kesilirse?»</strong><p>«Son senkron cache ile okuma devam eder; bağlantı gelince otomatik sync. Kritik işlemler API-first.»</p></div>
+  <div class="grid-4 gap-2" style="margin-top:3mm">
+    <div class="stat-pill"><strong>14 gün</strong><span>Ücretsiz deneme</span></div>
+    <div class="stat-pill"><strong>%20</strong><span>Yıllık indirim</span></div>
+    <div class="stat-pill"><strong>0₺</strong><span>Kurulum ücreti</span></div>
+    <div class="stat-pill"><strong>7/24</strong><span>Bulut erişim</span></div>
   </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>destek@aurabilisim.com</span></div>
 </section>
 
-<!-- SAYFA 13 — TEKNİK & DESTEK -->
-<section class="page inner">
-  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">13</div></div>
-  <h2>Teknik Altyapı &amp; Destek</h2>
-
-  <div class="grid-2">
-    <div>
-      <h3>Altyapı</h3>
-      <ul class="checklist">
-        <li>Next.js + Supabase (PostgreSQL)</li>
-        <li>Supabase Storage — cihaz fotoğrafları</li>
-        <li>Vercel edge deploy — global CDN</li>
-        <li>Row Level Security — tenant izolasyonu</li>
-        <li>PWA — mobil kısayol (kabul, portal)</li>
-        <li>Playwright E2E test altyapısı</li>
-      </ul>
+<!-- PAGE 17: DEMO SCRIPT -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> 15 Dakikalık Demo Senaryosu</div><span class="pg-num">17 / 20</span></div>
+  <div class="highlight-bar">Saha ziyaretinde tablet/telefon ile canlı demo — adım adım</div>
+  <div class="flex-1 flex-col gap-2">
+    <div class="grid-2 gap-2">
+      <div class="card"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge">0-2 dk</span><h3>Açılış &amp; Sorun Tespiti</h3></div><p class="sub">«Kaç defter tutuyorsunuz? Günde kaç "cihazım ne durumda?" araması?» Mağaza turu — kağıt fiş, Excel stok göster.</p></div>
+      <div class="card"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge">2-5 dk</span><h3>Dashboard &amp; KPI</h3></div><p class="sub">Bugün ciro, açık servis, kritik stok. «Hepsi canlı — dün gece 11'de baktım» deyin. TCMB widget göster.</p></div>
+      <div class="card card-accent"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge badge-gold">5-8 dk</span><h3>Hızlı Kabul (Ana Demo)</h3></div><p class="sub">Gerçek cihazla kabul formu doldur. QR bas, WhatsApp önizleme göster. «2 dakika — siz 10 dakika harcıyorsunuz.»</p></div>
+      <div class="card card-accent"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge">8-10 dk</span><h3>Atölye Kanban</h3></div><p class="sub">Kabul edilen cihazı kanban'da sürükle. Parça ekle → stok düşüşünü göster. Teknisyen ataması yap.</p></div>
+      <div class="card"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge badge-green">10-12 dk</span><h3>Müşteri Portalı</h3></div><p class="sub">Telefondan portal linkini aç. Timeline, fotoğraf, onay butonu. «Müşteriniz bunu görüyor — sizi aramıyor.»</p></div>
+      <div class="card"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge">12-14 dk</span><h3>POS &amp; Stok</h3></div><p class="sub">Barkod okut, satış yap. Stok tablosunda düşüşü göster. «Tek envanter — servis ve satış aynı.»</p></div>
     </div>
-    <div>
-      <h3>Destek SLA</h3>
-      <ul class="checklist">
-        <li>Kritik (giriş/sync): 4 saat iş günü</li>
-        <li>Normal: 24 saat iş günü</li>
-        <li>E-posta: destek@aurabilisim.com</li>
-        <li>Web: integra.aurabilisim.net</li>
-        <li>Panel içi: Destek modülü</li>
-      </ul>
+    <div class="card" style="background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border-color:#6ee7b7"><div class="row" style="align-items:center;margin-bottom:1mm"><span class="badge badge-green">14-15 dk</span><h3>Kapanış &amp; Paket Seçimi</h3></div><p class="sub">Matris tablosunu göster. «Hangi paket size uygun?» 14 gün deneme teklif et. integra.aurabilisim.net/basvuru QR göster.</p></div>
+    <div class="talk-box"><strong>Altın kural</strong><p>Müşterinin cihazını kullanın — kendi demo verinizi değil. «Sizin iPhone'unuz» dediğiniz an güven oluşur.</p></div>
+  </div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>17 / 20</span></div>
+</section>
+
+<!-- PAGE 18: OBJECTION HANDLING -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> İtiraz Yönetimi</div><span class="pg-num">18 / 20</span></div>
+  <div class="highlight-bar">Saha satışta en sık 8 itiraz — hazır cevaplar</div>
+  <div class="flex-1 grid-2 gap-2">
+    <div class="script-box"><strong>«Pahalı»</strong><p>«Günde 1 kayıp parça veya 1 kaçan müşteri zaten aylık bedeli çıkarır. 750 TL = günde 25 TL — bir çay parası.»</p></div>
+    <div class="script-box"><strong>«Excel yeterli»</strong><p>«Excel'de QR basmaz, müşteriye WhatsApp atmaz, stok otomatik düşmez. Personel Excel güncellemeyi unutur — her pazartesi sorun.»</p></div>
+    <div class="script-box"><strong>«Personel öğrenemez»</strong><p>«AURA AI her soruya cevap verir. Kabul 3 tık. 14 gün deneme — personel kendisi «bunu istiyorum» der.»</p></div>
+    <div class="script-box"><strong>«İnternet kesilirse?»</strong><p>«Offline cache ile temel işlemler devam eder. Sync internet gelince otomatik. Bulut yedek — bilgisayar bozulsa veri kaybolmaz.»</p></div>
+    <div class="script-box"><strong>«Başka program kullanıyoruz»</strong><p>«Veri taşıma desteği var. Excel export/import. Geçiş 1 gün — paralel çalışma dönemi sunuyoruz.»</p></div>
+    <div class="script-box"><strong>«Düşüneyim»</strong><p>«14 gün ücretsiz — düşünmek için değil, denemek için. Kredi kartı gerekmez. Bugün başlarsanız Pazartesi canlıdasınız.»</p></div>
+    <div class="script-box"><strong>«Sadece servis, satış yok»</strong><p>«Paket 2 tam size göre — POS olmadan da servis+portal. İleride satış eklerseniz Paket 1 modülleri zaten altyapıda.»</p></div>
+    <div class="script-box"><strong>«KVKK / veri güvenliği?»</strong><p>«Supabase altyapı, TLS şifreleme, tenant izolasyonu. KVKK onay kaydı kabul formunda. Veriler Türkiye/EU sunucu.»</p></div>
+  </div>
+  <div class="talk-box" style="margin-top:3mm"><strong>İtiraz sonrası kapanış</strong><p>Her itiraz cevabından sonra soru sorun: «Bu mantıklı geldi mi?» Sessizlikte demo'ya geri dönün — anlatmak yerine göstermek ikna eder.</p></div>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>integra.aurabilisim.net</span></div>
+</section>
+
+<!-- PAGE 19: TECH STACK -->
+<section class="page px py flex-col">
+  <div class="pg-head"><div class="brand-mark"><svg width="14" height="14" viewBox="0 0 100 100"><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="#0e8fad"/></svg> Teknik Altyapı</div><span class="pg-num">19 / 20</span></div>
+  <div class="highlight-bar">Kurumsal güven — modern, ölçeklenebilir, güvenli mimari</div>
+  <div class="split flex-1">
+    <div class="flex-col gap-2">
+      <div class="card"><h3>Frontend</h3><div style="margin-top:2mm"><span class="tag">Next.js 14</span><span class="tag">React 18</span><span class="tag">TypeScript</span><span class="tag">Tailwind CSS</span><span class="tag">PWA Ready</span></div><p class="sub" style="margin-top:2mm">Mobil-first responsive tasarım. Tablet ve telefonda native app deneyimi.</p></div>
+      <div class="card"><h3>Backend &amp; Veritabanı</h3><div style="margin-top:2mm"><span class="tag">Supabase</span><span class="tag">PostgreSQL</span><span class="tag">Row Level Security</span><span class="tag">Realtime</span></div><p class="sub" style="margin-top:2mm">Multi-tenant izolasyon. Her bayi kendi veritabanı scope'unda — veri karışmaz.</p></div>
+      <div class="card"><h3>Entegrasyonlar</h3><div style="margin-top:2mm"><span class="tag">NetGSM SMS</span><span class="tag">E-Fatura</span><span class="tag">REST API</span><span class="tag">Webhook</span><span class="tag">Stripe</span></div></div>
+      <div class="card"><h3>Güvenlik &amp; Ops</h3><div style="margin-top:2mm"><span class="tag">TLS 1.3</span><span class="tag">JWT Auth</span><span class="tag">Sentry</span><span class="tag">Otomatik Yedek</span><span class="tag">KVKK</span></div></div>
+    </div>
+    <div class="flex-col gap-2">
+      <div class="card card-soft"><h3>Mimari Diyagram</h3>
+        <svg viewBox="0 0 240 160" style="margin-top:2mm;width:100%"><rect x="80" y="8" width="80" height="24" rx="4" fill="#0e8fad"/><text x="104" y="24" font-size="7" fill="#fff" font-weight="bold">Next.js App</text><line x1="120" y1="32" x2="120" y2="48" stroke="#64748b" stroke-width="1.5"/><rect x="60" y="48" width="120" height="24" rx="4" fill="#0e5568"/><text x="88" y="64" font-size="7" fill="#fff">Supabase API</text><line x1="120" y1="72" x2="120" y2="88" stroke="#64748b" stroke-width="1.5"/><rect x="40" y="88" width="60" height="24" rx="4" fill="#059669"/><text x="52" y="104" font-size="6" fill="#fff">PostgreSQL</text><rect x="140" y="88" width="60" height="24" rx="4" fill="#2563eb"/><text x="152" y="104" font-size="6" fill="#fff">Storage</text><line x1="70" y1="112" x2="70" y2="128" stroke="#64748b"/><line x1="170" y1="112" x2="170" y2="128" stroke="#64748b"/><rect x="20" y="128" width="50" height="24" rx="4" fill="#f59e0b"/><text x="28" y="144" font-size="6" fill="#fff">NetGSM</text><rect x="95" y="128" width="50" height="24" rx="4" fill="#7c3aed"/><text x="103" y="144" font-size="6" fill="#fff">E-Fatura</text><rect x="170" y="128" width="50" height="24" rx="4" fill="#ec4899"/><text x="180" y="144" font-size="6" fill="#fff">Stripe</text></svg>
+      </div>
+      <div class="grid-2 gap-2">
+        <div class="stat-pill"><strong>99.9%</strong><span>Uptime hedefi</span></div>
+        <div class="stat-pill"><strong>RLS</strong><span>Tenant izolasyon</span></div>
+      </div>
+      <div class="script-box"><strong>Teknik soru gelirse</strong><p>«Supabase = Firebase'in Postgres versiyonu. Spotify, Mozilla kullanıyor. Verileriniz şifreli, yedekli, Avrupa sunucuda.»</p></div>
+      <div class="talk-box"><strong>Kurumsal müşteri</strong><p>«API dokümantasyonu hazır. Kendi muhasebe/ERP sisteminize webhook ile bağlanabilirsiniz.»</p></div>
     </div>
   </div>
-
-  <h3>Başlangıç Adımları (Bayi İçin)</h3>
-  <ol style="margin-left:5mm;font-size:11px;line-height:1.8;color:#334155">
-    <li><strong>basvuru</strong> formunu doldur → admin onayı</li>
-    <li>Magic link veya şifre ile panele giriş</li>
-    <li>Kurulum sihirbazı: firma bilgisi, logo, Netgsm (opsiyonel)</li>
-    <li>İlk kabul → portal linkini müşteriye gönder</li>
-    <li>7 gün sonra check-in araması (AURA destek)</li>
-  </ol>
+  <div class="pg-foot"><span>AURA Bilişim</span><span>destek@aurabilisim.com</span></div>
 </section>
 
-<!-- SAYFA 14 — ARKA KAPAK -->
-<section class="page cta-back">
-  <h2>Hazır mısınız?</h2>
-  <p>30 gün ücretsiz deneme. Kurulum yok, taahhüt yok. Bugün başvurun — yarın ilk cihazınızı panelden kabul edin.</p>
-  <div class="cta-url">integra.aurabilisim.net/basvuru</div>
-  <div class="qr-placeholder">QR — Başvuru<br/>Linki</div>
-  <p style="margin-top:10mm;font-size:12px;opacity:.85">
-    AURA Bilişim Teknoloji Üssü<br />
-    destek@aurabilisim.com · aurabilisim.net
-  </p>
-  <p style="margin-top:6mm;font-size:9px;opacity:.6">© 2026 AURA Bilişim — AURA İntegra Entegrasyon Platformu</p>
+<!-- PAGE 20: BACK COVER -->
+<section class="page back-cover">
+  <div>
+    <svg width="48" height="48" viewBox="0 0 100 100" style="margin:0 auto;display:block"><defs><linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#2563eb"/></linearGradient></defs><path d="M50 12 L22 40 L22 52 L12 52 L12 35 L45 2 Z" fill="#f8fafc" stroke="#06b6d4" stroke-width="0.8"/><path d="M50 88 L78 60 L78 48 L88 48 L88 65 L55 98 Z" fill="#f8fafc" stroke="#06b6d4" stroke-width="0.8"/><rect x="36" y="36" width="28" height="28" rx="3" transform="rotate(45 50 50)" fill="url(#lg2)"/><circle cx="50" cy="50" r="2.5" fill="#fff"/></svg>
+    <h2 style="margin-top:5mm">Hemen Başlayın</h2>
+    <p style="font-size:11px;opacity:.85;max-width:120mm;margin:0 auto">14 gün ücretsiz deneme · Kredi kartı gerekmez · 1 günde canlı</p>
+  </div>
+  <div class="back-cta">
+    <div class="label" style="color:rgba(255,255,255,.6);margin-bottom:2mm">Online Başvuru &amp; Demo</div>
+    <div class="url">integra.aurabilisim.net</div>
+    <div class="email">destek@aurabilisim.com</div>
+    <div class="qr-box" style="margin-top:4mm">
+      <svg viewBox="0 0 80 80" width="64" height="64"><rect width="80" height="80" fill="#fff"/><rect x="8" y="8" width="20" height="20" fill="#0e5568"/><rect x="52" y="8" width="20" height="20" fill="#0e5568"/><rect x="8" y="52" width="20" height="20" fill="#0e5568"/><rect x="12" y="12" width="12" height="12" fill="#fff"/><rect x="56" y="12" width="12" height="12" fill="#fff"/><rect x="12" y="56" width="12" height="12" fill="#fff"/><rect x="36" y="8" width="4" height="4" fill="#0e8fad"/><rect x="44" y="8" width="4" height="4" fill="#0e8fad"/><rect x="36" y="16" width="4" height="4" fill="#0e5568"/><rect x="8" y="36" width="4" height="4" fill="#0e8fad"/><rect x="36" y="36" width="8" height="8" fill="#0e5568"/><rect x="52" y="36" width="4" height="4" fill="#0e8fad"/><rect x="64" y="36" width="4" height="4" fill="#0e8fad"/><rect x="36" y="52" width="4" height="4" fill="#0e8fad"/><rect x="52" y="52" width="12" height="4" fill="#0e5568"/><rect x="52" y="60" width="4" height="12" fill="#0e5568"/><rect x="64" y="64" width="8" height="8" fill="#0e8fad"/></svg>
+    </div>
+    <p style="font-size:8px;opacity:.7;margin-top:3mm">integra.aurabilisim.net/basvuru</p>
+  </div>
+  <div>
+    <div class="grid-3 gap-3" style="max-width:150mm;margin:0 auto 5mm">
+      <div style="text-align:center"><strong style="font-size:14px;display:block">30+</strong><span style="font-size:8px;opacity:.75">Modül</span></div>
+      <div style="text-align:center"><strong style="font-size:14px;display:block">3</strong><span style="font-size:8px;opacity:.75">Paket</span></div>
+      <div style="text-align:center"><strong style="font-size:14px;display:block">7/24</strong><span style="font-size:8px;opacity:.75">Destek</span></div>
+    </div>
+    <p style="font-size:9px;opacity:.65">© 2026 AURA Bilişim · Tüm hakları saklıdır</p>
+    <p style="font-size:8px;opacity:.5;margin-top:2mm">Teknik servis &amp; perakende için tek defter platform · Bulut SaaS · Multi-tenant</p>
+  </div>
 </section>
 
 </body>
