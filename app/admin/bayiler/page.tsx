@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Bell, Pencil, Trash2, PauseCircle, LogIn, Activity } from 'lucide-react'
+import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Pencil, Trash2, PauseCircle, LogIn, Activity, Mail, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency, TENANT_STATUS_COLORS, TENANT_STATUS_LABELS } from '@/lib/utils'
 import { healthScoreLabel, type HealthIntervention } from '@/lib/admin/health-score'
@@ -334,16 +334,23 @@ export default function BayilerPage() {
     }
   }
 
-  const sendPaymentReminder = async (tenantId: string) => {
+  const sendPaymentReminder = async (tenantId: string, channel: 'email' | 'whatsapp' = 'email') => {
     try {
       const res = await fetch('/api/admin/remind-payment', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant_id: tenantId }),
+        body: JSON.stringify({ tenant_id: tenantId, channel }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Gönderilemedi')
+
+      if (channel === 'whatsapp' && json.wa_url) {
+        window.open(json.wa_url, '_blank', 'noopener,noreferrer')
+        toast.success('WhatsApp hatırlatıcısı açıldı')
+        return
+      }
+
       toast.success('Ödeme hatırlatıcısı e-posta ile gönderildi')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Hatırlatıcı gönderilemedi')
@@ -460,13 +467,22 @@ export default function BayilerPage() {
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         {isExpiringSoon ? (
-                          <button
-                            onClick={() => sendPaymentReminder(t.id)}
-                            className="btn-ghost btn-sm p-1.5 text-amber-400 hover:text-amber-300"
-                            title="Ödeme Hatırlatıcı Gönder"
-                          >
-                            <Bell size={14} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => sendPaymentReminder(t.id, 'email')}
+                              className="btn-ghost btn-sm p-1.5 text-amber-400 hover:text-amber-300"
+                              title="E-posta hatırlatıcı"
+                            >
+                              <Mail size={14} />
+                            </button>
+                            <button
+                              onClick={() => sendPaymentReminder(t.id, 'whatsapp')}
+                              className="btn-ghost btn-sm p-1.5 text-[#25D366] hover:opacity-80"
+                              title="WhatsApp hatırlatıcı"
+                            >
+                              <MessageCircle size={14} />
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-zinc-700 text-xs px-2">—</span>
                         )}
@@ -870,12 +886,20 @@ export default function BayilerPage() {
                 </button>
 
                 {/* Ödeme hatırlatıcı */}
-                <button
-                  onClick={() => sendPaymentReminder(selectedTenant.id)}
-                  className="btn-secondary w-full flex items-center justify-center gap-2"
-                >
-                  <Bell size={14} /> Ödeme Hatırlatıcı Gönder
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => sendPaymentReminder(selectedTenant.id, 'email')}
+                    className="btn-secondary flex items-center justify-center gap-2"
+                  >
+                    <Mail size={14} /> E-posta
+                  </button>
+                  <button
+                    onClick={() => sendPaymentReminder(selectedTenant.id, 'whatsapp')}
+                    className="btn-secondary flex items-center justify-center gap-2 text-[#25D366] border-[#25D366]/30"
+                  >
+                    <MessageCircle size={14} /> WhatsApp
+                  </button>
+                </div>
               </div>
 
               {/* Durum Değiştir (hızlı erişim) */}

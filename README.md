@@ -78,8 +78,11 @@ GEMINI_API_KEY=
 ```bash
 npm run dev
 npm run build
+npm run pdf:katalog          # Saha satış PDF (docs/pazarlama/)
 node scripts/verify-env.mjs   # push öncesi lokal env kontrolü
 ```
+
+**Saha pazarlama kataloğu:** [docs/pazarlama/AURA-Integra-Saha-Katalogu.pdf](docs/pazarlama/AURA-Integra-Saha-Katalogu.pdf) · HTML: [docs/pazarlama/katalog.html](docs/pazarlama/katalog.html)
 
 ## Public API
 

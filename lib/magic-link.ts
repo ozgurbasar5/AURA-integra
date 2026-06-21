@@ -1,13 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { appAuthCallbackUrl, fixMagicLinkRedirect, getServerAppUrl } from '@/lib/app-url'
+import { fixMagicLinkRedirect, resolveMagicLinkBaseUrl, buildAuthCallbackUrl } from '@/lib/app-url'
 
 export async function generateDashboardMagicLink(
   admin: SupabaseClient,
   email: string,
   fallbackOrigin?: string,
 ): Promise<{ ok: true; link: string } | { ok: false; error: string }> {
-  const appUrl = getServerAppUrl(fallbackOrigin)
-  const redirectTo = appAuthCallbackUrl(fallbackOrigin, '/dashboard')
+  const baseUrl = resolveMagicLinkBaseUrl(fallbackOrigin)
+  const redirectTo = buildAuthCallbackUrl(baseUrl, '/dashboard')
 
   const { data, error } = await admin.auth.admin.generateLink({
     type: 'magiclink',
@@ -21,7 +21,7 @@ export async function generateDashboardMagicLink(
 
   return {
     ok: true,
-    link: fixMagicLinkRedirect(data.properties.action_link, appUrl),
+    link: fixMagicLinkRedirect(data.properties.action_link, baseUrl),
   }
 }
 

@@ -3,6 +3,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import SupabaseEnvScript from '@/components/SupabaseEnvScript'
 import CookieConsent from '@/components/CookieConsent'
+import MagicLinkHashRedirect from '@/components/auth/MagicLinkHashRedirect'
 import { themeBootScript } from '@/lib/theme-boot-script'
 
 export const viewport: Viewport = {
@@ -40,6 +41,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
       <body className="font-sans antialiased">
+        <MagicLinkHashRedirect />
         {children}
         <CookieConsent />
         <Toaster

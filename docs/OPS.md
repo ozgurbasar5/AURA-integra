@@ -112,7 +112,11 @@ npm run test:e2e
 ## Magic link (bayi panele giriş)
 
 1. Vercel: `NEXT_PUBLIC_APP_URL=https://integra.aurabilisim.net`
-2. Supabase Auth → URL Configuration → Site URL aynı domain
-3. Redirect URLs:
-   - `https://integra.aurabilisim.net/**`
-   - `https://integra.aurabilisim.net/auth/callback`
+2. Supabase Auth → URL Configuration:
+   - **Site URL:** `https://integra.aurabilisim.net` (localhost değil!)
+   - **Redirect URLs:**
+     - `https://integra.aurabilisim.net/**`
+     - `https://integra.aurabilisim.net/auth/callback**`
+     - `http://localhost:3000/auth/callback**` (yalnızca lokal geliştirme)
+3. Lokal admin panelden link üretirken `.env.local` içinde `NEXT_PUBLIC_APP_URL` prod URL olmalı
+4. Eski localhost linkleri çalışmaz — admin panelden yeni magic link oluşturun

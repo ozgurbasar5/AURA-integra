@@ -58,6 +58,7 @@ export default function AyarlarPage() {
     abonelik_uyari: '30',
     email_bildirim: true,
     sms_bildirim: false,
+    whatsapp_bildirim: true,
   })
 
   // Yeni plan form
@@ -82,6 +83,8 @@ export default function AyarlarPage() {
         if (s?.deneme_suresi) setGenelForm(g => ({ ...g, deneme_suresi: String(s.deneme_suresi) }))
         if (s?.odeme_hatirlama) setBildirimForm(b => ({ ...b, odeme_hatirlama: String(s.odeme_hatirlama) }))
         if (s?.email_bildirim != null) setBildirimForm(b => ({ ...b, email_bildirim: !!s.email_bildirim }))
+        if (s?.sms_bildirim != null) setBildirimForm(b => ({ ...b, sms_bildirim: !!s.sms_bildirim }))
+        if (s?.whatsapp_bildirim != null) setBildirimForm(b => ({ ...b, whatsapp_bildirim: !!s.whatsapp_bildirim }))
       })
       .catch(() => {})
     fetch('/api/admin/audit-logs?limit=20', { credentials: 'same-origin' })
@@ -200,6 +203,7 @@ export default function AyarlarPage() {
       abonelik_uyari: bildirimForm.abonelik_uyari,
       email_bildirim: bildirimForm.email_bildirim,
       sms_bildirim: bildirimForm.sms_bildirim,
+      whatsapp_bildirim: bildirimForm.whatsapp_bildirim,
     }
     const res = await fetch('/api/admin/platform-settings', {
       method: 'PATCH',
@@ -207,7 +211,11 @@ export default function AyarlarPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settings }),
     })
-    if (!res.ok) { showToast('error', 'Kayıt başarısız'); return }
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      showToast('error', json.error || 'Kayıt başarısız')
+      return
+    }
     showToast('success', 'Platform ayarları kaydedildi')
   }
 
@@ -445,6 +453,7 @@ export default function AyarlarPage() {
 
           {[
             { key: 'email_bildirim', label: 'E-posta Bildirimleri', desc: 'Ödeme ve abonelik e-postaları gönder' },
+            { key: 'whatsapp_bildirim', label: 'WhatsApp Hatırlatıcı', desc: 'Admin panelden ödeme hatırlatıcısı wa.me ile' },
             { key: 'sms_bildirim',   label: 'SMS Bildirimleri',     desc: 'SMS ile uyarı gönder (ek ücretli)' },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between py-3 border-b border-slate-100">

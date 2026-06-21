@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AURA İntegra — Saha Satış Kataloğu 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #0e8fad;
+      --brand-dark: #0e5568;
+      --brand-deep: #0a3d4d;
+      --accent: #2563eb;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --text: #0f172a;
+      --muted: #64748b;
+      --paper: #ffffff;
+      --soft: #f1f5f9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      color: var(--text);
+      background: #cbd5e1;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 12px auto;
+      background: var(--paper);
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      box-shadow: 0 8px 40px rgba(0,0,0,.12);
+    }
+    @media print {
+      body { background: white; }
+      .page { margin: 0; box-shadow: none; }
+    }
+    @page { size: A4; margin: 0; }
+
+    /* ── Cover ── */
+    .cover {
+      background: linear-gradient(145deg, #0a3d4d 0%, #0e5568 40%, #0e8fad 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18mm 16mm;
+    }
+    .cover-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .cover h1 {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1.05;
+      margin-top: 24mm;
+    }
+    .cover h1 span { color: #7dd3fc; }
+    .cover-sub {
+      font-size: 18px;
+      color: rgba(255,255,255,.85);
+      max-width: 140mm;
+      line-height: 1.5;
+      margin-top: 8mm;
+    }
+    .cover-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      margin-top: 14mm;
+    }
+    .cover-stat {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 12px;
+      padding: 5mm;
+      text-align: center;
+    }
+    .cover-stat strong { display: block; font-size: 22px; font-weight: 900; }
+    .cover-stat span { font-size: 10px; opacity: .8; }
+    .cover-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid rgba(255,255,255,.2);
+      padding-top: 6mm;
+      font-size: 11px;
+      opacity: .9;
+    }
+
+    /* ── Inner pages ── */
+    .inner { padding: 14mm 16mm; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--soft);
+      padding-bottom: 4mm;
+      margin-bottom: 8mm;
+    }
+    .page-header .logo {
+      font-weight: 900;
+      font-size: 14px;
+      color: var(--brand-dark);
+    }
+    .page-header .logo span { color: var(--brand); }
+    .page-header .num {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    h2 {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--brand-dark);
+      margin-bottom: 4mm;
+      line-height: 1.2;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--brand);
+      margin: 6mm 0 3mm;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    p, li { font-size: 11.5px; line-height: 1.65; color: #334155; }
+    .lead { font-size: 13px; color: var(--muted); margin-bottom: 6mm; max-width: 165mm; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+    .card {
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 5mm;
+      border: 1px solid #e2e8f0;
+    }
+    .card-accent {
+      background: linear-gradient(135deg, #ecfeff, #f0f9ff);
+      border-color: #a5f3fc;
+    }
+    .card h4 { font-size: 12px; font-weight: 800; margin-bottom: 2mm; color: var(--brand-dark); }
+    .card p { font-size: 10.5px; }
+    .icon-circle {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      margin-bottom: 3mm;
+    }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--brand-deep);
+      border-radius: 14px;
+      padding: 6mm 4mm;
+      margin: 6mm 0;
+    }
+    .flow-step {
+      text-align: center;
+      color: white;
+      flex: 1;
+    }
+    .flow-step .dot {
+      width: 44px; height: 44px;
+      background: var(--brand);
+      border-radius: 50%;
+      margin: 0 auto 2mm;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      border: 2px solid rgba(255,255,255,.3);
+    }
+    .flow-step strong { display: block; font-size: 10px; }
+    .flow-arrow { color: rgba(255,255,255,.4); font-size: 18px; padding: 0 2mm; }
+
+    .checklist { list-style: none; margin: 4mm 0; }
+    .checklist li {
+      padding: 2mm 0 2mm 6mm;
+      position: relative;
+      font-size: 11px;
+    }
+    .checklist li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .pricing {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4mm;
+      margin-top: 5mm;
+    }
+    .plan {
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 5mm;
+      position: relative;
+    }
+    .plan.featured {
+      border-color: var(--brand);
+      background: linear-gradient(180deg, #f0fdfa, white);
+      transform: scale(1.02);
+    }
+    .plan-badge {
+      position: absolute;
+      top: -3mm; right: 4mm;
+      background: var(--brand);
+      color: white;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    .plan-name { font-size: 13px; font-weight: 900; color: var(--brand-dark); }
+    .plan-price { font-size: 28px; font-weight: 900; color: var(--brand); margin: 2mm 0; }
+    .plan-price small { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .plan ul { list-style: none; margin-top: 3mm; }
+    .plan li { font-size: 9.5px; padding: 1.5mm 0; border-bottom: 1px solid #f1f5f9; }
+
+    .screenshot {
+      background: linear-gradient(180deg, #1e293b, #0f172a);
+      border-radius: 12px;
+      padding: 4mm;
+      color: white;
+      min-height: 55mm;
+      position: relative;
+      overflow: hidden;
+    }
+    .screenshot-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 3mm;
+    }
+    .screenshot-bar span {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #475569;
+    }
+    .screenshot-bar span:nth-child(1) { background: #ef4444; }
+    .screenshot-bar span:nth-child(2) { background: #f59e0b; }
+    .screenshot-bar span:nth-child(3) { background: #22c55e; }
+    .mock-ui {
+      background: rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 3mm;
+      font-size: 9px;
+    }
+    .mock-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 2mm;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .mock-badge {
+      background: #0e8fad;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 8px;
+    }
+
+    .script-box {
+      background: #fffbeb;
+      border-left: 4px solid var(--gold);
+      padding: 5mm;
+      border-radius: 0 10px 10px 0;
+      margin: 4mm 0;
+    }
+    .script-box strong { color: #92400e; font-size: 11px; }
+    .script-box p { font-size: 11px; color: #78350f; margin-top: 2mm; font-style: italic; }
+
+    .cta-back {
+      background: linear-gradient(160deg, var(--brand-dark), var(--brand));
+      color: white;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20mm;
+    }
+    .cta-back h2 { color: white; font-size: 32px; margin-bottom: 6mm; }
+    .cta-back p { color: rgba(255,255,255,.9); font-size: 14px; max-width: 130mm; }
+    .cta-url {
+      display: inline-block;
+      margin-top: 10mm;
+      background: white;
+      color: var(--brand-dark);
+      font-weight: 900;
+      font-size: 16px;
+      padding: 4mm 10mm;
+      border-radius: 999px;
+    }
+    .qr-placeholder {
+      width: 32mm; height: 32mm;
+      background: white;
+      border-radius: 8px;
+      margin-top: 8mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: var(--brand-dark);
+      font-weight: 700;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin: 1px;
+    }
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 4mm; }
+    .compare-table th, .compare-table td { border: 1px solid #e2e8f0; padding: 2.5mm; text-align: left; }
+    .compare-table th { background: var(--soft); font-weight: 800; }
+  </style>
+</head>
+<body>
+
+<!-- SAYFA 1 — KAPAK -->
+<section class="page cover">
+  <div class="cover-badge">AURA Bilişim · Teknoloji Üssü</div>
+  <div>
+    <h1>AURA <span>İntegra</span></h1>
+    <p class="cover-sub">Teknik servis, stok, satış ve müşteri portalını tek bulut panelde birleştiren bayi entegrasyon platformu. Kurulum yok — tarayıcıdan aç, çalışmaya başla.</p>
+    <div class="cover-stats">
+      <div class="cover-stat"><strong>40+</strong><span>Modül &amp; özellik</span></div>
+      <div class="cover-stat"><strong>&lt;2 dk</strong><span>Ort. cihaz kabul</span></div>
+      <div class="cover-stat"><strong>7/24</strong><span>Müşteri portalı</span></div>
+    </div>
+  </div>
+  <div class="cover-footer">
+    <div>
+      <strong>Saha Satış Kataloğu</strong><br />
+      Bayi ziyareti · Demo · Paket sunumu · 2026
+    </div>
+    <div style="text-align:right">
+      integra.aurabilisim.net<br />
+      destek@aurabilisim.com
+    </div>
+  </div>
+</section>
+
+<!-- SAYFA 2 — VİZYON -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">02</div></div>
+  <h2>Neden AURA İntegra?</h2>
+  <p class="lead">Telefoncu, bilgisayarcı ve teknik servis bayileri hâlâ Excel, WhatsApp grupları ve kağıt fişlerle çalışıyor. AURA İntegra, sahadan doğan ihtiyaçlarla tasarlandı — AURA Bilişim'in kendi operasyon deneyiminin ürünleşmiş hali.</p>
+
+  <div class="grid-2" style="margin-top:6mm">
+    <div class="card card-accent">
+      <div class="icon-circle" style="background:#dbeafe">📒</div>
+      <h4>Tek Defter, Tek Gerçek</h4>
+      <p>Kabul, atölye, stok, POS ve kasa aynı veritabanında. Çift kayıt, kayıp iş emri ve stok farkı tarih olur.</p>
+    </div>
+    <div class="card card-accent">
+      <div class="icon-circle" style="background:#d1fae5">☁️</div>
+      <h4>Bulut — Kurulum Yok</h4>
+      <p>Web tabanlı SaaS. Sunucu, yedekleme ve güncelleme AURA tarafında. Bayi sadece tarayıcı açar.</p>
+    </div>
+    <div class="card card-accent">
+      <div class="icon-circle" style="background:#fef3c7">📱</div>
+      <h4>Müşteri Self-Servis</h4>
+      <p>Her bayinin kendi portal linki. Müşteri cihaz durumunu canlı görür; SMS ve WhatsApp ile bilgilendirilir.</p>
+    </div>
+    <div class="card card-accent">
+      <div class="icon-circle" style="background:#ede9fe">🏢</div>
+      <h4>Çok Kiracılı Mimari</h4>
+      <p>Her bayi izole tenant. Merkez admin panelinden tüm ağ tek ekrandan yönetilir — franchise modeline hazır.</p>
+    </div>
+  </div>
+
+  <h3>Kimler İçin?</h3>
+  <ul class="checklist">
+    <li>Mobil telefon / tablet teknik servisleri</li>
+    <li>Bilgisayar ve elektronik tamir atölyeleri</li>
+    <li>Yedek parça satan telefoncu / aksesuar bayileri</li>
+    <li>Çok şubeli servis zincirleri ve franchise ağları</li>
+    <li>Stok + servis + vitrin satışını bir arada yapan mağazalar</li>
+  </ul>
+</section>
+
+<!-- SAYFA 3 — GÜNLÜK AKIŞ -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">03</div></div>
+  <h2>Günlük Operasyon Akışı</h2>
+  <p class="lead">Müşteri kapıdan girer → cihaz teslim alınır → atölyede tamir edilir → stoktan parça düşülür → müşteri portal/SMS ile bilgilendirilir → teslim ve tahsilat. Hepsi tek panelde.</p>
+
+  <div class="flow">
+    <div class="flow-step"><div class="dot">📋</div><strong>Kabul</strong></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="dot">🔧</div><strong>Atölye</strong></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="dot">📦</div><strong>Stok</strong></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="dot">💳</div><strong>Satış</strong></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="dot">🌐</div><strong>Portal</strong></div>
+  </div>
+
+  <div class="script-box">
+    <strong>Saha cümlesi:</strong>
+    <p>«Müşteriniz cihazı bıraktığında 2 dakikada kabul fişi, QR etiket ve WhatsApp mesajı hazır. Müşteri evine gidip linkten takip eder — siz aramadan «oldu mu?» diye sorulmaz.»</p>
+  </div>
+
+  <h3>Panelde Nereden Başlanır?</h3>
+  <table class="compare-table">
+    <tr><th>Adım</th><th>Menü</th><th>Süre</th></tr>
+    <tr><td>1. Cihaz kabul</td><td>Dashboard → Hızlı Kabul</td><td>~2 dk</td></tr>
+    <tr><td>2. Atölye takip</td><td>Atölye → Kanban pano</td><td>Sürekli</td></tr>
+    <tr><td>3. Parça kullanım</td><td>İş emri → Parça ekle</td><td>Otomatik stok düşüm</td></tr>
+    <tr><td>4. Müşteri bilgi</td><td>Portal / SMS / WhatsApp</td><td>1 tık</td></tr>
+    <tr><td>5. Teslim &amp; tahsilat</td><td>POS veya kasa vardiyası</td><td>Anlık</td></tr>
+  </table>
+</section>
+
+<!-- SAYFA 4 — HIZLI KABUL -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">04</div></div>
+  <h2>Hızlı Kabul Modülü</h2>
+  <p class="lead">Servisin giriş kapısı. Müşteri bilgisi, cihaz detayı, arıza notu, fotoğraf, KVKK onayı ve servis numarası tek formda.</p>
+
+  <div class="grid-2">
+    <div>
+      <ul class="checklist">
+        <li>Otomatik iş emri numarası (job no)</li>
+        <li>8 adede kadar cihaz fotoğrafı (bulut depolama)</li>
+        <li>QR servis etiketi yazdırma</li>
+        <li>WhatsApp hazır mesaj + portal linki</li>
+        <li>Servis fişi yazdırma (A4 / termal)</li>
+        <li>Müşteri CRM'e otomatik kayıt</li>
+      </ul>
+      <div style="margin-top:5mm">
+        <span class="tag">KVKK</span>
+        <span class="tag">QR</span>
+        <span class="tag">Foto</span>
+        <span class="tag">API-first</span>
+      </div>
+    </div>
+    <div class="screenshot">
+      <div class="screenshot-bar"><span></span><span></span><span></span></div>
+      <div style="font-size:10px;font-weight:700;margin-bottom:3mm">Hızlı Kabul — Önizleme</div>
+      <div class="mock-ui">
+        <div class="mock-row"><span>Müşteri</span><span>Ahmet Y.</span></div>
+        <div class="mock-row"><span>Cihaz</span><span>iPhone 14 Pro</span></div>
+        <div class="mock-row"><span>Arıza</span><span>Ekran kırık</span></div>
+        <div class="mock-row"><span>İş No</span><span class="mock-badge">SRV-2026-0847</span></div>
+        <div class="mock-row"><span>Durum</span><span style="color:#7dd3fc">● Teslim alındı</span></div>
+      </div>
+      <div style="margin-top:4mm;display:flex;gap:2mm">
+        <div style="flex:1;background:#0e8fad;border-radius:6px;padding:2mm;text-align:center;font-size:8px">WhatsApp Gönder</div>
+        <div style="flex:1;background:rgba(255,255,255,.15);border-radius:6px;padding:2mm;text-align:center;font-size:8px">Fiş Yazdır</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SAYFA 5 — ATÖLYE -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">05</div></div>
+  <h2>Atölye &amp; Kanban</h2>
+  <p class="lead">24 adımlı servis durum akışı. Teknisyen atama, parça kullanımı, kalite kontrol ve teslim — sürükle-bırak kanban pano.</p>
+
+  <div class="grid-3">
+    <div class="card"><h4>Kanban Pano</h4><p>Beklemede → Tamirde → Parça bekliyor → Hazır → Teslim. Görsel durum takibi.</p></div>
+    <div class="card"><h4>Parça &amp; Maliyet</h4><p>Stoktan parça seçimi, otomatik maliyet hesabı, müşteri onay linki.</p></div>
+    <div class="card"><h4>Kalite Kontrol</h4><p>QC checklist, teslim öncesi son kontrol adımı.</p></div>
+    <div class="card"><h4>Teknisyen</h4><p>İş atama, performans ve iş yükü dağılımı.</p></div>
+    <div class="card"><h4>Ekspertiz</h4><p>Teşhis notu, fiyat onayı SMS/e-posta.</p></div>
+    <div class="card"><h4>Garanti</h4><p>Garanti belgesi, süre takibi, randevu entegrasyonu.</p></div>
+  </div>
+
+  <div class="script-box" style="margin-top:8mm">
+    <strong>İtiraz: «Zaten defter tutuyoruz»</strong>
+    <p>«Defter müşteriye link göndermez, stok düşmez, teknisyen «benim işim nerede?» diye sormaz. Kanban panoda herkes aynı ekrana bakar.»</p>
+  </div>
+</section>
+
+<!-- SAYFA 6 — STOK & POS -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">06</div></div>
+  <h2>Stok, Satış &amp; Kasa</h2>
+  <p class="lead">Tek envanter defteri: serviste kullanılan parça, vitrin satışı ve tedarik alımı aynı stok kartına işlenir.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>📦 Stok Yönetimi</h4>
+      <ul class="checklist">
+        <li>SKU, barkod, marka/model uyumluluk</li>
+        <li>Kritik stok uyarısı</li>
+        <li>Barkod/kamera ile sayım</li>
+        <li>Tedarik siparişi → otomatik giriş</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>🛒 Satış &amp; POS</h4>
+      <ul class="checklist">
+        <li>Barkodlu hızlı satış</li>
+        <li>Nakit / kredi kartı / havale</li>
+        <li>Anlık stok düşümü</li>
+        <li>KDV ve fiş çıktısı</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Kasa Vardiyası</h3>
+  <p>Vardiya aç → satışları topla → gün sonu Z raporu → nakit sayım. Finans modülü ile entegre.</p>
+
+  <div class="script-box">
+    <strong>Saha cümlesi:</strong>
+    <p>«Parça sattınız ama stokta hâlâ 5 görünüyor — müşteri gelince «var» dersiniz, rafta yok. AURA'da satış anında stok düşer; serviste parça takılınca da aynı.»</p>
+  </div>
+</section>
+
+<!-- SAYFA 7 — MÜŞTERİ PORTALI -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">07</div></div>
+  <h2>Müşteri Portalı &amp; Vitrin</h2>
+  <p class="lead">Her bayinin kendi slug URL'si: <strong>integra.aurabilisim.net/portal/[bayi-adı]</strong> veya özel alt domain. Müşteri 7/24 cihaz durumunu görür.</p>
+
+  <div class="grid-2">
+    <div>
+      <h3>Portal Özellikleri</h3>
+      <ul class="checklist">
+        <li>Canlı servis durumu timeline</li>
+        <li>İş emri geçmişi</li>
+        <li>WhatsApp iletişim butonu</li>
+        <li>KVKK uyumlu veri gösterimi</li>
+        <li>Public vitrin / showcase API</li>
+      </ul>
+      <h3 style="margin-top:5mm">Bayi Paneli — Müşteri Portalı Yönetimi</h3>
+      <ul class="checklist">
+        <li>Toplu SMS &amp; WhatsApp şablonları</li>
+        <li>Müşteri listesi ve segment</li>
+        <li>Portal link kopyala / önizle</li>
+        <li>SMS bildirim logu</li>
+      </ul>
+    </div>
+    <div class="screenshot">
+      <div class="screenshot-bar"><span></span><span></span><span></span></div>
+      <div style="font-size:10px;font-weight:700;margin-bottom:3mm;color:#7dd3fc">Müşteri Portalı</div>
+      <div class="mock-ui">
+        <div class="mock-row"><span>SRV-0847</span><span class="mock-badge">Tamirde</span></div>
+        <div style="padding:2mm;font-size:8px;opacity:.7">● Teslim alındı — 12 Haz<br/>● Teşhis yapıldı — 13 Haz<br/>● <strong style="color:#7dd3fc">Parça sipariş edildi — 14 Haz</strong></div>
+        <div class="mock-row"><span>Tahmini</span><span>2-3 gün</span></div>
+      </div>
+      <div style="margin-top:4mm;background:#25D366;border-radius:6px;padding:2mm;text-align:center;font-size:9px">WhatsApp ile Sor</div>
+    </div>
+  </div>
+</section>
+
+<!-- SAYFA 8 — BİLDİRİMLER & AI -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">08</div></div>
+  <h2>SMS, WhatsApp &amp; AI Asistan</h2>
+
+  <div class="grid-2">
+    <div class="card card-accent">
+      <h4>📲 SMS (Netgsm)</h4>
+      <p>Durum bildirimi, fiyat onayı, teslime hazır mesajları. Tenant bazlı Netgsm ayarı veya global fallback. Emoji-safe metin.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>💬 WhatsApp</h4>
+      <p>Otomatik API değil — hazır mesaj + wa.me linki. Kabul, portal, ödeme hatırlatıcı. Emoji codepoint güvenli.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>📧 E-posta</h4>
+      <p>Trial hatırlatma, ödeme bildirimi, müşteri durum maili. SMTP (Turk Ticaret / kurumsal mail).</p>
+    </div>
+    <div class="card card-accent">
+      <h4>🤖 Aura AI</h4>
+      <p>Gemini tabanlı panel asistanı. Stok, servis ve rapor sorularına yanıt. Paket kotası ile maliyet kontrolü.</p>
+    </div>
+  </div>
+
+  <h3>Admin — Ödeme Hatırlatıcı</h3>
+  <p>Merkez admin panelinden bayi abonelik vadesi yaklaşınca <strong>E-posta</strong> veya <strong>WhatsApp</strong> hatırlatıcı tek tıkla.</p>
+</section>
+
+<!-- SAYFA 9 — FİNANS & RAPOR -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">09</div></div>
+  <h2>Finans, Raporlar &amp; e-Fatura Yol Haritası</h2>
+
+  <div class="grid-3">
+    <div class="card"><h4>Gelir / Gider</h4><p>Kategori bazlı nakit akışı, ödeme tipi takibi.</p></div>
+    <div class="card"><h4>Dashboard KPI</h4><p>Bugün satış, açık servis, stok uyarısı — canlı widget.</p></div>
+    <div class="card"><h4>TCMB Döviz</h4><p>Canlı kur widget (USD/EUR/GBP).</p></div>
+    <div class="card"><h4>Komisyon</h4><p>Personel komisyon hesabı.</p></div>
+    <div class="card"><h4>Export</h4><p>Muhasebe export, dönem raporları.</p></div>
+    <div class="card"><h4>e-Fatura</h4><p>Test modu + kuyruk. NES/Logo entegrasyon yol haritası hazır.</p></div>
+  </div>
+
+  <p style="margin-top:6mm;font-size:10px;color:var(--muted)">Not: e-Fatura GIB entegrasyonu gelir artınca NES veya Logo adapter ile aktif edilir. Bugün test modu ve kuyruk altyapısı mevcuttur.</p>
+</section>
+
+<!-- SAYFA 10 — ADMIN PLATFORM -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">10</div></div>
+  <h2>Merkez Admin &amp; Bayi Ağı</h2>
+  <p class="lead">Franchise veya bayi ağı işletiyorsanız — tüm tenant'lar tek komuta merkezinden yönetilir.</p>
+
+  <div class="grid-2">
+    <ul class="checklist">
+      <li>Bayi CRUD, paket atama, deneme süresi</li>
+      <li>Başvuru formu + Turnstile CAPTCHA</li>
+      <li>Magic link ile panele giriş (destek)</li>
+      <li>Tenant sağlık skoru &amp; churn müdahalesi</li>
+      <li>Audit log — kim ne yaptı</li>
+      <li>Platform ayarları, paket vitrin yönetimi</li>
+      <li>Cron: trial, ödeme, randevu hatırlatma</li>
+    </ul>
+    <div class="screenshot" style="min-height:70mm">
+      <div class="screenshot-bar"><span></span><span></span><span></span></div>
+      <div style="font-size:10px;font-weight:700;margin-bottom:3mm">Super Admin Panel</div>
+      <div class="mock-ui">
+        <div class="mock-row"><span>Bayi</span><span>42 aktif</span></div>
+        <div class="mock-row"><span>Deneme</span><span>8</span></div>
+        <div class="mock-row"><span>Vadesi yakın</span><span style="color:#fbbf24">3 ⚠</span></div>
+        <div class="mock-row"><span>Health &lt; 50</span><span style="color:#f87171">1</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SAYFA 11 — PAKETLER -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">11</div></div>
+  <h2>Paketler &amp; Fiyatlandırma</h2>
+  <p class="lead">Kümülatif lisans: üst paket, alt paketlerin tüm modüllerini içerir. 30 gün deneme süresi.</p>
+
+  <div class="pricing">
+    <div class="plan">
+      <div class="plan-name">Stok &amp; Satış</div>
+      <div class="plan-price">₺450<small>/ay</small></div>
+      <ul>
+        <li>✓ Stok &amp; envanter</li>
+        <li>✓ Satış &amp; POS</li>
+        <li>✓ Müşteri yönetimi</li>
+        <li>✓ Fatura &amp; irsaliye</li>
+        <li>✓ Alış / tedarik</li>
+        <li>3 kullanıcı · 1 şube</li>
+      </ul>
+    </div>
+    <div class="plan featured">
+      <div class="plan-badge">EN POPÜLER</div>
+      <div class="plan-name">Teknik Servis</div>
+      <div class="plan-price">₺750<small>/ay</small></div>
+      <ul>
+        <li>✓ Stok &amp; Satış (dahil)</li>
+        <li>✓ Atölye &amp; kanban</li>
+        <li>✓ Cihaz &amp; arıza takibi</li>
+        <li>✓ Müşteri portalı</li>
+        <li>✓ Garanti &amp; randevu</li>
+        <li>6 kullanıcı · 2 şube</li>
+      </ul>
+    </div>
+    <div class="plan">
+      <div class="plan-name">Finans &amp; Analitik</div>
+      <div class="plan-price">₺1200<small>/ay</small></div>
+      <ul>
+        <li>✓ Teknik Servis (dahil)</li>
+        <li>✓ Finans &amp; kasa</li>
+        <li>✓ Gelişmiş raporlar</li>
+        <li>✓ Vitrin &amp; kampanya</li>
+        <li>✓ Öncelikli destek</li>
+        <li>12 kullanıcı · 5 şube</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:8mm;font-size:10px;text-align:center;color:var(--muted)">Yıllık ödeme indirimi · Stripe online ödeme · Özel kurumsal teklif için iletişime geçin</p>
+</section>
+
+<!-- SAYFA 12 — SAHA SATIŞ SENARYOSU -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">12</div></div>
+  <h2>Saha Ziyareti — 15 Dakikalık Demo Senaryosu</h2>
+
+  <table class="compare-table">
+    <tr><th>Dk</th><th>Adım</th><th>Ne gösterilir?</th></tr>
+    <tr><td>0–2</td><td>Tanışma</td><td>Kapak + «tek defter» vizyonu</td></tr>
+    <tr><td>2–5</td><td>Kabul demo</td><td>Telefondan kabul formu → QR fiş → WA mesajı</td></tr>
+    <tr><td>5–8</td><td>Atölye</td><td>Kanban'da kart sürükle → durum değişimi</td></tr>
+    <tr><td>8–10</td><td>Portal</td><td>Müşteri gözüyle portal linki aç</td></tr>
+    <tr><td>10–12</td><td>Stok/POS</td><td>Parça satışı → stok düşümü</td></tr>
+    <tr><td>12–15</td><td>Kapanış</td><td>Paket tablosu + 30 gün deneme + başvuru QR</td></tr>
+  </table>
+
+  <h3>Sık İtirazlar &amp; Yanıtlar</h3>
+  <div class="grid-2" style="margin-top:4mm">
+    <div class="script-box"><strong>«Pahalı»</strong><p>«Günde 1 kayıp parça veya 1 kaçan müşteri zaten aylık bedeli çıkarır. 750 TL = günde 25 TL.»</p></div>
+    <div class="script-box"><strong>«Excel yeter»</strong><p>«Excel müşteriye link göndermez, stok düşmez, teknisyen mobilde göremez.»</p></div>
+    <div class="script-box"><strong>«Kurulum zor»</strong><p>«Tarayıcı aç, giriş yap. Veri taşıma için destek veriyoruz — 30 gün deneme bedava.»</p></div>
+    <div class="script-box"><strong>«İnternet kesilirse?»</strong><p>«Son senkron cache ile okuma devam eder; bağlantı gelince otomatik sync. Kritik işlemler API-first.»</p></div>
+  </div>
+</section>
+
+<!-- SAYFA 13 — TEKNİK & DESTEK -->
+<section class="page inner">
+  <div class="page-header"><div class="logo">AURA <span>İntegra</span></div><div class="num">13</div></div>
+  <h2>Teknik Altyapı &amp; Destek</h2>
+
+  <div class="grid-2">
+    <div>
+      <h3>Altyapı</h3>
+      <ul class="checklist">
+        <li>Next.js + Supabase (PostgreSQL)</li>
+        <li>Supabase Storage — cihaz fotoğrafları</li>
+        <li>Vercel edge deploy — global CDN</li>
+        <li>Row Level Security — tenant izolasyonu</li>
+        <li>PWA — mobil kısayol (kabul, portal)</li>
+        <li>Playwright E2E test altyapısı</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Destek SLA</h3>
+      <ul class="checklist">
+        <li>Kritik (giriş/sync): 4 saat iş günü</li>
+        <li>Normal: 24 saat iş günü</li>
+        <li>E-posta: destek@aurabilisim.com</li>
+        <li>Web: integra.aurabilisim.net</li>
+        <li>Panel içi: Destek modülü</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Başlangıç Adımları (Bayi İçin)</h3>
+  <ol style="margin-left:5mm;font-size:11px;line-height:1.8;color:#334155">
+    <li><strong>basvuru</strong> formunu doldur → admin onayı</li>
+    <li>Magic link veya şifre ile panele giriş</li>
+    <li>Kurulum sihirbazı: firma bilgisi, logo, Netgsm (opsiyonel)</li>
+    <li>İlk kabul → portal linkini müşteriye gönder</li>
+    <li>7 gün sonra check-in araması (AURA destek)</li>
+  </ol>
+</section>
+
+<!-- SAYFA 14 — ARKA KAPAK -->
+<section class="page cta-back">
+  <h2>Hazır mısınız?</h2>
+  <p>30 gün ücretsiz deneme. Kurulum yok, taahhüt yok. Bugün başvurun — yarın ilk cihazınızı panelden kabul edin.</p>
+  <div class="cta-url">integra.aurabilisim.net/basvuru</div>
+  <div class="qr-placeholder">QR — Başvuru<br/>Linki</div>
+  <p style="margin-top:10mm;font-size:12px;opacity:.85">
+    AURA Bilişim Teknoloji Üssü<br />
+    destek@aurabilisim.com · aurabilisim.net
+  </p>
+  <p style="margin-top:6mm;font-size:9px;opacity:.6">© 2026 AURA Bilişim — AURA İntegra Entegrasyon Platformu</p>
+</section>
+
+</body>
+</html>
