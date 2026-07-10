@@ -427,6 +427,43 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 
+  /* ─── Mobile bottom navigation ─────────────────────────────────────────── */
+  .mobile-bottom-nav {
+    @apply fixed bottom-0 inset-x-0 z-40 flex items-stretch justify-around
+           border-t border-[var(--bg-border)] bg-[var(--bg-card)]/95 backdrop-blur-md;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-bottom-nav-item {
+    @apply flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1
+           text-[10px] font-semibold text-slate-500 transition-colors min-h-[52px]
+           active:bg-[var(--bg-muted)];
+  }
+
+  .mobile-bottom-nav-item-active {
+    @apply text-sky-600;
+  }
+
+  .has-mobile-bottom-nav {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 1024px) {
+    .has-mobile-bottom-nav {
+      padding-bottom: 0;
+    }
+  }
+
+  /* ─── Mobile data cards (table alternative) ────────────────────────────── */
+  .mobile-data-card {
+    @apply rounded-xl border border-[var(--bg-border)] bg-[var(--bg-card)] p-4
+           shadow-sm active:bg-[var(--bg-muted)] transition-colors;
+  }
+
+  .mobile-data-card-list {
+    @apply space-y-2 md:hidden;
+  }
+
   .filter-chip {
     @apply px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200
            bg-white text-slate-600 hover:border-slate-300 transition-all;
@@ -868,5 +905,15 @@ html.dark .landing-page .landing-tag {
 .aura-tour-scroll::-webkit-scrollbar-thumb {
   background: var(--bg-border);
   border-radius: 4px;
+}
+
+/* ─── Mobile toast safe area ───────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  [data-sonner-toaster] {
+    top: max(0.75rem, env(safe-area-inset-top, 0px)) !important;
+    left: max(0.75rem, env(safe-area-inset-left, 0px)) !important;
+    right: max(0.75rem, env(safe-area-inset-right, 0px)) !important;
+    width: auto !important;
+  }
 }
 

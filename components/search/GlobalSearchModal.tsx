@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Wrench, Users, Package, FileText, Loader2, X, ScanBarcode } from 'lucide-react'
+import {
+  getCameraStream,
+  hasBarcodeDetector,
+  hasCameraSupport,
+  normalizeScanValue,
+  startBarcodeDetectorLoop,
+  startHtml5QrcodeScanner,
+} from '@/lib/barcode-scanner'
+import { useIsPhone } from '@/hooks/useMediaQuery'
 
 type SearchResult = {
   type: 'service' | 'customer' | 'stock' | 'invoice'
@@ -24,16 +33,31 @@ interface Props {
   onClose: () => void
 }
 
+type ScanMode = 'off' | 'detector' | 'html5'
+
 export default function GlobalSearchModal({ open, onClose }: Props) {
   const router = useRouter()
+  const isPhone = useIsPhone()
   const inputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const rafRef = useRef<number | null>(null)
+  const cleanupRef = useRef<(() => void) | (() => Promise<void>) | null>(null)
+  const scannerId = useId().replace(/:/g, '')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
-  const [cameraOn, setCameraOn] = useState(false)
+  const [scanMode, setScanMode] = useState<ScanMode>('off')
+
+  const stopCamera = useCallback(async () => {
+    if (cleanupRef.current) {
+      const fn = cleanupRef.current
+      cleanupRef.current = null
+      await Promise.resolve(fn())
+    }
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setScanMode('off')
+  }, [])
 
   useEffect(() => {
     if (open) {
@@ -41,16 +65,11 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
       setResults([])
       setTimeout(() => inputRef.current?.focus(), 50)
     } else {
-      stopCamera()
+      void stopCamera()
     }
-  }, [open])
+  }, [open, stopCamera])
 
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      streamRef.current?.getTracks().forEach(t => t.stop())
-    }
-  }, [])
+  useEffect(() => () => { void stopCamera() }, [stopCamera])
 
   const runSearch = useCallback(async (q: string) => {
     const trimmed = q.trim()
@@ -77,53 +96,39 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
     return () => clearTimeout(t)
   }, [query, open, runSearch])
 
-  function stopCamera() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-    setCameraOn(false)
-  }
+  const applyScan = useCallback((raw: string) => {
+    const value = normalizeScanValue(raw)
+    setQuery(value)
+    void stopCamera()
+    void runSearch(value)
+  }, [runSearch, stopCamera])
 
   async function startCamera() {
     if (typeof window === 'undefined') return
-    const Detector = (window as unknown as {
-      BarcodeDetector?: new (opts: { formats: string[] }) => {
-        detect: (src: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>
-      }
-    }).BarcodeDetector
-
-    if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+    if (!hasCameraSupport()) {
       inputRef.current?.focus()
       return
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-      setCameraOn(true)
+    await stopCamera()
 
-      const detector = new Detector({ formats: ['ean_13', 'ean_8', 'code_128', 'qr_code'] })
-      const tick = async () => {
-        if (!videoRef.current) return
-        try {
-          const codes = await detector.detect(videoRef.current)
-          const raw = codes[0]?.rawValue
-          if (raw) {
-            const value = raw.replace(/\D/g, '').length >= 15 ? raw.replace(/\D/g, '').slice(0, 15) : raw.trim()
-            setQuery(value)
-            stopCamera()
-            void runSearch(value)
-            return
-          }
-        } catch { /* frame skip */ }
-        rafRef.current = requestAnimationFrame(tick)
+    try {
+      if (hasBarcodeDetector()) {
+        const stream = await getCameraStream()
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          await videoRef.current.play()
+        }
+        setScanMode('detector')
+        cleanupRef.current = startBarcodeDetectorLoop(videoRef.current!, applyScan)
+      } else {
+        setScanMode('html5')
+        await new Promise(r => requestAnimationFrame(r))
+        cleanupRef.current = await startHtml5QrcodeScanner(scannerId, applyScan)
       }
-      rafRef.current = requestAnimationFrame(tick)
     } catch {
+      await stopCamera()
       inputRef.current?.focus()
     }
   }
@@ -139,10 +144,12 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
   const minHint = digits.length >= 14 ? 15 : 2
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] px-4">
+    <div className={`fixed inset-0 z-[100] flex ${isPhone ? 'flex-col' : 'items-start justify-center pt-[12vh]'} px-0 sm:px-4 safe-top`}>
       <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-label="Kapat" />
-      <div className="relative w-full max-w-xl bg-[var(--bg-card)] border border-[var(--bg-border)] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--bg-border)]">
+      <div className={`relative w-full bg-[var(--bg-card)] border border-[var(--bg-border)] shadow-2xl overflow-hidden ${
+        isPhone ? 'h-full rounded-none flex flex-col' : 'max-w-xl rounded-2xl'
+      }`}>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--bg-border)] safe-top shrink-0">
           <Search size={18} className="text-slate-400 shrink-0" />
           <input
             ref={inputRef}
@@ -157,9 +164,10 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
           />
           <button
             type="button"
-            onClick={cameraOn ? stopCamera : startCamera}
-            className="p-1.5 rounded-lg hover:bg-[var(--bg-muted)] text-slate-400"
+            onClick={scanMode !== 'off' ? () => void stopCamera() : () => void startCamera()}
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-[var(--bg-muted)] text-slate-400"
             title="IMEI / barkod tara"
+            aria-label="IMEI / barkod tara"
           >
             <ScanBarcode size={16} />
           </button>
@@ -169,11 +177,18 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        {cameraOn && (
-          <video ref={videoRef} className="w-full max-h-36 object-cover border-b border-[var(--bg-border)]" muted playsInline />
+        {scanMode === 'detector' && (
+          <video ref={videoRef} className="w-full max-h-48 sm:max-h-36 object-cover border-b border-[var(--bg-border)] shrink-0" muted playsInline />
         )}
 
-        <div className="max-h-[50vh] overflow-y-auto">
+        {scanMode === 'html5' && (
+          <div
+            id={scannerId}
+            className="w-full shrink-0 overflow-hidden border-b border-[var(--bg-border)] [&_video]:!object-cover"
+          />
+        )}
+
+        <div className={`overflow-y-auto ${isPhone ? 'flex-1' : 'max-h-[50vh]'}`}>
           {query.trim().length < minHint ? (
             <p className="px-4 py-8 text-center text-xs text-slate-400">
               En az {minHint} karakter girin · 15 haneli IMEI desteklenir · Ctrl+K

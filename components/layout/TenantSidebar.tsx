@@ -33,6 +33,7 @@ import {
   DEFAULT_TENANT_SIDEBAR,
 } from '@/lib/sidebar-layout'
 import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
+import { MOBILE_SIDEBAR_OPEN_EVENT } from '@/lib/mobile-nav-events'
 
 const ROLE_LABELS: Record<string, { label: string; bg: string }> = {
   super_admin:  { label: 'Süper Admin', bg: 'bg-red-500/20 text-red-300' },
@@ -140,11 +141,14 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
       setExpandedCategories(sections.map(s => s.id))
     }
     const onMobileTour = () => setMobileOpen(true)
+    const onMobileNav = () => setMobileOpen(true)
     window.addEventListener(TOUR_PREPARE_EVENT, onPrepareTour)
     window.addEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobileTour)
+    window.addEventListener(MOBILE_SIDEBAR_OPEN_EVENT, onMobileNav)
     return () => {
       window.removeEventListener(TOUR_PREPARE_EVENT, onPrepareTour)
       window.removeEventListener(TOUR_MOBILE_SIDEBAR_EVENT, onMobileTour)
+      window.removeEventListener(MOBILE_SIDEBAR_OPEN_EVENT, onMobileNav)
     }
   }, [sections])
 

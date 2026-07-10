@@ -19,6 +19,7 @@ import { RoleProvider } from '@/lib/role-context'
 import SetupWizard from '@/components/help/SetupWizard'
 import OnboardingTourTrigger from '@/components/dashboard/OnboardingTourTrigger'
 import SubscriptionBanner from '@/components/dashboard/SubscriptionBanner'
+import MobileBottomNav from '@/components/layout/MobileBottomNav'
 
 interface Props {
   tenant: {
@@ -77,7 +78,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
         </SidebarErrorBoundary>
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto has-mobile-bottom-nav">
             <div className="page-wrapper">
               <SubscriptionBanner />
               {allowed ? (
@@ -121,6 +122,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
           </main>
         </div>
       </div>
+      <MobileBottomNav />
       </RoleProvider>
      </PlanProvider>
     </ThemeProvider>

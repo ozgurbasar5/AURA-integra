@@ -7,6 +7,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -15,6 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useState } from 'react'
+import { useIsPhone } from '@/hooks/useMediaQuery'
 import { updateServiceOrderRemote } from '@/lib/service-order-bridge'
 import { toast } from 'sonner'
 
@@ -82,14 +84,42 @@ function KanbanColumn({ col, orders }: { col: typeof COLUMNS[number]; orders: Or
   )
 }
 
+function MobileOrderCard({ order }: { order: OrderRow }) {
+  const col = COLUMNS.find(c => c.key === order.status) ?? COLUMNS[0]
+  return (
+    <Link
+      href={`/dashboard/atolye/${order.id}`}
+      className="mobile-data-card block"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-bold text-sm text-slate-900">{order.job_no}</p>
+          <p className="text-xs text-slate-600 mt-0.5">{order.customer_name}</p>
+          <p className="text-xs text-slate-400">{order.device_brand} {order.device_model}</p>
+        </div>
+        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${col.color}`}>
+          {col.label}
+        </span>
+      </div>
+      <p className="text-xs font-semibold text-sky-600 mt-2">
+        {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(order.estimated_cost)}
+      </p>
+    </Link>
+  )
+}
+
 interface Props {
   orders: OrderRow[]
   onRefresh: () => void
 }
 
 export default function AtolyeKanban({ orders, onRefresh }: Props) {
+  const isPhone = useIsPhone()
   const [activeId, setActiveId] = useState<string | null>(null)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
 
   const byColumn = useMemo(() => {
     const map: Record<string, OrderRow[]> = {}
@@ -126,6 +156,18 @@ export default function AtolyeKanban({ orders, onRefresh }: Props) {
     setActiveId(String(event.active.id))
   }
 
+  if (isPhone) {
+    return (
+      <div className="space-y-2 md:hidden">
+        {orders.length === 0 ? (
+          <p className="text-center text-sm text-slate-400 py-8">Kayıt yok</p>
+        ) : (
+          orders.map(o => <MobileOrderCard key={o.id} order={o} />)
+        )}
+      </div>
+    )
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -133,7 +175,7 @@ export default function AtolyeKanban({ orders, onRefresh }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 hidden md:flex">
         {COLUMNS.map(col => (
           <KanbanColumn key={col.key} col={col} orders={byColumn[col.key] ?? []} />
         ))}

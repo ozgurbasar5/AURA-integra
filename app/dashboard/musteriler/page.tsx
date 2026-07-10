@@ -345,7 +345,7 @@ export default function MusterilerPage() {
       </div>
 
       {/* Filtre Bar */}
-      <div data-tour="musteri-arama" className="card p-3 flex flex-wrap items-center gap-3">
+      <div data-tour="musteri-arama" className="card p-3 mobile-toolbar">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -385,7 +385,55 @@ export default function MusterilerPage() {
             <p className="text-xs mt-1">Arama kriterlerini değiştirin veya yeni müşteri ekleyin</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobil kart görünümü */}
+            <div className="mobile-data-card-list p-3">
+              {filtered.map(c => {
+                const typeConf = TYPE_CONFIG[c.customer_type]
+                const segConf = SEGMENT_CONFIG[c.segment]
+                return (
+                  <div key={c.id} className="mobile-data-card">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0
+                        ${c.blacklisted ? 'bg-red-100 text-red-600' : 'bg-sky-50 text-sky-600'}`}>
+                        {c.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 flex items-center gap-1.5 truncate">
+                          {c.full_name}
+                          {c.blacklisted && <ShieldAlert size={12} className="text-red-500 shrink-0" />}
+                        </p>
+                        {c.company_name && <p className="text-[10px] text-slate-400 truncate">{c.company_name}</p>}
+                        <p className="text-xs text-slate-600 flex items-center gap-1 mt-1">
+                          <Phone size={10} /> {formatPhoneDisplay(c.phone)}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className={`text-[10px] font-semibold ${typeConf.color}`}>{typeConf.label}</span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${segConf.bg} ${segConf.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${segConf.dot}`} />
+                            {segConf.label}
+                          </span>
+                          <span className="text-xs font-black text-slate-900 tabular-nums ml-auto">
+                            {formatCurrency(c.total_spent || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100">
+                      <button onClick={() => openWhatsApp(c)} className="flex-1 py-2 rounded-lg bg-green-50 text-green-600 text-xs font-bold flex items-center justify-center gap-1">
+                        <MessageCircle size={13} /> WhatsApp
+                      </button>
+                      <button onClick={() => setSelectedCustomer(c)} className="p-2 rounded-lg bg-blue-50 text-blue-600"><Eye size={14} /></button>
+                      <button onClick={() => openEdit(c)} className="p-2 rounded-lg bg-amber-50 text-amber-600"><Edit3 size={14} /></button>
+                      <button onClick={() => toggleBlacklist(c)} className="p-2 rounded-lg bg-red-50 text-red-500"><ShieldAlert size={14} /></button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Masaüstü tablo */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
@@ -474,7 +522,8 @@ export default function MusterilerPage() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
 

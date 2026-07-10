@@ -3,6 +3,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import SupabaseEnvScript from '@/components/SupabaseEnvScript'
 import CookieConsent from '@/components/CookieConsent'
+import PwaRegister from '@/components/PwaRegister'
 import MagicLinkHashRedirect from '@/components/auth/MagicLinkHashRedirect'
 import { themeBootScript } from '@/lib/theme-boot-script'
 
@@ -39,9 +40,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link rel="apple-touch-icon" href="/aura-integra-logo.svg" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#0284c7" />
       </head>
       <body className="font-sans antialiased">
         <MagicLinkHashRedirect />
+        <PwaRegister />
         {children}
         <CookieConsent />
         <Toaster

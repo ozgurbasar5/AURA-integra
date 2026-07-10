@@ -106,7 +106,7 @@ export default function StokSayimPage() {
       <div className="card p-4 space-y-3">
         <p className="text-sm font-semibold text-slate-800">Barkod okuyucu</p>
         <BarcodeScanField onScan={onBarcodeScan} />
-        <p className="text-xs text-slate-500">USB barkod okuyucu Enter ile de çalışır. Kamera destekleyen tarayıcılarda BarcodeDetector kullanılır.</p>
+        <p className="text-xs text-slate-500">USB barkod okuyucu Enter ile de çalışır. Kamera: BarcodeDetector veya iOS için html5-qrcode.</p>
       </div>
 
       <div className="flex flex-wrap gap-2 items-center">
