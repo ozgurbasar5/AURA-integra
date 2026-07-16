@@ -56,7 +56,13 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "http://192.168.1.31:3000"
-    }
+      "apiUrl": "https://integra.aurabilisim.net",
+      "eas": {
+        "projectId": "b677e1a8-f4d2-411d-8907-4439cd6bc69c"
+      }
+    },
+    "owner": "bsr870",
+    "runtimeVersion": "1.0.0"
   }
 }
+
