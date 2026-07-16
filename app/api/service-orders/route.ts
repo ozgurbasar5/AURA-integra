@@ -5,9 +5,8 @@ import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
 import type { ServiceOrderStatus, PaymentMethod } from '@/types/database'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function resolveCustomerId(
-  supabase: any,
+  supabase: { from: (table: string) => { select: Function; insert: Function } },
   tenantId: string,
   customerName: string,
   customerPhone: string
