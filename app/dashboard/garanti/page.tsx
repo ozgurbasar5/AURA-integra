@@ -1,14 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
   Shield, Search, Plus, X, AlertTriangle, CheckCircle,
   Wrench, Clock
 } from 'lucide-react'
 import PageHeader from '@/components/dashboard/PageHeader'
-import { useStoreSlice } from '@/hooks/useStoreSlice'
-import { getWarranties, setWarranties, addWarranty, type WarrantyRecord } from '@/lib/store'
+import { type WarrantyRecord } from '@/lib/store'
 import { formatDate } from '@/lib/validators'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof CheckCircle }> = {
@@ -18,6 +17,14 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
   reddedildi:  { label: 'Reddedildi',  bg: 'bg-red-100',     text: 'text-red-700',     icon: AlertTriangle },
 }
 
+const CLAIM_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  yok:         { label: 'Talep Yok',   bg: 'bg-slate-100',   text: 'text-slate-500' },
+  beklemede:   { label: 'Beklemede',   bg: 'bg-amber-100',   text: 'text-amber-700' },
+  inceleniyor: { label: 'İnceleniyor', bg: 'bg-sky-100',     text: 'text-sky-700' },
+  onaylandi:   { label: 'Onaylandı',   bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  reddedildi:  { label: 'Reddedildi',  bg: 'bg-red-100',     text: 'text-red-700' },
+}
+
 const emptyForm = {
   order_id: '', customer_id: '', imei: '', device_brand: '', device_model: '',
   warranty_months: 6, start_date: new Date().toISOString().split('T')[0],
@@ -25,11 +32,26 @@ const emptyForm = {
 }
 
 export default function GarantiPage() {
-  const { items: warranties, saveAll, mounted } = useStoreSlice(getWarranties, setWarranties, 'warranties')
+  const [warranties, setWarranties] = useState<WarrantyRecord[]>([])
+  const [mounted, setMounted] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [claimFilter, setClaimFilter] = useState('')
+  const [durationFilter, setDurationFilter] = useState('')
+  const [expiryFilter, setExpiryFilter] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/warranties', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok) setWarranties(json.items ?? [])
+    } catch { /* ignore */ }
+    finally { setMounted(true) }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -39,6 +61,19 @@ export default function GarantiPage() {
       if (!w.customer_name?.toLowerCase().includes(q) && !w.order_no?.includes(q) && !w.imei?.includes(q) && !w.device_model.toLowerCase().includes(q)) return false
     }
     if (statusFilter && w.status !== statusFilter) return false
+    if (claimFilter && (w.claim_status ?? 'yok') !== claimFilter) return false
+    if (durationFilter) {
+      const months = w.warranty_months
+      if (durationFilter === '3' && months !== 3) return false
+      if (durationFilter === '6' && months !== 6) return false
+      if (durationFilter === '12+' && months < 12) return false
+    }
+    if (expiryFilter) {
+      const daysLeft = Math.ceil((new Date(w.end_date).getTime() - Date.now()) / 86400000)
+      if (expiryFilter === 'active' && (w.status !== 'aktif' || daysLeft <= 0)) return false
+      if (expiryFilter === 'expiring' && (w.status !== 'aktif' || daysLeft <= 0 || daysLeft > 30)) return false
+      if (expiryFilter === 'expired' && daysLeft > 0 && w.status === 'aktif') return false
+    }
     return true
   })
 
@@ -53,18 +88,57 @@ export default function GarantiPage() {
     }).length,
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.customer_name || !form.device_brand) { toast.error('Müşteri ve cihaz bilgisi zorunlu'); return }
     const end = form.end_date || new Date(new Date(form.start_date).setMonth(new Date(form.start_date).getMonth() + form.warranty_months)).toISOString().split('T')[0]
-    addWarranty({ ...form, end_date: end, covered_parts: form.covered_parts.length ? form.covered_parts : ['Genel'] })
-    toast.success('Garanti kaydı oluşturuldu')
-    setForm(emptyForm)
-    setShowModal(false)
+    try {
+      const res = await fetch('/api/tenant/warranties', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, end_date: end, covered_parts: form.covered_parts.length ? form.covered_parts : ['Genel'] }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Kayıt başarısız')
+      toast.success('Garanti kaydı oluşturuldu')
+      setForm(emptyForm)
+      setShowModal(false)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Kayıt başarısız')
+    }
   }
 
-  function updateStatus(id: string, status: WarrantyRecord['status']) {
-    saveAll(warranties.map(w => w.id === id ? { ...w, status } : w))
-    toast.success('Garanti durumu güncellendi')
+  async function updateClaimStatus(id: string, claim_status: WarrantyRecord['claim_status']) {
+    try {
+      const res = await fetch('/api/tenant/warranties', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, claim_status }),
+      })
+      if (!res.ok) throw new Error('Güncellenemedi')
+      setWarranties(prev => prev.map(w => w.id === id ? { ...w, claim_status } : w))
+      toast.success('Talep durumu güncellendi')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
+  }
+
+  async function updateStatus(id: string, status: WarrantyRecord['status']) {
+    try {
+      const res = await fetch('/api/tenant/warranties', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      })
+      if (!res.ok) throw new Error('Güncellenemedi')
+      setWarranties(prev => prev.map(w => w.id === id ? { ...w, status } : w))
+      toast.success('Garanti durumu güncellendi')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
   }
 
   return (
@@ -110,6 +184,22 @@ export default function GarantiPage() {
           <option value="kullanildi">Kullanıldı</option>
           <option value="reddedildi">Reddedildi</option>
         </select>
+        <select value={claimFilter} onChange={e => setClaimFilter(e.target.value)} className="select text-xs py-2">
+          <option value="">Tüm Talepler</option>
+          {Object.entries(CLAIM_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select value={durationFilter} onChange={e => setDurationFilter(e.target.value)} className="select text-xs py-2">
+          <option value="">Tüm Süreler</option>
+          <option value="3">3 Ay</option>
+          <option value="6">6 Ay</option>
+          <option value="12+">12+ Ay</option>
+        </select>
+        <select value={expiryFilter} onChange={e => setExpiryFilter(e.target.value)} className="select text-xs py-2">
+          <option value="">Tüm Bitişler</option>
+          <option value="active">Aktif (süresi dolmamış)</option>
+          <option value="expiring">30 Gün İçinde Bitecek</option>
+          <option value="expired">Süresi Dolmuş</option>
+        </select>
       </div>
 
       {/* Garanti Listesi */}
@@ -125,6 +215,7 @@ export default function GarantiPage() {
                 <th className="text-left py-3 px-4 font-semibold text-slate-500 text-xs">BİTİŞ</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-500 text-xs">KAPSAM</th>
                 <th className="text-center py-3 px-4 font-semibold text-slate-500 text-xs">DURUM</th>
+                <th className="text-center py-3 px-4 font-semibold text-slate-500 text-xs">TALEP</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -159,6 +250,11 @@ export default function GarantiPage() {
                     <td className="py-3 px-4 text-center">
                       <select value={w.status} onChange={e => updateStatus(w.id, e.target.value as WarrantyRecord['status'])} className="select text-[10px] py-1">
                         {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <select value={w.claim_status ?? 'yok'} onChange={e => updateClaimStatus(w.id, e.target.value as WarrantyRecord['claim_status'])} className="select text-[10px] py-1">
+                        {Object.entries(CLAIM_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                     </td>
                   </tr>

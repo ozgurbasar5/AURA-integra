@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Wallet, Lock, Unlock, Loader2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
-import { openCashShiftViaApi, closeCashShiftViaApi } from '@/lib/cash-bridge'
+import { openCashShiftViaApi, closeCashShiftViaApi, loadCashShiftsFromApi } from '@/lib/cash-bridge'
 import {
   getOpenCashShift, getCashShifts,
   getCashSummary, onStoreChange, attachShiftReport, type CashShift,
@@ -33,6 +33,10 @@ export default function KasaPage() {
   const [opening, setOpening] = useState('')
   const [closing, setClosing] = useState('')
   const [notes, setNotes] = useState('')
+  const [adjDelta, setAdjDelta] = useState('')
+  const [adjReason, setAdjReason] = useState('')
+  const [adjBusy, setAdjBusy] = useState(false)
+  const canAdjust = isOwnerRole(role)
 
   const refresh = useCallback(() => {
     const open = getOpenCashShift()
@@ -48,11 +52,13 @@ export default function KasaPage() {
 
   useEffect(() => {
     setMounted(true)
-    refresh()
-    if (!getOpenCashShift()) {
-      const suggested = suggestOpeningCash()
-      if (suggested > 0) setOpening(String(suggested))
-    }
+    void loadCashShiftsFromApi().then(() => {
+      refresh()
+      if (!getOpenCashShift()) {
+        const suggested = suggestOpeningCash()
+        if (suggested > 0) setOpening(String(suggested))
+      }
+    })
     return onStoreChange(m => { if (!m || m === 'cashShifts' || m === 'cash' || m === 'finance' || m === 'sales') refresh() })
   }, [refresh])
 
@@ -169,6 +175,60 @@ export default function KasaPage() {
           </div>
         </PageCard>
       </div>
+
+      {canAdjust && (
+        <PageCard title="Kasa Düzeltme">
+          <p className="text-xs text-slate-500 mb-3">
+            Eski bug veya sayım farkı için nakit bakiyeyi düzeltin. İşlem loglanır (Kasa Düzeltme).
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              className="input sm:w-40"
+              type="number"
+              placeholder="Δ tutar (±₺)"
+              value={adjDelta}
+              onChange={e => setAdjDelta(e.target.value)}
+            />
+            <input
+              className="input flex-1"
+              placeholder="Gerekçe (zorunlu)"
+              value={adjReason}
+              onChange={e => setAdjReason(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={adjBusy}
+              className="btn-secondary whitespace-nowrap"
+              onClick={() => {
+                const delta = Number(adjDelta)
+                if (!delta || !adjReason.trim()) {
+                  toast.error('Tutar ve gerekçe girin')
+                  return
+                }
+                setAdjBusy(true)
+                void fetch('/api/tenant/kasa/adjust', {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ delta, reason: adjReason.trim() }),
+                })
+                  .then(async r => {
+                    const j = await r.json()
+                    if (!r.ok) throw new Error(j.error || 'Düzeltme başarısız')
+                    toast.success(`Kasa güncellendi: ${fmt(j.kasa_balance)}`)
+                    setAdjDelta('')
+                    setAdjReason('')
+                    refresh()
+                  })
+                  .catch(e => toast.error(e instanceof Error ? e.message : 'Hata'))
+                  .finally(() => setAdjBusy(false))
+              }}
+            >
+              {adjBusy ? <Loader2 className="animate-spin" size={14} /> : 'Uygula'}
+            </button>
+          </div>
+        </PageCard>
+      )}
     </PageShell>
   )
 }

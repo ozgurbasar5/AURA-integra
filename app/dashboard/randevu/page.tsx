@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   CalendarDays, Plus, X, Phone, Clock, User,
-  ChevronLeft, ChevronRight, CheckCircle, ArrowRight
+  ChevronLeft, ChevronRight, CheckCircle, ArrowRight, Banknote
 } from 'lucide-react'
 import PageHeader from '@/components/dashboard/PageHeader'
-import { useStoreSlice } from '@/hooks/useStoreSlice'
+import { formatCurrency } from '@/lib/validators'
 import {
-  getAppointments, setAppointments, addAppointment, addServiceOrder,
+  addServiceOrder,
   type Appointment
 } from '@/lib/store'
 
@@ -28,15 +28,27 @@ const today = new Date().toISOString().split('T')[0]
 const emptyForm = {
   customer_name: '', customer_phone: '', device_brand: '', device_model: '',
   fault_description: '', appointment_date: today, appointment_time: '09:00',
-  duration_minutes: 30, technician_name: '',
+  duration_minutes: 30, technician_name: '', deposit_amount: '',
 }
 
 export default function RandevuPage() {
   const router = useRouter()
-  const { items: appointments, saveAll, mounted } = useStoreSlice(getAppointments, setAppointments, 'appointments')
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [mounted, setMounted] = useState(false)
   const [selectedDate, setSelectedDate] = useState(today)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/appointments', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok) setAppointments(json.items ?? [])
+    } catch { /* ignore */ }
+    finally { setMounted(true) }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -58,18 +70,34 @@ export default function RandevuPage() {
     return { date: d.toISOString().split('T')[0], dayName: d.toLocaleDateString('tr-TR', { weekday: 'short' }), dayNum: d.getDate(), isToday: d.toISOString().split('T')[0] === today }
   })
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.customer_name || !form.customer_phone) {
       toast.error('Müşteri adı ve telefon zorunlu')
       return
     }
-    addAppointment({ ...form, status: 'bekliyor' })
-    toast.success('Randevu oluşturuldu')
-    setForm(emptyForm)
-    setShowModal(false)
+    try {
+      const res = await fetch('/api/tenant/appointments', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          status: 'bekliyor',
+          deposit_amount: parseFloat(form.deposit_amount) || 0,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Kayıt başarısız')
+      toast.success('Randevu oluşturuldu')
+      setForm(emptyForm)
+      setShowModal(false)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Kayıt başarısız')
+    }
   }
 
-  function convertToService(a: Appointment) {
+  async function convertToService(a: Appointment) {
     const jobNo = `SRV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`
     addServiceOrder({
       job_no: jobNo,
@@ -85,14 +113,46 @@ export default function RandevuPage() {
       created_at: new Date().toISOString(),
       eta: a.appointment_date,
     })
-    saveAll(appointments.map(x => x.id === a.id ? { ...x, status: 'tamamlandi' as const } : x))
+    await updateStatus(a.id, 'tamamlandi')
     toast.success(`İş emri oluşturuldu: ${jobNo}`)
     router.push('/dashboard/atolye')
   }
 
-  function updateStatus(id: string, status: Appointment['status']) {
-    saveAll(appointments.map(a => a.id === id ? { ...a, status } : a))
-    toast.success('Durum güncellendi')
+  async function updateStatus(id: string, status: Appointment['status']) {
+    try {
+      const res = await fetch('/api/tenant/appointments', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      })
+      if (!res.ok) throw new Error('Güncellenemedi')
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
+      toast.success('Durum güncellendi')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
+  }
+
+  async function markDepositPaid(a: Appointment) {
+    if (!a.deposit_amount || a.deposit_amount <= 0) {
+      toast.error('Kapora tutarı girilmemiş')
+      return
+    }
+    try {
+      const res = await fetch('/api/tenant/appointments', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: a.id, deposit_paid: true, record_cash: true }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Güncellenemedi')
+      setAppointments(prev => prev.map(x => x.id === a.id ? { ...x, deposit_paid: true } : x))
+      toast.success('Kapora ödendi — kasaya yazıldı')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Güncellenemedi')
+    }
   }
 
   return (
@@ -166,8 +226,22 @@ export default function RandevuPage() {
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-[10px] text-slate-400 flex items-center gap-1"><Phone size={9} /> {a.customer_phone}</span>
                       {a.technician_name && <span className="text-[10px] text-slate-400 flex items-center gap-1"><User size={9} /> {a.technician_name}</span>}
+                      {(a.deposit_amount ?? 0) > 0 && (
+                        <span className={`text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded-full ${a.deposit_paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          <Banknote size={9} /> Kapora {formatCurrency(a.deposit_amount!)} {a.deposit_paid ? '✓' : 'bekliyor'}
+                        </span>
+                      )}
                     </div>
                   </div>
+                  {(a.deposit_amount ?? 0) > 0 && !a.deposit_paid && (
+                    <button
+                      onClick={() => markDepositPaid(a)}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shrink-0"
+                      title="Kapora ödendi — kasaya yaz"
+                    >
+                      Kapora Al
+                    </button>
+                  )}
                   <select value={a.status} onChange={e => updateStatus(a.id, e.target.value as Appointment['status'])} className="select text-xs py-1">
                     {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
@@ -206,6 +280,7 @@ export default function RandevuPage() {
                 <div><label className="label">Saat</label><select className="select" value={form.appointment_time} onChange={e => setForm(f => ({ ...f, appointment_time: e.target.value }))}>{HOURS.map(h => <option key={h}>{h}</option>)}</select></div>
               </div>
               <div><label className="label">Teknisyen</label><input className="input" value={form.technician_name} onChange={e => setForm(f => ({ ...f, technician_name: e.target.value }))} placeholder="Opsiyonel" /></div>
+              <div><label className="label">Kapora (₺)</label><input type="number" className="input" value={form.deposit_amount} onChange={e => setForm(f => ({ ...f, deposit_amount: e.target.value }))} placeholder="0 = kapora yok" min="0" /></div>
             </div>
             <div className="flex gap-3 p-5 border-t border-slate-100">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">İptal</button>

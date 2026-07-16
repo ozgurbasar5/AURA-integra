@@ -189,7 +189,9 @@ export default function YurtDisiCihazPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2.5"><Globe size={22} className="text-sky-600" /> Yurt Dışı / TR Kayıt Takibi</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Yurt dışından gelen cihazların Türkiye IMEI kayıt durumunu takip edin</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Dahili IMEI / kayıt günlüğü — harici polis veya BTK çalıntı sorgusu değildir. Cihazın TR kayıt sürecini kendi defterinizde takip edin.
+          </p>
         </div>
         <button onClick={openAdd} className="btn-primary"><Plus size={15} /> Cihaz Ekle</button>
       </div>

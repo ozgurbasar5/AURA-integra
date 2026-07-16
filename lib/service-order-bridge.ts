@@ -12,7 +12,12 @@ import {
   upsertServiceOrder,
   addServiceOrder,
   updateServiceOrder,
+  applyRemotePartsUse,
+  applyRemoteServiceDelivery,
   type StoreServiceOrder,
+  type UsedPart,
+  type ServiceDelivery,
+  type StockItem,
 } from './store'
 
 type DbRow = Record<string, unknown>
@@ -20,6 +25,21 @@ type DbRow = Record<string, unknown>
 function dbToStore(row: DbRow): StoreServiceOrder {
   const customers = row.customers as { full_name?: string; phone?: string } | null | undefined
   const technician = row.technician as { full_name?: string } | null | undefined
+  const meta = (row.metadata as Record<string, unknown>) ?? {}
+  const rawParts = Array.isArray(meta.used_parts) ? meta.used_parts : []
+  const used_parts = rawParts.map((p) => {
+    const part = p as Record<string, unknown>
+    return {
+      id: String(part.id ?? part.stock_id ?? ''),
+      name: String(part.name ?? ''),
+      qty: Number(part.qty) || 0,
+      unit_buy: Number(part.unit_buy) || 0,
+      unit_sell: Number(part.unit_sell) || 0,
+    }
+  }).filter(p => p.id)
+  const final_checks = Array.isArray(meta.final_checks)
+    ? meta.final_checks.map(String)
+    : undefined
   return {
     id: String(row.id),
     job_no: String(row.order_no ?? row.job_no ?? ''),
@@ -38,6 +58,12 @@ function dbToStore(row: DbRow): StoreServiceOrder {
     updated_at: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
     eta: row.estimated_delivery ? String(row.estimated_delivery) : null,
     images: parseDeviceImages(row),
+    used_parts: used_parts.length ? used_parts : undefined,
+    private_note: row.private_note != null ? String(row.private_note) : (meta.private_note != null ? String(meta.private_note) : undefined),
+    final_checks,
+    financial_posted: meta.financial_posted === true,
+    delivered_at: meta.delivered_at ? String(meta.delivered_at) : (row.closed_at ? String(row.closed_at) : undefined),
+    net_profit: meta.net_profit != null ? Number(meta.net_profit) : undefined,
   }
 }
 
@@ -165,9 +191,11 @@ export interface UpdateServiceOrderPatch {
   estimated_cost?: number
   notes?: string
   private_note?: string
+  final_checks?: string[]
   fault_description?: string
   technician_notes?: string
   technician?: string | null
+  technician_id?: string | null
   images?: string[]
   used_parts?: unknown[]
   approval_status?: string
@@ -187,11 +215,17 @@ export async function updateServiceOrderRemote(
   if (patch.fault_description != null) dbPatch.fault_description = patch.fault_description
   if (patch.images != null) dbPatch.device_images = patch.images
   if (patch.used_parts != null) dbPatch.used_parts = patch.used_parts
+  if (patch.private_note !== undefined) dbPatch.private_note = patch.private_note
+  if (patch.final_checks != null) dbPatch.final_checks = patch.final_checks
   if (patch.approval_status != null) dbPatch.approval_status = patch.approval_status
   if (patch.delivered_at !== undefined) dbPatch.delivered_at = patch.delivered_at
 
   if (patch.technician !== undefined) {
     updateServiceOrder(id, { technician: patch.technician })
+    dbPatch.technician_name = patch.technician
+  }
+  if (patch.technician_id !== undefined) {
+    dbPatch.technician_id = patch.technician_id
   }
 
   try {
@@ -215,4 +249,97 @@ export async function updateServiceOrderRemote(
     /* offline */
   }
   return getServiceOrderById(id)
+}
+
+export async function usePartsForServiceViaApi(
+  orderId: string,
+  parts: UsedPart[],
+): Promise<{ ok: true; used_parts: unknown[] } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`/api/service-orders/${orderId}/use-parts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parts }),
+    })
+    const json = await res.json() as {
+      error?: string
+      stock_items?: Array<Record<string, unknown>>
+      used_parts?: unknown[]
+    }
+    if (!res.ok) return { ok: false, error: json.error || 'Parça düşülemedi' }
+
+    const stockItems = (json.stock_items ?? []) as unknown as StockItem[]
+    applyRemotePartsUse(stockItems, json.used_parts, orderId)
+    return { ok: true, used_parts: json.used_parts ?? [] }
+  } catch {
+    return { ok: false, error: 'Bağlantı hatası — parça düşülemedi' }
+  }
+}
+
+export async function deliverServiceViaApi(
+  orderId: string,
+  input: {
+    service_fee: number
+    payment_method?: string
+    used_parts?: UsedPart[]
+    warranty_months?: number
+    final_checks?: string[]
+    job_no: string
+    customer_name: string
+  },
+): Promise<{ ok: true; delivery: ServiceDelivery } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`/api/service-orders/${orderId}/deliver`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_fee: input.service_fee,
+        payment_method: input.payment_method ?? 'nakit',
+        used_parts: input.used_parts?.map(p => ({
+          stock_id: p.stock_id,
+          name: p.name,
+          qty: p.qty,
+          unit_buy: p.unit_buy,
+          unit_sell: p.unit_sell,
+        })),
+        warranty_months: input.warranty_months,
+        final_checks: input.final_checks,
+      }),
+    })
+    const json = await res.json() as {
+      error?: string
+      finance_tx_id?: string
+      service_fee?: number
+      total_expense?: number
+      net_profit?: number
+      profit_margin?: number
+      kasa_balance?: number
+      delivered_at?: string
+      stock_items?: Array<Record<string, unknown>>
+    }
+    if (!res.ok) return { ok: false, error: json.error || 'Teslim kaydedilemedi' }
+
+    const delivery: ServiceDelivery = {
+      service_id: orderId,
+      service_fee: Number(json.service_fee) || input.service_fee,
+      total_expense: Number(json.total_expense) || 0,
+      net_profit: Number(json.net_profit) || 0,
+      profit_margin: Number(json.profit_margin) || 0,
+      delivered_at: json.delivered_at || new Date().toISOString(),
+      financial_posted: true,
+      finance_tx_id: json.finance_tx_id,
+    }
+
+    applyRemoteServiceDelivery(orderId, delivery, {
+      job_no: input.job_no,
+      customer_name: input.customer_name,
+      payment_method: input.payment_method ?? 'nakit',
+      kasa_balance: json.kasa_balance,
+      stock_items: (json.stock_items ?? []) as unknown as StockItem[],
+    })
+
+    return { ok: true, delivery }
+  } catch {
+    return { ok: false, error: 'Bağlantı hatası — teslim kaydedilemedi' }
+  }
 }

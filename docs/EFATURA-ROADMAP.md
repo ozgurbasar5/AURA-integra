@@ -1,12 +1,12 @@
-# e-Fatura Yol Haritası (maliyetsiz tasarım)
+# e-Fatura Yol Haritası
 
 ## Mevcut durum
 
-- **Test modu:** Fatura GIB'e gönderilmez; `efatura_queue` tablosuna kayıt düşer.
+- **Test modu (varsayılan):** `EFATURA_PROVIDER=stub` — GIB'e gönderilmez; UBL-TR XML üretilir, `efatura_queue` + `invoices.xml_content` güncellenir.
 - UI etiketi: **Test modu — GIB'e gönderilmez**
-- Gerçek entegratör: gelir artınca NES veya Logo bağlanır.
+- **Uygulandı:** `ubl-builder.ts`, `nes-adapter.ts`, `logo-adapter.ts`, cron `/api/cron/efatura-queue` (15 dk)
 
-## Akış (hedef)
+## Akış
 
 ```mermaid
 sequenceDiagram
@@ -17,36 +17,35 @@ sequenceDiagram
   participant GIB as GIB
 
   UI->>API: POST invoice_id
+  API->>API: UBL XML üret
   API->>Q: pending kayıt
-  API->>Ad: UBL XML gönder (gelecek)
+  Note over Q: Cron her 15 dk
+  Q->>Ad: UBL XML gönder
   Ad->>GIB: e-Fatura
   GIB-->>Ad: referans
-  Ad-->>API: gib_reference
-  API-->>UI: gonderildi
+  Ad-->>Q: gib_reference / retry
 ```
-
-## Entegratör karşılaştırması (tahmini)
-
-| Sağlayıcı | Aylık maliyet | Not |
-|-----------|---------------|-----|
-| NES | ~₺500–1500 | Yaygın, API dokümantasyonu iyi |
-| Logo | ~₺800–2000 | ERP entegrasyonu |
-| Mikro | Değişken | Bayi anlaşmasına bağlı |
 
 ## Env checklist (prod)
 
 ```
 EFATURA_PROVIDER=stub          # nes | logo
 NES_EFATURA_API_KEY=           # NES seçilirse
+NES_EFATURA_URL=               # opsiyonel
 LOGO_EFATURA_URL=              # Logo seçilirse
+LOGO_EFATURA_API_KEY=          # opsiyonel
+CRON_SECRET=                   # kuyruk worker
 ```
 
-## Uygulama adımları (gelir sonrası)
+## Dosyalar
 
-1. `lib/efatura/ubl-builder.ts` — UBL-TR 1.2 XML
-2. `lib/efatura/nes-adapter.ts` veya `logo-adapter.ts`
-3. Cron worker: `efatura_queue` pending → HTTP gönder → retry
-4. Webhook: GIB durum güncelleme
+| Dosya | Rol |
+|-------|-----|
+| `lib/efatura/ubl-builder.ts` | UBL-TR 1.2 XML |
+| `lib/efatura/nes-adapter.ts` | NES HTTP |
+| `lib/efatura/logo-adapter.ts` | Logo HTTP |
+| `lib/efatura/provider.ts` | stub \| nes \| logo seçici |
+| `app/api/cron/efatura-queue` | pending → submit / retry |
 
 ## Status eşlemesi
 
@@ -55,3 +54,11 @@ LOGO_EFATURA_URL=              # Logo seçilirse
 | taslak | Taslak |
 | submitted | Gönderildi |
 | onaylandi | Onaylandı |
+
+## Kalan (gerçek GIB)
+
+1. ~~NES/Logo sandbox env + kuyruk UI~~ — `getEfaturaSandboxStatus` + Fatura sayfası kuyruk paneli + admin `efatura-queue` cron
+2. GIB durum webhook / polling (adapter yanıtı sonrası status eşleme)
+3. Entegratör PDF görüntüleme
+
+Prod için: `EFATURA_PROVIDER=nes` (veya `logo`) + ilgili API anahtarları.

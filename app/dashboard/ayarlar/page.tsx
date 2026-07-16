@@ -38,6 +38,7 @@ import BrandLivePreview from '@/components/branding/BrandLivePreview'
 import LogoCropModal from '@/components/branding/LogoCropModal'
 import ColorModeToggle from '@/components/ColorModeToggle'
 import { toast } from 'sonner'
+import IntegrationHealthBanner from '@/components/settings/IntegrationHealthBanner'
 
 type Tab = 'genel' | 'tema' | 'bildirim' | 'guvenlik' | 'entegrasyon' | 'abonelik'
 
@@ -51,18 +52,18 @@ const NOTIFICATION_SETTINGS = [
 ]
 
 const INTEGRATIONS = [
-  { id: 'whatsapp',  name: 'WhatsApp Business', icon: '💬', status: 'coming', desc: 'Müşteri mesajlaşma' },
-  { id: 'mikro',     name: 'Mikro Muhasebe',    icon: '📊', status: 'available', desc: 'Muhasebe entegrasyonu' },
-  { id: 'logo',      name: 'Logo Tiger',         icon: '🐯', status: 'available', desc: 'ERP entegrasyonu' },
-  { id: 'nes',       name: 'NES Kargo',          icon: '📦', status: 'available', desc: 'Kargo takip sistemi' },
-  { id: 'iyzico',    name: 'İyzico',             icon: '💳', status: 'available', desc: 'Online ödeme altyapısı' },
-  { id: 'n11',       name: 'n11 / Trendyol',     icon: '🛍️', status: 'coming',    desc: 'Marketplace entegrasyonu' },
+  { id: 'whatsapp',  name: 'WhatsApp Business', icon: '💬', status: 'stub', desc: 'Meta Cloud otomatik; wa.me yalnızca fallback' },
+  { id: 'mikro',     name: 'Mikro Muhasebe',    icon: '📊', status: 'csv', desc: 'Hazır CSV — dosya içe aktarım (canlı REST yok)' },
+  { id: 'logo',      name: 'Logo Tiger',         icon: '🐯', status: 'csv', desc: 'Hazır CSV — dosya içe aktarım (canlı REST yok)' },
+  { id: 'iyzico',    name: 'İyzico',             icon: '💳', status: 'available', desc: 'Abonelik ödeme webhook' },
 ]
 
 const STATUS_INFO: Record<string, { label: string; color: string }> = {
-  connected: { label: 'Bağlı',       color: 'badge-green text-green-700' },
-  available: { label: 'Kurulabilir', color: 'badge-blue text-blue-700' },
-  coming:    { label: 'Yakında',     color: 'badge-slate text-slate-600' },
+  connected: { label: 'Bağlı',            color: 'badge-green text-green-700' },
+  available: { label: 'Kurulabilir',      color: 'badge-blue text-blue-700' },
+  csv:       { label: 'CSV dışa aktarım', color: 'badge-blue text-blue-700' },
+  stub:      { label: 'Test / stub',      color: 'badge-amber text-amber-700' },
+  coming:    { label: 'Yakında',          color: 'badge-slate text-slate-600' },
 }
 
 export default function AyarlarPage() {
@@ -111,28 +112,37 @@ export default function AyarlarPage() {
   const router = useRouter()
 
   async function testIntegration(integrationId: string) {
-    const map: Record<string, string> = {
-      nes: 'sms',
-      mikro: 'smtp',
-      logo: 'smtp',
-      iyzico: 'smtp',
-      gib: 'smtp',
-      efatura: 'smtp',
-    }
-    const kind = map[integrationId]
-    if (!kind) {
-      toast.info('Bu entegrasyon henüz desteklenmiyor')
+    if (integrationId === 'mikro' || integrationId === 'logo') {
+      try {
+        const res = await fetch('/api/tenant/export/accounting', { credentials: 'same-origin' })
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          toast.error((json as { error?: string }).error || 'CSV dışa aktarım başarısız')
+          return
+        }
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `muhasebe-export-${integrationId}.csv`
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.success(`${integrationId === 'mikro' ? 'Mikro' : 'Logo'} CSV dışa aktarım hazır`)
+      } catch {
+        toast.error('CSV dışa aktarım isteği gönderilemedi')
+      }
       return
     }
+
     try {
       const res = await fetch('/api/tenant/integrations/test', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ integration: kind }),
+        body: JSON.stringify({ integration: integrationId }),
       })
       const json = await res.json()
-      if (json.ok) toast.success(`${integrationId.toUpperCase()} bağlantı testi başarılı`)
+      if (json.ok) toast.success(json.message || `${integrationId} bağlantı testi başarılı`)
       else toast.error(json.error || json.message || 'Bağlantı testi başarısız')
     } catch {
       toast.error('Test isteği gönderilemedi')
@@ -1090,7 +1100,7 @@ export default function AyarlarPage() {
                 <div className="space-y-3">
                   {([
                     ['auto_sms', 'Otomatik SMS'],
-                    ['auto_whatsapp', 'WhatsApp (simülasyon)'],
+                    ['auto_whatsapp', 'WhatsApp (Meta Cloud / wa.me fallback)'],
                     ['on_status_change', 'Durum değişiminde gönder'],
                     ['on_delivery', 'Teslimde gönder'],
                     ['require_qc_on_delivery', 'Teslimde QC zorunlu'],
@@ -1158,11 +1168,34 @@ export default function AyarlarPage() {
                   <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center">
                     <Shield size={18} className="text-sky-600 dark:text-sky-400" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium text-[var(--text-primary)]">E-posta ile Doğrulama</p>
-                    <p className="text-xs text-[var(--text-muted)]">Giriş yapılırken e-posta adresinize doğrulama kodu gönderilir. SMS desteği mevcut değildir.</p>
+                    <p className="text-xs text-[var(--text-muted)]">Giriş yapılırken e-posta adresinize 6 haneli kod gönderilir.</p>
                   </div>
-                  <span className="ml-auto badge badge-slate text-xs">Yakında</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void fetch('/api/auth/email-2fa')
+                        .then(r => r.json())
+                        .then(cur => {
+                          const next = !cur.enabled
+                          return fetch('/api/auth/email-2fa', {
+                            method: 'PUT',
+                            credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ enabled: next }),
+                          }).then(r => r.json()).then(json => {
+                            if (json.ok) toast.success(next ? 'E-posta 2FA açıldı' : 'E-posta 2FA kapatıldı')
+                            else toast.error(json.error || 'Kaydedilemedi')
+                          })
+                        })
+                        .catch(() => toast.error('2FA ayarı güncellenemedi'))
+                    }}
+                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                    style={{ backgroundColor: 'var(--accent)' }}
+                  >
+                    Aç / Kapat
+                  </button>
                 </div>
               </div>
 
@@ -1184,6 +1217,33 @@ export default function AyarlarPage() {
           {/* ── ENTEGRASYONLAR ─────────────────────────────────────────────── */}
           {tab === 'entegrasyon' && (
             <div className="space-y-4">
+              <IntegrationHealthBanner />
+
+              <div className="card p-5 border border-sky-200 bg-sky-50/40">
+                <h3 className="font-semibold text-[var(--text-primary)] mb-1">Hazır Muhasebe Export — Mikro / Logo</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Canlı REST bağlantısı yoktur. Son 30 günlük finans hareketleri, satışlar ve faturalar tek CSV dosyasında hazırlanır;
+                  Mikro veya Logo Tiger&apos;da <strong>Dosya → İçe Aktar</strong> ile manuel aktarım yapılır.
+                </p>
+                <ol className="text-xs text-[var(--text-muted)] space-y-1 mb-4 list-decimal list-inside">
+                  <li>Aşağıdan CSV dosyasını indirin</li>
+                  <li>Muhasebe yazılımında içe aktarım sihirbazını açın</li>
+                  <li>Tarih, tutar ve açıklama kolonlarını eşleştirin</li>
+                  <li>Çift kayıt olmaması için aynı dönemi tekrar aktarmayın</li>
+                </ol>
+                <div className="flex flex-wrap gap-2">
+                  <a href="/api/tenant/export/accounting" className="btn-primary text-sm">
+                    Muhasebe CSV İndir
+                  </a>
+                  <button type="button" onClick={() => void testIntegration('mikro')} className="btn-secondary text-sm">
+                    Mikro CSV Test
+                  </button>
+                  <button type="button" onClick={() => void testIntegration('logo')} className="btn-secondary text-sm">
+                    Logo CSV Test
+                  </button>
+                </div>
+              </div>
+
               <div data-tour="ayarlar-entegrasyonlar" className="card p-5">
                 <h3 className="font-semibold text-[var(--text-primary)] mb-1">Entegrasyonlar</h3>
                 <p className="text-sm text-[var(--text-secondary)] mb-5">Harici servis ve yazılımlarla bağlantı kurun.</p>
@@ -1201,10 +1261,10 @@ export default function AyarlarPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`badge text-xs ${st.color}`}>{st.label}</span>
-                          {int.status === 'available' && (
+                          {(int.status === 'available' || int.status === 'csv' || int.status === 'stub') && (
                             <button onClick={() => void testIntegration(int.id)}
                               className="text-xs font-semibold transition-all" style={{ color: 'var(--accent)' }}>
-                              Test
+                              {int.status === 'csv' ? 'CSV' : 'Test'}
                             </button>
                           )}
                         </div>

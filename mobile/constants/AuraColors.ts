@@ -1,0 +1,18 @@
+export const AuraColors = {
+  primary: '#0284c7',
+  primaryDark: '#0c4a6e',
+  primarySoft: '#e0f2fe',
+  accent: '#0ea5e9',
+  bg: '#eef2f6',
+  bgElevated: '#f8fafc',
+  card: '#ffffff',
+  text: '#0f172a',
+  muted: '#64748b',
+  border: '#e2e8f0',
+  danger: '#dc2626',
+  dangerSoft: '#fee2e2',
+  success: '#059669',
+  successSoft: '#d1fae5',
+  warning: '#d97706',
+  warningSoft: '#fef3c7',
+}

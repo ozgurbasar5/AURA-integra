@@ -396,6 +396,8 @@ export interface Appointment {
   technician_name?: string
   status: 'bekliyor' | 'onaylandi' | 'iptal' | 'tamamlandi' | 'gelmedi'
   notes?: string
+  deposit_amount?: number
+  deposit_paid?: boolean
   created_at: string
 }
 
@@ -433,6 +435,7 @@ export interface WarrantyRecord {
   covered_parts?: string[]
   terms?: string
   status: 'aktif' | 'sona_erdi' | 'kullanildi' | 'reddedildi'
+  claim_status?: 'yok' | 'beklemede' | 'inceleniyor' | 'onaylandi' | 'reddedildi'
   customer_name?: string
   order_no?: string
   created_at: string
@@ -451,6 +454,7 @@ export interface InvoiceRecord {
   kdv_amount: number
   total: number
   status: 'taslak' | 'onaylandi' | 'gonderildi' | 'iptal'
+  gib_reference?: string
   created_at: string
 }
 
@@ -856,6 +860,13 @@ export function getStock(): StockItem[] { return loadStore().stock }
 export function getTransactions(): FinanceTransaction[] { return loadStore().transactions }
 export function getSales(): Sale[] { return loadStore().sales }
 
+export function replaceSales(items: Sale[], opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  store.sales = items
+  saveStore(store)
+  if (!opts?.silent) emitChange('sales')
+}
+
 export function getSaleById(saleId: string): Sale | undefined {
   return loadStore().sales.find(s => s.id === saleId)
 }
@@ -1061,11 +1072,23 @@ export function removeServiceOrder(orderId: string): boolean {
   return true
 }
 
+/**
+ * Cari (veresiye) defter hareketleri gerçek işletme geliri/gideri değildir:
+ * borç kaydı gider olmadığı gibi, tahsilat da (gelir teslim/satışta zaten
+ * yazıldığı için) ikinci kez gelir sayılmamalıdır.
+ */
+export const CARI_CATEGORIES: readonly string[] = ['Cari Borç', 'Cari Tahsilat']
+
+export function isCariTransaction(t: { category?: string }): boolean {
+  return CARI_CATEGORIES.includes(t.category ?? '')
+}
+
 /** Compute finance summary from real data */
 export function getFinanceSummary() {
   const store = loadStore()
-  const totalGelir = store.transactions.filter(t => t.type === 'gelir').reduce((s, t) => s + t.amount, 0)
-  const totalGider = store.transactions.filter(t => t.type === 'gider').reduce((s, t) => s + t.amount, 0)
+  const reportTxs = store.transactions.filter(t => !isCariTransaction(t))
+  const totalGelir = reportTxs.filter(t => t.type === 'gelir').reduce((s, t) => s + t.amount, 0)
+  const totalGider = reportTxs.filter(t => t.type === 'gider').reduce((s, t) => s + t.amount, 0)
   const totalStockValue = store.stock.reduce((s, p) => s + p.buy_price * p.stock_qty, 0)
   const criticalStockCount = store.stock.filter(p => p.stock_qty <= p.min_stock).length
   return {
@@ -1083,6 +1106,7 @@ export function getFinanceSummary() {
 // ─── STOCK MUTATIONS ───────────────────────────────────────────────────────────
 
 export function addStockItem(item: Omit<StockItem, 'id'>): StockItem {
+  /** @deprecated Prefer addStockItemViaApi — cache-only fallback */
   const store = loadStore()
   const newItem: StockItem = { ...item, id: uid('s') }
   store.stock.push(newItem)
@@ -1111,6 +1135,7 @@ export function upsertStockItem(item: StockItem, opts?: { silent?: boolean }): v
 }
 
 export function updateStockQty(id: string, newQty: number) {
+  /** @deprecated Prefer updateStockQtyViaApi — cache-only fallback */
   const store = loadStore()
   const idx = store.stock.findIndex(s => s.id === id)
   if (idx === -1) return
@@ -1205,6 +1230,7 @@ export function recordServiceRevenue(orderNo: string, customerName: string, labo
 // ─── SALES (POS) MUTATIONS — WITH PROFIT CALCULATION ────────────────────────
 
 /** Complete a POS sale — DECREASES stock, CALCULATES profit, CREATES gelir transaction */
+/** @deprecated Prefer completeSaleViaApi — local-only, do not use from UI */
 export function completeSale(
   items: CartItem[],
   customerName: string,
@@ -1295,39 +1321,69 @@ export async function completeSaleViaApi(
   const json = await res.json() as {
     error?: string
     sale_id?: string
+    transaction_id?: string
     total_with_vat?: number
+    subtotal?: number
+    vat_rate?: number
+    vat_amount?: number
+    cost_price?: number
     kasa_balance?: number
+    parts?: Record<string, unknown>[]
   }
   if (!res.ok) throw new Error(json.error || 'Satış tamamlanamadı')
 
-  for (const item of items) {
-    const stockItem = store.stock.find(s => s.id === item.stock_id)
-    if (stockItem) stockItem.stock_qty -= item.qty
+  // Hydrate stock from API parts (source of truth)
+  if (json.parts?.length) {
+    for (const row of json.parts) {
+      const mapped = {
+        id: String(row.id),
+        name: String(row.name ?? ''),
+        barcode: String(row.barcode ?? ''),
+        category: String(row.category ?? ''),
+        compatible_brands: Array.isArray(row.compatible_brands) ? row.compatible_brands as string[] : [],
+        stock_qty: Number(row.stock_qty) || 0,
+        min_stock: Number(row.min_stock) || 0,
+        buy_price: Number(row.buy_price) || 0,
+        sell_price: Number(row.sell_price) || 0,
+        supplier: String(row.supplier ?? ''),
+      }
+      const idx = store.stock.findIndex(s => s.id === mapped.id)
+      if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...mapped }
+    }
+  } else {
+    for (const item of items) {
+      const stockItem = store.stock.find(s => s.id === item.stock_id)
+      if (stockItem) stockItem.stock_qty -= item.qty
+    }
   }
 
-  const subtotal = items.reduce((s, i) => s + i.unit_price * i.qty, 0)
-  let sale: Sale = {
+  const subtotal = json.subtotal ?? items.reduce((s, i) => s + i.unit_price * i.qty, 0)
+  const costPrice = json.cost_price ?? 0
+  const vatAmount = json.vat_amount ?? subtotal * (vatRate / 100)
+  const totalWithVat = json.total_with_vat ?? subtotal + vatAmount
+  const gross = subtotal - costPrice
+
+  const sale: Sale = {
     id: json.sale_id ?? uid('sale'),
     date: new Date().toISOString(),
     customer_name: customerName,
     items,
     subtotal,
-    cost_price: 0,
-    gross_profit: 0,
+    cost_price: costPrice,
+    gross_profit: gross,
     expenses: [],
     expense_total: 0,
-    net_profit: 0,
-    profit_margin: 0,
-    vat_rate: vatRate,
-    vat_amount: 0,
-    total_with_vat: json.total_with_vat ?? 0,
+    net_profit: gross,
+    profit_margin: subtotal > 0 ? (gross / subtotal) * 100 : 0,
+    vat_rate: json.vat_rate ?? vatRate,
+    vat_amount: vatAmount,
+    total_with_vat: totalWithVat,
     payment_method: paymentMethod,
   }
-  sale = recalculateSale(sale, store)
   store.sales.push(sale)
 
   store.transactions.push({
-    id: uid('ft'),
+    id: json.transaction_id ?? uid('ft'),
     type: 'gelir',
     description: `POS Satış — ${items.map(i => i.name).join(', ')}`,
     category: 'Satış',
@@ -1605,6 +1661,92 @@ export function undoServiceDelivery(serviceId: string): boolean {
 
 // ─── STOCK PURCHASE ────────────────────────────────────────────────────────────
 
+/** Sunucu parça düşümü sonrası yerel stok cache */
+export function applyRemotePartsUse(
+  stockItems: StockItem[],
+  usedPartsMeta: unknown[] | undefined,
+  orderId: string,
+): void {
+  const store = loadStore()
+  for (const item of stockItems) {
+    const idx = store.stock.findIndex(s => s.id === item.id)
+    if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...item }
+    else store.stock.push(item)
+  }
+  const order = store.serviceOrders.find(o => o.id === orderId)
+  if (order && Array.isArray(usedPartsMeta)) {
+    order.used_parts = usedPartsMeta.map(p => {
+      const part = p as Record<string, unknown>
+      return {
+        id: String(part.id ?? part.stock_id ?? ''),
+        name: String(part.name ?? ''),
+        qty: Number(part.qty) || 0,
+        unit_buy: Number(part.unit_buy) || 0,
+        unit_sell: Number(part.unit_sell) || 0,
+      }
+    }).filter(p => p.id)
+    order.updated_at = new Date().toISOString()
+  }
+  saveStore(store)
+  emitChange('stock')
+  emitChange('service')
+}
+
+/** Sunucu teslim sonrası yerel cache (finans tekrar yazılmaz) */
+export function applyRemoteServiceDelivery(
+  serviceId: string,
+  delivery: ServiceDelivery,
+  opts: {
+    job_no: string
+    customer_name: string
+    payment_method: string
+    kasa_balance?: number
+    stock_items?: StockItem[]
+  },
+): void {
+  const store = loadStore()
+  store.serviceDeliveries[serviceId] = delivery
+
+  if (opts.stock_items?.length) {
+    for (const item of opts.stock_items) {
+      const idx = store.stock.findIndex(s => s.id === item.id)
+      if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...item }
+      else store.stock.push(item)
+    }
+  }
+
+  store.transactions.push({
+    id: delivery.finance_tx_id || uid('ft'),
+    type: 'gelir',
+    description: `Servis teslim — ${opts.job_no}`,
+    category: 'Servis Teslim',
+    amount: delivery.service_fee,
+    payment_method: opts.payment_method,
+    date: delivery.delivered_at,
+    customer_name: opts.customer_name,
+    order_no: opts.job_no,
+    service_id: serviceId,
+  })
+  // Parça maliyeti alışta zaten gider yazıldı; burada Servis Gider eklemek çift sayım olur
+  if (opts.kasa_balance != null) store.kasaBakiye = opts.kasa_balance
+  else syncKasaBakiye(store)
+
+  const order = store.serviceOrders.find(o => o.id === serviceId)
+  if (order) {
+    order.financial_posted = true
+    order.delivered_at = delivery.delivered_at
+    order.actual_cost = delivery.service_fee
+    order.net_profit = delivery.net_profit
+    order.status = 'delivered'
+    order.updated_at = delivery.delivered_at
+  }
+
+  saveStore(store)
+  emitChange('finance')
+  emitChange('service')
+  emitChange('stock')
+}
+
 export function applyRemoteStockReceive(
   stockItem: StockItem,
   qty: number,
@@ -1698,6 +1840,73 @@ export function setStoreProducts(products: StoreProduct[]) { updateSlice('storeP
 
 export function getPurchases(): Purchase[] { return loadStore().purchases }
 export function setPurchases(purchases: Purchase[]) { updateSlice('purchases', purchases, 'purchases') }
+
+/** Sunucu alış sonrası yerel cache (finans tekrar yazılmaz; kasa sunucudan) */
+export function applyRemotePurchase(
+  purchase: Purchase,
+  stockItem?: StockItem | null,
+  kasaBalance?: number,
+): void {
+  const store = loadStore()
+  const prev = store.purchases.find(p => p.id === purchase.id)
+  store.purchases = [purchase, ...store.purchases.filter(p => p.id !== purchase.id)]
+  if (stockItem) {
+    const idx = store.stock.findIndex(s => s.id === stockItem.id)
+    if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...stockItem }
+    else store.stock.push(stockItem)
+  }
+  const existingTx = store.transactions.find(t =>
+    t.category === 'Alış' && (
+      (t as { reference_id?: string }).reference_id === purchase.id ||
+      (prev != null && t.description?.includes(prev.supplier_name) && Math.abs(t.amount - prev.total_cost) < 0.01) ||
+      (t.description?.includes(purchase.supplier_name) && Math.abs(t.amount - purchase.total_cost) < 0.01)
+    ),
+  )
+  if (existingTx) {
+    existingTx.amount = purchase.total_cost
+    existingTx.payment_method = purchase.payment_method
+    existingTx.description = `Alış — ${purchase.category} (${purchase.supplier_name})`
+  } else {
+    store.transactions.push({
+      id: uid('ft'),
+      type: 'gider',
+      description: `Alış — ${purchase.category} (${purchase.supplier_name})`,
+      category: 'Alış',
+      amount: purchase.total_cost,
+      payment_method: purchase.payment_method,
+      date: purchase.created_at,
+    })
+  }
+  if (kasaBalance != null) store.kasaBakiye = kasaBalance
+  else syncKasaBakiye(store)
+  saveStore(store)
+  emitChange('purchases')
+  emitChange('stock')
+  emitChange('finance')
+}
+
+/** Alış silme sonrası sunucudan gelen stok/kasa durumunu cache'e uygula */
+export function applyRemotePurchaseDelete(
+  purchaseId: string,
+  stockItem?: StockItem | null,
+  kasaBalance?: number,
+): void {
+  const store = loadStore()
+  store.purchases = store.purchases.filter(p => p.id !== purchaseId)
+  store.transactions = store.transactions.filter(
+    t => !(t.category === 'Alış' && ((t as { reference_id?: string }).reference_id === purchaseId || t.description?.includes(purchaseId))),
+  )
+  if (stockItem) {
+    const idx = store.stock.findIndex(s => s.id === stockItem.id)
+    if (idx >= 0) store.stock[idx] = { ...store.stock[idx], ...stockItem }
+    else store.stock.push(stockItem)
+  }
+  if (kasaBalance != null) store.kasaBakiye = kasaBalance
+  saveStore(store)
+  emitChange('purchases')
+  emitChange('stock')
+  emitChange('finance')
+}
 
 /** Alış kaydı + stok güncelleme + gider işlemi */
 export function recordPurchase(input: Omit<Purchase, 'id' | 'created_at' | 'total_cost'>): Purchase {
@@ -1958,9 +2167,11 @@ export function getCashSummary(opts?: { from?: string; to?: string }) {
   for (const t of store.transactions) {
     if (t.type !== 'gider') continue
     if (opts && !inRange(t.date)) continue
-    const pm = (t.payment_method || '').toLocaleLowerCase('tr-TR')
+    if (isCariTransaction(t)) continue
+    const pm = (t.payment_method || 'nakit').toLocaleLowerCase('tr-TR')
     if (pm.includes('kart') || pm.includes('kredi')) kartCikis += t.amount
-    else nakitCikis += t.amount
+    else if (pm.includes('nakit') || !t.payment_method) nakitCikis += t.amount
+    // havale/veresiye/çek → nakit çıkışa yazılmaz
   }
   const result = {
     nakit, kart, diger,
@@ -2186,6 +2397,15 @@ export function getOpenCashShift(): CashShift | undefined {
   return loadStore().cashShifts.find(s => s.status === 'open')
 }
 
+/** Cache-only — API-first kasa bridge kullanır */
+export function replaceCashShifts(items: CashShift[], opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  store.cashShifts = items
+  saveStore(store)
+  if (!opts?.silent) emitChange('cashShifts')
+}
+
+/** @deprecated Prefer openCashShiftViaApi — local-only fallback */
 export function openCashShift(openingBalance: number, openedBy: string, branchId?: string): CashShift {
   const store = loadStore()
   const open = store.cashShifts.find(s => s.status === 'open')
@@ -2204,6 +2424,7 @@ export function openCashShift(openingBalance: number, openedBy: string, branchId
   return shift
 }
 
+/** @deprecated Prefer closeCashShiftViaApi — local-only fallback */
 export function closeCashShift(closingBalance: number, closedBy: string, notes?: string): CashShift | null {
   const store = loadStore()
   const idx = store.cashShifts.findIndex(s => s.status === 'open')
@@ -2228,6 +2449,15 @@ export function closeCashShift(closingBalance: number, closedBy: string, notes?:
 }
 
 export function getSupplierOrders(): SupplierOrder[] { return loadStore().supplierOrders }
+
+export function upsertSupplierOrder(item: SupplierOrder): void {
+  const store = loadStore()
+  const idx = store.supplierOrders.findIndex(o => o.id === item.id)
+  if (idx >= 0) store.supplierOrders[idx] = item
+  else store.supplierOrders.unshift(item)
+  saveStore(store)
+  emitChange('supplier')
+}
 
 export function addSupplierOrder(data: Omit<SupplierOrder, 'id' | 'order_no' | 'created_at' | 'status'>): SupplierOrder {
   const store = loadStore()
@@ -2264,6 +2494,22 @@ export function updateSupplierOrderStatus(id: string, status: SupplierOrder['sta
 }
 
 export function getSecondHandDevices(): SecondHandDevice[] { return loadStore().secondHandDevices }
+
+export function replaceSecondHandDevices(items: SecondHandDevice[], opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  store.secondHandDevices = items
+  saveStore(store)
+  if (!opts?.silent) emitChange('secondhand')
+}
+
+export function upsertSecondHandDevice(item: SecondHandDevice, opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  const idx = store.secondHandDevices.findIndex(d => d.id === item.id)
+  if (idx >= 0) store.secondHandDevices[idx] = { ...store.secondHandDevices[idx], ...item }
+  else store.secondHandDevices.unshift(item)
+  saveStore(store)
+  if (!opts?.silent) emitChange('secondhand')
+}
 
 export function addSecondHandDevice(data: Omit<SecondHandDevice, 'id' | 'created_at' | 'status' | 'barcode'> & { barcode?: string }): SecondHandDevice {
   const store = loadStore()

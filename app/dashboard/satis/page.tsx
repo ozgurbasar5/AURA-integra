@@ -11,10 +11,12 @@ import { formatCurrency } from '@/lib/validators'
 import confetti from 'canvas-confetti'
 import { PAYMENT_METHODS } from '@/lib/constants'
 import { completePosSaleViaApi } from '@/lib/pos-bridge'
+import { loadStockFromApi } from '@/lib/stock-bridge'
+import BarcodeScanField from '@/components/barcode/BarcodeScanField'
 import {
   getStock, getSales, getFinanceSummary,
   getCampaigns,
-  onStoreChange, type StockItem, type Sale
+  onStoreChange, replaceSales, type StockItem, type Sale
 } from '@/lib/store'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -48,7 +50,17 @@ export default function SatisPage() {
 
   useEffect(() => {
     setMounted(true)
-    refresh()
+    void (async () => {
+      await loadStockFromApi()
+      try {
+        const res = await fetch('/api/tenant/sales?limit=30', { credentials: 'same-origin' })
+        if (res.ok) {
+          const json = await res.json() as { items?: Sale[] }
+          if (json.items) replaceSales(json.items, { silent: true })
+        }
+      } catch { /* cache */ }
+      refresh()
+    })()
     const unsub = onStoreChange((mod) => {
       if (mod === 'stock' || mod === 'sales' || mod === 'finance') refresh()
     })
@@ -57,26 +69,17 @@ export default function SatisPage() {
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
-  const filteredProducts = search.length >= 2
-    ? stock.filter(p =>
-        p.stock_qty > 0 && (
-          p.name.toLowerCase().includes(search.toLowerCase()) ||
-          p.barcode.includes(search) ||
-          p.category.toLowerCase().includes(search.toLowerCase())
-        )
-      )
-    : []
-
-  // Barkod okuyucu: tam eşleşmede sepete ekle
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter' || !search.trim()) return
-    const exact = stock.find(p => p.barcode === search.trim() && p.stock_qty > 0)
-    if (exact) {
-      e.preventDefault()
-      addToCart(exact)
-      toast.success(`${exact.name} sepete eklendi`)
-    }
-  }
+  // Rafta stoklu ürünler her zaman görünür; arama opsiyonel filtre
+  const filteredProducts = stock.filter(p => {
+    if (p.stock_qty <= 0) return false
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (
+      p.name.toLowerCase().includes(q) ||
+      p.barcode.includes(search) ||
+      p.category.toLowerCase().includes(q)
+    )
+  })
 
   const addToCart = (product: StockItem) => {
     setCart(prev => {
@@ -91,6 +94,28 @@ export default function SatisPage() {
       return [...prev, { stock_id: product.id, name: product.name, barcode: product.barcode, qty: 1, unit_price: product.sell_price, max_stock: product.stock_qty }]
     })
     setSearch('')
+  }
+
+  // Barkod okuyucu: tam eşleşmede sepete ekle
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || !search.trim()) return
+    const exact = stock.find(p => p.barcode === search.trim() && p.stock_qty > 0)
+    if (exact) {
+      e.preventDefault()
+      addToCart(exact)
+      toast.success(`${exact.name} sepete eklendi`)
+    }
+  }
+
+  const handleBarcodeScan = (code: string) => {
+    const exact = stock.find(p => p.barcode === code && p.stock_qty > 0)
+    if (exact) {
+      addToCart(exact)
+      toast.success(`${exact.name} sepete eklendi`)
+    } else {
+      setSearch(code)
+      toast.error('Barkod stokta bulunamadı veya stok yok')
+    }
   }
 
   const updateQty = (id: string, delta: number) => {
@@ -154,7 +179,7 @@ export default function SatisPage() {
     .reduce((s, sale) => s + (sale.total_with_vat ?? sale.total ?? 0), 0)
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-28 lg:pb-8">
       {/* Header */}
       <div data-tour="satis-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -189,6 +214,9 @@ export default function SatisPage() {
         <div className="lg:col-span-3 space-y-3">
           <div data-tour="satis-arama" className="card p-4">
             <label className="label mb-2">Ürün / Barkod Ara</label>
+            <div className="mb-3">
+              <BarcodeScanField onScan={handleBarcodeScan} placeholder="Kamera ile barkod okutun…" />
+            </div>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={handleSearchKeyDown}
@@ -219,7 +247,20 @@ export default function SatisPage() {
               <div className="px-5 py-3 border-b border-slate-100">
                 <h3 className="font-bold text-slate-900 text-sm">Son Satışlar</h3>
               </div>
-              <table className="w-full text-sm">
+              <div className="mobile-data-card-list p-3 !space-y-2">
+                {recentSales.map(s => (
+                  <div key={s.id} className="mobile-data-card !p-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 truncate">{s.customer_name}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {s.items.reduce((sum, i) => sum + i.qty, 0)} ürün · {PAYMENT_METHODS[s.payment_method as keyof typeof PAYMENT_METHODS]?.label || s.payment_method}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-emerald-600 tabular-nums shrink-0">{formatCurrency(s.total_with_vat ?? s.total ?? 0)}</p>
+                  </div>
+                ))}
+              </div>
+              <table className="w-full text-sm hidden md:table">
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="text-left py-2.5 px-4 text-[10px] font-semibold text-slate-500 uppercase">Müşteri</th>
@@ -252,7 +293,7 @@ export default function SatisPage() {
         </div>
 
         {/* Cart */}
-        <div data-tour="satis-sepet" className="lg:col-span-2 card flex flex-col h-fit sticky top-4">
+        <div data-tour="satis-sepet" id="satis-sepet" className="lg:col-span-2 card flex flex-col h-fit sticky top-4">
           <div className="px-5 py-4 border-b border-slate-100">
             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
               <ShoppingCart size={14} className="text-sky-600" /> Sepet
@@ -365,6 +406,33 @@ export default function SatisPage() {
           )}
         </div>
       </div>
+
+      {/* Mobile sticky checkout bar — above bottom nav */}
+      {cart.length > 0 && (
+        <div
+          data-testid="satis-mobile-checkout"
+          className="lg:hidden fixed inset-x-0 z-30 px-3 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px)+0.5rem)]"
+        >
+          <div className="flex gap-2 rounded-2xl bg-slate-900 text-white p-2 shadow-xl">
+            <button
+              type="button"
+              onClick={() => document.getElementById('satis-sepet')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="flex-1 text-left px-3 py-2 min-h-[48px]"
+            >
+              <p className="text-[10px] text-slate-300">{cart.reduce((s, i) => s + i.qty, 0)} ürün</p>
+              <p className="text-sm font-bold tabular-nums">{formatCurrency(total)}</p>
+            </button>
+            <button
+              type="button"
+              data-tour="satis-tamamla-btn-mobile"
+              onClick={() => void handleCompleteSale()}
+              className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-sm font-bold min-h-[48px] shrink-0"
+            >
+              Tamamla
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

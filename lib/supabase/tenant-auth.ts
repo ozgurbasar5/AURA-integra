@@ -1,29 +1,36 @@
+import { createClient as createSupabaseJsClient, type SupabaseClient } from '@supabase/supabase-js'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { requirePublicSupabaseEnv } from '@/lib/supabase/public-env'
 import { isOwnerRole } from '@/lib/role-access'
 import { normalizeTenantRole } from '@/lib/tenant-roles'
 
 export type TenantAuth =
   | {
       ok: true
-      supabase: ReturnType<typeof createClient>
+      supabase: ReturnType<typeof createClient> | SupabaseClient
       userId: string
       tenantId: string
       role: string
     }
   | { ok: false; status: number; message: string }
 
-export async function requireTenantAuth(): Promise<TenantAuth> {
-  const supabase = createClient()
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+function createBearerClient(accessToken: string): SupabaseClient {
+  const { url, anon } = requirePublicSupabaseEnv('Supabase sunucu')
+  return createSupabaseJsClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
 
-  if (authErr || !user) {
-    return { ok: false, status: 401, message: 'Oturum bulunamadı' }
-  }
-
+async function resolveProfile(
+  supabase: { from: ReturnType<typeof createClient>['from'] },
+  userId: string,
+): Promise<TenantAuth> {
   const { data: profile, error: profileErr } = await supabase
     .from('user_profiles')
     .select('tenant_id, role, is_active')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
 
   if (profileErr || !profile?.tenant_id) {
@@ -40,11 +47,36 @@ export async function requireTenantAuth(): Promise<TenantAuth> {
 
   return {
     ok: true,
-    supabase,
-    userId: user.id,
+    supabase: supabase as ReturnType<typeof createClient>,
+    userId,
     tenantId: profile.tenant_id,
     role: profile.role,
   }
+}
+
+/** Cookie (web) veya Authorization: Bearer (Expo mobil) */
+export async function requireTenantAuth(): Promise<TenantAuth> {
+  const h = headers()
+  const authHeader = h.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim()
+    if (!token) return { ok: false, status: 401, message: 'Oturum bulunamadı' }
+    const supabase = createBearerClient(token)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) {
+      return { ok: false, status: 401, message: 'Oturum bulunamadı' }
+    }
+    return resolveProfile(supabase, user.id)
+  }
+
+  const supabase = createClient()
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+
+  if (authErr || !user) {
+    return { ok: false, status: 401, message: 'Oturum bulunamadı' }
+  }
+
+  return resolveProfile(supabase, user.id)
 }
 
 export async function requireTenantOwner(): Promise<TenantAuth> {

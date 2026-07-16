@@ -48,11 +48,20 @@ export function purgeTenantStore(tenantId?: string | null): void {
   localStorage.removeItem(TENANT_ID_KEY)
 }
 
-/** Kasa bakiyesini işlemlerden türet — client-side tek kaynak */
+const CARI_CATS = new Set(['Cari Borç', 'Cari Tahsilat'])
+
+/**
+ * Nakit kasa bakiyesini işlemlerden türet.
+ * Yalnızca nakit ödemeler sayılır; kart/havale/veresiye ve cari defter hareketleri hariç.
+ * payment_method eksikse (eski kayıt) nakit kabul edilir.
+ */
 export function computeKasaFromTransactions(
-  transactions: Array<{ type: string; amount: number }>,
+  transactions: Array<{ type: string; amount: number; payment_method?: string; category?: string }>,
 ): number {
   return transactions.reduce((sum, t) => {
+    if (t.category && CARI_CATS.has(t.category)) return sum
+    const pm = (t.payment_method ?? 'nakit').toLocaleLowerCase('tr-TR')
+    if (pm !== 'nakit') return sum
     if (t.type === 'gelir') return sum + t.amount
     if (t.type === 'gider') return sum - t.amount
     return sum

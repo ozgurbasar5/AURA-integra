@@ -430,7 +430,8 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
   /* ─── Mobile bottom navigation ─────────────────────────────────────────── */
   .mobile-bottom-nav {
     @apply fixed bottom-0 inset-x-0 z-40 flex items-stretch justify-around
-           border-t border-[var(--bg-border)] bg-[var(--bg-card)]/95 backdrop-blur-md;
+           border-t border-[var(--bg-border)] backdrop-blur-md;
+    background-color: color-mix(in srgb, var(--bg-card) 95%, transparent);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 

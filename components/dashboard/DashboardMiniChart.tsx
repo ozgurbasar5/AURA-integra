@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { getTransactions } from '@/lib/store'
+import { getTransactions, isCariTransaction } from '@/lib/store'
 
 export function DashboardMiniChart() {
   const data = useMemo(() => {
@@ -13,7 +13,7 @@ export function DashboardMiniChart() {
       const label = d.toLocaleDateString('tr-TR', { weekday: 'short' })
       let gelir = 0, gider = 0
       for (const t of getTransactions()) {
-        if (!t.date.startsWith(key)) continue
+        if (!t.date.startsWith(key) || isCariTransaction(t)) continue
         if (t.type === 'gelir') gelir += t.amount
         else gider += t.amount
       }

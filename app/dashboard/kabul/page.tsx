@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, ExternalLink, Copy } from 'lucide-react'
+import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, ExternalLink, Copy, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
 import { createServiceOrderRemote, updateServiceOrderRemote } from '@/lib/service-order-bridge'
 import { onStoreChange } from '@/lib/store'
-import { buildTrackingUrl as trackUrl } from '@/lib/erp-features'
+import { buildTrackingUrl as trackUrl, mapDbStatusToStore } from '@/lib/erp-features'
 import { getPortalSlug } from '@/lib/business-branding'
 import ServicePrintSheet, { type ServicePrintData } from '@/components/atolye/ServicePrintSheet'
 import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
@@ -15,6 +15,26 @@ import { getBusinessBranding } from '@/lib/business-branding'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
 import { uploadDevicePhoto } from '@/lib/device-photo-storage'
+
+type HistoryRow = {
+  id: string
+  order_no: string
+  device_brand: string
+  device_model: string
+  status: string
+  created_at: string
+  customer_name?: string
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  waiting_diagnosis: 'Bekliyor',
+  in_repair: 'Tamirde',
+  customer_approval_pending: 'Onay',
+  ready_for_pickup: 'Hazır',
+  delivered: 'Teslim',
+  cancelled: 'İptal',
+  parts_waiting: 'Parça',
+}
 
 async function dataUrlToFile(dataUrl: string, index: number): Promise<File> {
   const res = await fetch(dataUrl)
@@ -42,6 +62,9 @@ export default function KabulPage() {
     description: '',
     pre_checks: [] as string[],
   })
+  const [history, setHistory] = useState<HistoryRow[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const historyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const PRE_CHECKS = ['Ekran kırık', 'Su teması', 'Şifre var', 'Aksesuar teslim edildi', 'Yedek alındı']
 
@@ -49,6 +72,50 @@ export default function KabulPage() {
     setMounted(true)
     return onStoreChange(() => {})
   }, [])
+
+  // Rakip kalıbı: telefonda müşteri geçmişi
+  useEffect(() => {
+    const digits = form.customer_phone.replace(/\D/g, '')
+    if (historyTimer.current) clearTimeout(historyTimer.current)
+    if (digits.length < 10) {
+      setHistory([])
+      return
+    }
+    historyTimer.current = setTimeout(async () => {
+      setHistoryLoading(true)
+      try {
+        const q = encodeURIComponent(digits.slice(-10))
+        const res = await fetch(`/api/service-orders?search=${q}&limit=8`, { credentials: 'same-origin' })
+        if (!res.ok) {
+          setHistory([])
+          return
+        }
+        const json = await res.json() as { data?: Array<Record<string, unknown>> }
+        const rows = (json.data ?? []).map(r => ({
+          id: String(r.id),
+          order_no: String(r.order_no ?? ''),
+          device_brand: String(r.device_brand ?? ''),
+          device_model: String(r.device_model ?? ''),
+          status: mapDbStatusToStore(String(r.status ?? '')),
+          created_at: String(r.created_at ?? ''),
+          customer_name: r.customer_name ? String(r.customer_name) : undefined,
+        }))
+        setHistory(rows)
+        const firstName = rows.find(r => r.customer_name)?.customer_name
+        if (firstName && !form.customer_name.trim()) {
+          setForm(f => ({ ...f, customer_name: firstName }))
+        }
+      } catch {
+        setHistory([])
+      } finally {
+        setHistoryLoading(false)
+      }
+    }, 400)
+    return () => {
+      if (historyTimer.current) clearTimeout(historyTimer.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-lookup on phone
+  }, [form.customer_phone])
 
   function toggleCheck(item: string) {
     setForm(f => ({
@@ -156,7 +223,7 @@ export default function KabulPage() {
     <PageShell className="no-print">
       <PageHeader
         eyebrow="Hızlı İşlem"
-        title="Kasa Kabul"
+        title="Hızlı Kabul"
         description="Tablet/kasa ekranı — 30 saniyede servis kaydı açın."
         icon={ClipboardCheck}
         data-tour="kabul-baslik"
@@ -167,6 +234,26 @@ export default function KabulPage() {
           <form onSubmit={handleSubmit} className="space-y-4" data-tour="kabul-musteri-alanlari">
             <input className="input text-lg py-3" placeholder="Müşteri adı *" required value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} />
             <input className="input text-lg py-3 font-mono" placeholder="Telefon *" required value={form.customer_phone} onChange={e => setForm(f => ({ ...f, customer_phone: e.target.value }))} />
+            {(historyLoading || history.length > 0) && (
+              <div className="rounded-xl border border-sky-100 bg-sky-50/80 p-3 space-y-2" data-tour="kabul-musteri-gecmisi">
+                <p className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <History size={13} />
+                  {historyLoading ? 'Geçmiş aranıyor…' : `Bu müşteri · ${history.length} önceki iş`}
+                </p>
+                {!historyLoading && history.map(h => (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => router.push(`/dashboard/atolye/${h.id}`)}
+                    className="w-full text-left flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-xs hover:bg-white border border-sky-100/80"
+                  >
+                    <span className="font-mono font-bold text-slate-800">{h.order_no}</span>
+                    <span className="text-slate-600 truncate flex-1">{h.device_brand} {h.device_model}</span>
+                    <span className="text-slate-400 shrink-0">{STATUS_LABEL[h.status] || h.status}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3" data-tour="kabul-cihaz-alanlari">
               <select className="input" value={form.device_brand} onChange={e => setForm(f => ({ ...f, device_brand: e.target.value }))}>
                 {['Samsung', 'Apple', 'Xiaomi', 'Huawei', 'Oppo', 'Diğer'].map(b => <option key={b}>{b}</option>)}

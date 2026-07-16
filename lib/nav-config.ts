@@ -5,8 +5,8 @@ import {
   Bell, HelpCircle, Users, Shield, CalendarDays,
   UserCog, ShoppingBag, CheckSquare, ClipboardList,
   Store, Building2, Megaphone, Tag, Globe,
-  ClipboardCheck, Wallet, Truck, Percent, RefreshCw, ScanBarcode,
-  Zap, Layers,
+  ClipboardCheck, Wallet, Truck, Percent, ScanBarcode,
+  Zap, Layers, Sparkles,
 } from 'lucide-react'
 import { ROUTE_MIN_LEVEL, type PlanLevel } from '@/lib/plan-tiers'
 import { isNavAllowed, getSidebarGroupsForRole, isOwnerRole } from '@/lib/role-access'
@@ -32,6 +32,7 @@ export type NavSection = {
 export const NAV_ITEMS: NavItemDef[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Anasayfa', categoryId: 'ana', legacyGroup: 'ANA' },
   { href: '/dashboard/bildirimler', icon: Bell, label: 'Bildirimler', categoryId: 'ana', legacyGroup: 'ANA' },
+  { href: '/dashboard/yenilikler', icon: Sparkles, label: 'Yenilikler', categoryId: 'ana', legacyGroup: 'ANA' },
   { href: '/dashboard/kabul', icon: ClipboardCheck, label: 'Hızlı Kabul', categoryId: 'hizli', legacyGroup: 'HIZLI İŞLEMLER' },
   { href: '/dashboard/alis', icon: ShoppingBag, label: 'Alış', categoryId: 'hizli', legacyGroup: 'HIZLI İŞLEMLER' },
   { href: '/dashboard/satis', icon: ShoppingCart, label: 'Satış & POS', categoryId: 'hizli', legacyGroup: 'HIZLI İŞLEMLER' },
@@ -41,13 +42,13 @@ export const NAV_ITEMS: NavItemDef[] = [
   { href: '/dashboard/atolye', icon: Wrench, label: 'Teknik Servis', categoryId: 'atolye', legacyGroup: 'MODÜLLER' },
   { href: '/dashboard/tedarik', icon: Truck, label: 'Tedarik', categoryId: 'stok', legacyGroup: 'MODÜLLER' },
   { href: '/dashboard/finans', icon: DollarSign, label: 'Gelir/Gider', categoryId: 'finans', legacyGroup: 'MODÜLLER' },
+  { href: '/dashboard/cari', icon: DollarSign, label: 'Cari / Veresiye', categoryId: 'finans', legacyGroup: 'MODÜLLER' },
   { href: '/dashboard/musteriler', icon: Users, label: 'Müşteriler', categoryId: 'satis-musteri', legacyGroup: 'MODÜLLER' },
   { href: '/dashboard/yapilacaklar', icon: CheckSquare, label: 'Yapılacaklar', categoryId: 'yonetim', legacyGroup: 'YÖNETİM' },
-  { href: '/dashboard/calinti-kontrol', icon: Globe, label: 'Yurt Dışı / TR Kayıt', categoryId: 'satis-musteri', legacyGroup: 'YÖNETİM' },
+  { href: '/dashboard/calinti-kontrol', icon: Globe, label: 'Yurt Dışı / TR Kayıt (dahili)', categoryId: 'satis-musteri', legacyGroup: 'YÖNETİM' },
   { href: '/dashboard/siparisler', icon: ClipboardList, label: 'Müşteri Siparişleri', categoryId: 'satis-musteri', legacyGroup: 'YÖNETİM' },
   { href: '/dashboard/magaza', icon: Store, label: 'Mağaza', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
-  { href: '/dashboard/vitrin', icon: Store, label: 'Vitrin Cihazları', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
-  { href: '/dashboard/vitrin', icon: RefreshCw, label: 'Vitrin / İkinci El', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
+  { href: '/dashboard/vitrin', icon: Store, label: 'Vitrin / İkinci El', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/varliklar', icon: Building2, label: 'Varlık Yönetimi', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/kampanyalar', icon: Megaphone, label: 'Kampanyalar', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },
   { href: '/dashboard/firsatlar', icon: Tag, label: 'Fırsatlar', categoryId: 'magaza', legacyGroup: 'MAĞAZA' },

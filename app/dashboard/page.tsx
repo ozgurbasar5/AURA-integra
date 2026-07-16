@@ -26,6 +26,7 @@ import {
 import { DashboardDayHeader } from '@/components/dashboard/DashboardDayHeader'
 import { DashboardMiniChart } from '@/components/dashboard/DashboardMiniChart'
 import FxRatesWidget from '@/components/dashboard/FxRatesWidget'
+import YenilikBanner from '@/components/YenilikBanner'
 import {
   TodaySalesBreakdownWidget, RecentActivityWidget, TodosPreviewWidget, QualityDistributionWidget,
 } from '@/components/dashboard/DashboardVantaWidgets'
@@ -205,6 +206,8 @@ export default function DashboardPage() {
           </>
         )}
       </DashboardHero>
+
+      <YenilikBanner />
 
       <QuickActionGrid role={role} isOwner={isOwner} planLevel={planLevel} />
 

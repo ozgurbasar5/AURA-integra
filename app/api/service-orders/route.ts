@@ -1,12 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
 import type { ServiceOrderStatus, PaymentMethod } from '@/types/database'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function resolveCustomerId(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
   customerName: string,
   customerPhone: string
@@ -47,34 +48,9 @@ function normalizeStatus(raw?: string): ServiceOrderStatus {
 // ─── GET /api/service-orders ───────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient()
-
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser()
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile, error: profileErr } = await supabase
-      .from('user_profiles')
-      .select('tenant_id, role')
-      .eq('id', user.id)
-      .single()
-
-    if (profileErr || !profile) {
-      return NextResponse.json({ error: 'Profil bulunamadı.' }, { status: 403 })
-    }
-
-    if (profile.role === 'super_admin') {
-      return NextResponse.json({ error: 'Süper admin tenant API kullanamaz' }, { status: 403 })
-    }
-
-    if (!profile.tenant_id) {
-      return NextResponse.json({ error: 'Geçerli bir tenant bulunamadı.' }, { status: 403 })
-    }
+    const auth = await requireTenantAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+    const { supabase, tenantId } = auth
 
     const searchParams = req.nextUrl.searchParams
     const statusParam = searchParams.get('status')
@@ -99,30 +75,21 @@ export async function GET(req: NextRequest) {
           full_name
         )
       `,
-        { count: 'exact' }
       )
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
-      .eq('tenant_id', profile.tenant_id)
 
-    if (status) {
-      query = query.eq('status', status)
-    }
-
+    if (status) query = query.eq('status', status)
     if (search) {
-      const safe = search.replace(/[%_\\]/g, '\\$&')
       query = query.or(
-        `order_no.ilike.%${safe}%,device_brand.ilike.%${safe}%,device_model.ilike.%${safe}%`
+        `order_no.ilike.%${search}%,customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,imei.ilike.%${search}%`,
       )
     }
 
-    const { data, error, count } = await query
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ data, count, limit, offset })
+    const { data, error } = await query
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data: data ?? [] })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -132,26 +99,9 @@ export async function GET(req: NextRequest) {
 // ─── POST /api/service-orders ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient()
-
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser()
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile, error: profileErr } = await supabase
-      .from('user_profiles')
-      .select('tenant_id, role')
-      .eq('id', user.id)
-      .single()
-
-    if (profileErr || !profile || !profile.tenant_id) {
-      return NextResponse.json({ error: 'Geçerli bir tenant bulunamadı.' }, { status: 403 })
-    }
+    const auth = await requireTenantAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+    const { supabase, tenantId, userId } = auth
 
     const body = await req.json() as {
       customer_id?: string
@@ -187,7 +137,7 @@ export async function POST(req: NextRequest) {
     if (!device_brand?.trim() || !device_model?.trim()) {
       return NextResponse.json(
         { error: 'device_brand ve device_model zorunludur.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -196,14 +146,14 @@ export async function POST(req: NextRequest) {
       if (!customer_name?.trim() || !customer_phone?.trim()) {
         return NextResponse.json(
           { error: 'customer_id veya customer_name + customer_phone gerekli.' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       customer_id = (await resolveCustomerId(
         supabase,
-        profile.tenant_id,
+        tenantId,
         customer_name,
-        customer_phone
+        customer_phone,
       )) ?? undefined
       if (!customer_id) {
         return NextResponse.json({ error: 'Müşteri kaydı oluşturulamadı.' }, { status: 500 })
@@ -214,13 +164,13 @@ export async function POST(req: NextRequest) {
 
     const { data: orderNoData, error: orderNoErr } = await supabase.rpc(
       'generate_order_no',
-      { p_tenant_id: profile.tenant_id }
+      { p_tenant_id: tenantId },
     )
 
     if (orderNoErr) {
       return NextResponse.json(
         { error: `Sipariş numarası üretilemedi: ${orderNoErr.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -229,7 +179,7 @@ export async function POST(req: NextRequest) {
     const { data: newOrder, error: insertErr } = await supabase
       .from('service_orders')
       .insert({
-        tenant_id: profile.tenant_id,
+        tenant_id: tenantId,
         order_no: orderNoData as string,
         customer_id,
         customer_name: customer_name?.trim(),
@@ -256,7 +206,7 @@ export async function POST(req: NextRequest) {
         *,
         customers ( id, full_name, phone, email ),
         technician:user_profiles!technician_id ( id, full_name )
-      `
+      `,
       )
       .single()
 
@@ -268,7 +218,7 @@ export async function POST(req: NextRequest) {
       order_id: newOrder.id,
       status: newOrder.status,
       note: 'Servis kaydı oluşturuldu.',
-      created_by: user.id,
+      created_by: userId,
     })
 
     return NextResponse.json({ data: newOrder }, { status: 201 })

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   Users, Search, Plus, X, Loader2, Phone, Mail, MapPin,
@@ -75,9 +73,13 @@ const EMPTY_FORM: CustomerForm = {
 }
 
 function mapStoreCustomers(): Customer[] {
-  return getCustomers().map(c => ({
+  return getCustomers().map(c => mapApiCustomer(c, 'local'))
+}
+
+function mapApiCustomer(c: StoreCustomer & { tenant_id?: string }, tenantId = 'local'): Customer {
+  return {
     id: c.id,
-    tenant_id: 'local',
+    tenant_id: c.tenant_id ?? tenantId,
     full_name: c.full_name,
     phone: c.phone,
     email: c.email,
@@ -97,15 +99,12 @@ function mapStoreCustomers(): Customer[] {
     kvkk_consent_date: c.kvkk_consent_date,
     created_at: c.created_at,
     updated_at: c.updated_at,
-  }))
+  }
 }
 
 // ─── Ana Bileşen ────────────────────────────────────────────────────────────
 
 export default function MusterilerPage() {
-  const router = useRouter()
-  const supabase = createClient()
-
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -128,20 +127,20 @@ export default function MusterilerPage() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setCustomers((data as Customer[]) ?? [])
+      const res = await fetch('/api/tenant/customers', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok && json.ok) {
+        setCustomers((json.items as StoreCustomer[]).map(c => mapApiCustomer(c)))
+        return
+      }
+      throw new Error(json.error || 'API hatası')
     } catch {
       toast.warning('Bulut verisi alınamadı — yerel kayıtlar gösteriliyor')
       setCustomers(mapStoreCustomers())
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => { fetchCustomers() }, [fetchCustomers])
   useEffect(() => onStoreChange((m) => { if (!m || m === 'customers' || m === 'seed') fetchCustomers() }), [fetchCustomers])
@@ -202,18 +201,20 @@ export default function MusterilerPage() {
         satisfaction_avg: 0,
       }
 
-      let supabaseOk = false
+      let apiOk = false
       try {
-        if (editingId) {
-          const { error } = await supabase.from('customers').update(payload).eq('id', editingId)
-          if (!error) supabaseOk = true
-        } else {
-          const { error } = await supabase.from('customers').insert(payload)
-          if (!error) supabaseOk = true
-        }
+        const url = '/api/tenant/customers'
+        const res = await fetch(url, {
+          method: editingId ? 'PATCH' : 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editingId ? { id: editingId, ...payload } : payload),
+        })
+        const json = await res.json()
+        if (res.ok && json.ok) apiOk = true
       } catch { /* offline */ }
 
-      if (!supabaseOk) {
+      if (!apiOk) {
         if (editingId) {
           updateCustomer(editingId, payload)
         } else {
@@ -236,9 +237,14 @@ export default function MusterilerPage() {
   async function handleDelete(id: string) {
     if (!confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) return
     try {
-      await supabase.from('customers').delete().eq('id', id)
-    } catch { /* offline */ }
-    removeCustomer(id)
+      const res = await fetch(`/api/tenant/customers?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+      if (!res.ok) throw new Error('Silinemedi')
+    } catch {
+      removeCustomer(id)
+    }
     toast.success('Müşteri silindi')
     fetchCustomers()
   }
@@ -248,16 +254,23 @@ export default function MusterilerPage() {
     if (!customer.blacklisted && !reason) return
 
     try {
-      await supabase.from('customers').update({
+      const res = await fetch('/api/tenant/customers', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: customer.id,
+          blacklisted: !customer.blacklisted,
+          blacklist_reason: reason,
+        }),
+      })
+      if (!res.ok) throw new Error('Güncellenemedi')
+    } catch {
+      updateCustomer(customer.id, {
         blacklisted: !customer.blacklisted,
-        blacklist_reason: reason,
-      }).eq('id', customer.id)
-    } catch { /* offline */ }
-
-    updateCustomer(customer.id, {
-      blacklisted: !customer.blacklisted,
-      blacklist_reason: reason || undefined,
-    })
+        blacklist_reason: reason || undefined,
+      })
+    }
     toast.success(customer.blacklisted ? 'Kara listeden çıkarıldı' : 'Kara listeye eklendi')
     fetchCustomers()
   }

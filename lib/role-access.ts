@@ -28,6 +28,7 @@ const ROLE_ROUTES: Record<string, string[] | '*'> = {
     '/dashboard/garanti',
     '/dashboard/randevu',
     '/dashboard/bildirimler',
+    '/dashboard/yenilikler',
     '/dashboard/destek',
   ],
   satis: [
@@ -40,6 +41,7 @@ const ROLE_ROUTES: Record<string, string[] | '*'> = {
     '/dashboard/magaza',
     '/dashboard/vitrin',
     '/dashboard/ikinci-el',
+    '/dashboard/yenilikler',
     '/dashboard/destek',
   ],
   kasiyer: [
@@ -50,19 +52,28 @@ const ROLE_ROUTES: Record<string, string[] | '*'> = {
     '/dashboard/stok',
     '/dashboard/musteriler',
     '/dashboard/bildirimler',
+    '/dashboard/yenilikler',
     '/dashboard/destek',
   ],
   muhasebe: [
     '/dashboard',
     '/dashboard/finans',
+    '/dashboard/cari',
     '/dashboard/fatura',
     '/dashboard/raporlar',
     '/dashboard/kasa',
     '/dashboard/musteriler',
     '/dashboard/bildirimler',
+    '/dashboard/yenilikler',
     '/dashboard/destek',
   ],
-  viewer: ['/dashboard', '/dashboard/stok', '/dashboard/atolye', '/dashboard/bildirimler'],
+  viewer: [
+    '/dashboard',
+    '/dashboard/stok',
+    '/dashboard/atolye',
+    '/dashboard/bildirimler',
+    '/dashboard/yenilikler',
+  ],
 }
 
 export function getAllowedRoutes(role: string): string[] | '*' {

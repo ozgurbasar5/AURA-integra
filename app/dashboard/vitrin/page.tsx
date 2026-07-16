@@ -8,9 +8,10 @@ import {
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
 import {
-  getSecondHandDevices, addSecondHandDevice, markSecondHandSold, updateSecondHandDevice,
+  getSecondHandDevices, markSecondHandSold,
   onStoreChange, type SecondHandDevice,
 } from '@/lib/store'
+import { createShowcaseViaApi, loadShowcaseFromApi, updateShowcaseViaApi } from '@/lib/showcase-bridge'
 import { formatCurrency } from '@/lib/validators'
 import BarcodeLabelSheet from '@/components/labels/BarcodeLabelSheet'
 import { vitrinLabelFromDevice, cosmeticLabel } from '@/lib/barcode-labels'
@@ -51,37 +52,74 @@ function VitrinContent() {
 
   useEffect(() => {
     setMounted(true)
-    refresh()
+    void loadShowcaseFromApi().then(() => refresh())
     const code = searchParams.get('code')
     if (code) setSearch(code)
     return onStoreChange(m => { if (!m || m === 'secondhand') refresh() })
   }, [refresh, searchParams])
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    addSecondHandDevice({
-      brand: form.brand,
-      model: form.model || '—',
-      imei: form.imei || undefined,
-      condition: form.condition,
-      cosmetic_score: Number(form.cosmetic_score) || 8,
-      battery_health: form.battery_health ? Number(form.battery_health) : undefined,
-      color: form.color || undefined,
-      storage: form.storage || undefined,
-      buy_price: Number(form.buy_price) || 0,
-      sell_price: Number(form.sell_price) || 0,
-      notes: form.notes || undefined,
-      showcase: form.showcase,
-    })
-    toast.success('Vitrin cihazı eklendi')
-    setShowForm(false)
-    setForm(EMPTY_FORM)
-    refresh()
+    try {
+      await createShowcaseViaApi({
+        brand: form.brand,
+        model: form.model || '—',
+        imei: form.imei || undefined,
+        condition: form.condition,
+        cosmetic_score: Number(form.cosmetic_score) || 8,
+        battery_health: form.battery_health ? Number(form.battery_health) : undefined,
+        color: form.color || undefined,
+        storage: form.storage || undefined,
+        buy_price: Number(form.buy_price) || 0,
+        sell_price: Number(form.sell_price) || 0,
+        notes: form.notes || undefined,
+        showcase: form.showcase,
+      })
+      toast.success('Vitrin cihazı eklendi')
+      setShowForm(false)
+      setForm(EMPTY_FORM)
+      refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Eklenemedi')
+    }
   }
 
   function printDevice(d: SecondHandDevice) {
     setPrintLabels([vitrinLabelFromDevice(d)])
     setTimeout(() => window.print(), 120)
+  }
+
+  async function sellViaPos(d: SecondHandDevice) {
+    const uuidOk = /^[0-9a-f-]{36}$/i.test(d.id)
+    if (!uuidOk) {
+      markSecondHandSold(d.id)
+      refresh()
+      toast.warning('Yerel kayıt satıldı — sunucu POS için cihazı yeniden ekleyin (UUID)')
+      return
+    }
+    try {
+      const res = await fetch('/api/tenant/showcase/sell', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_id: d.id,
+          sell_price: d.sell_price,
+          payment_method: 'nakit',
+          customer_name: 'Vitrin satış',
+        }),
+      })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) {
+        toast.error(json.error || 'Satış başarısız')
+        return
+      }
+      markSecondHandSold(d.id)
+      refresh()
+      toast.success('Satıldı — POS + kasa kaydı oluşturuldu')
+    } catch {
+      toast.error('Bağlantı hatası')
+    }
   }
 
   if (!mounted) {
@@ -147,8 +185,12 @@ function VitrinContent() {
       {tab === 'vitrin' && vitrin.length > 0 && (
         <div data-tour="vitrin-kart-grid" className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {vitrin.filter(d => !search.trim() || filtered.some(f => f.id === d.id)).map(d => (
-            <DeviceCard key={d.id} d={d} onPrint={() => printDevice(d)} onSold={() => { markSecondHandSold(d.id); refresh() }}
-              onToggleShowcase={() => { updateSecondHandDevice(d.id, { showcase: !d.showcase }); refresh() }} />
+            <DeviceCard key={d.id} d={d} onPrint={() => printDevice(d)} onSold={() => { void sellViaPos(d) }}
+              onToggleShowcase={() => {
+                void updateShowcaseViaApi(d.id, { showcase: !d.showcase })
+                  .then(() => refresh())
+                  .catch(e => toast.error(e instanceof Error ? e.message : 'Güncellenemedi'))
+              }} />
           ))}
         </div>
       )}
@@ -179,13 +221,17 @@ function VitrinContent() {
                     <button type="button" onClick={() => printDevice(d)} className="btn-secondary btn-sm flex items-center gap-1">
                       <Printer size={13} /> Etiket
                     </button>
-                    <button type="button" onClick={() => { updateSecondHandDevice(d.id, { showcase: !d.showcase }); refresh() }}
+                    <button type="button" onClick={() => {
+                      void updateShowcaseViaApi(d.id, { showcase: !d.showcase })
+                        .then(() => refresh())
+                        .catch(e => toast.error(e instanceof Error ? e.message : 'Güncellenemedi'))
+                    }}
                       className="btn-ghost btn-sm flex items-center gap-1">
                       {d.showcase ? <EyeOff size={13} /> : <Eye size={13} />}
                       {d.showcase ? 'Vitrinden Çıkar' : 'Vitrine Al'}
                     </button>
-                    <button type="button" onClick={() => { markSecondHandSold(d.id); refresh(); toast.success('Satıldı') }}
-                      className="btn-primary btn-sm">Satıldı</button>
+                    <button type="button" onClick={() => { void sellViaPos(d) }}
+                      className="btn-primary btn-sm">Satıldı (POS)</button>
                   </>
                 )}
                 {d.status === 'satildi' && (

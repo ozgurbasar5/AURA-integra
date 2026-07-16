@@ -8,6 +8,7 @@ export type ServiceOrderStatus =
   | 'onay_bekleniyor'
   | 'tamir'
   | 'kalite_kontrol'
+  | 'teslime_hazir'
   | 'teslim'
   | 'iptal'
 

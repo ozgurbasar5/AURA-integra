@@ -10,6 +10,7 @@ const JOBS = [
   { id: 'payment-reminders', label: 'Ödeme Hatırlatma', schedule: 'Her gün 10:00' },
   { id: 'appointment-reminders', label: 'Randevu SMS', schedule: 'Her gün 18:00' },
   { id: 'churn-interventions', label: 'Churn Müdahalesi', schedule: 'Her gün 11:00 (önerilen)' },
+  { id: 'efatura-queue', label: 'e-Fatura Kuyruk', schedule: 'Her 15 dk' },
 ] as const
 
 type AuditRow = { action: string; created_at: string; metadata?: Record<string, unknown> }

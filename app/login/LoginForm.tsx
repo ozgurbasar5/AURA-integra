@@ -26,9 +26,16 @@ export default function LoginForm() {
   const [showPass, setShowPass] = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  const [mfaStep, setMfaStep] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaHint, setMfaHint] = useState('')
 
   const [configError, setConfigError] = useState('')
   const [hasSession, setHasSession] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('mfa') === '1') setMfaStep(true)
+  }, [searchParams])
 
   useEffect(() => {
     try {
@@ -42,22 +49,36 @@ export default function LoginForm() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/health/supabase')
+    fetch('/api/health/supabase', { cache: 'no-store' })
       .then(r => r.json())
       .then((data) => {
-        if (!data.env?.ok) setConfigError(data.env.message)
-        else if (data.env.urlRef && data.env.anonRef && data.env.urlRef !== data.env.anonRef) {
+        if (data.env && !data.env.ok) {
+          setConfigError(data.env.message)
+          return
+        }
+        if (data.env?.urlRef && data.env?.anonRef && data.env.urlRef !== data.env.anonRef) {
           setConfigError(
             `URL ve anon key farklı projelere ait (URL: ${data.env.urlRef}, anon: ${data.env.anonRef}). ` +
             'Supabase → Settings → API bölümünden ikisini birlikte kopyalayın.'
           )
-        } else if (!data.env.serviceRef) {
+          return
+        }
+        if (data.reachability && data.reachability.ok === false) {
+          setConfigError(
+            data.hint ||
+              'Bulut veritabanına ulaşılamıyor. DNS / aile filtresi (SafeSearch) veya TLS sorununu kontrol edin. Yönetici: ipconfig /flushdns'
+          )
+          return
+        }
+        if (data.env && !data.env.serviceRef) {
           setConfigError(
             'SUPABASE_SERVICE_ROLE_KEY eksik — giriş çalışır; admin/bayi oluşturma için service role key ekleyin.'
           )
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        setConfigError('Sağlık kontrolü başarısız — sunucu veya ağ bağlantısını kontrol edin.')
+      })
   }, [])
 
   useEffect(() => {
@@ -107,11 +128,56 @@ export default function LoginForm() {
         return
       }
 
+      if (json.mfa_required) {
+        setMfaStep(true)
+        setMfaHint(json.email_hint || '')
+        setError('')
+        return
+      }
+
       if (json.tenant_id) setActiveTenantId(json.tenant_id)
 
       window.location.href = json.redirect || '/dashboard'
     } catch {
       setError('Bağlantı hatası. Sayfayı yenileyip tekrar deneyin.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleMfaVerify(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/mfa-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ code: mfaCode.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) {
+        setError(json.error || 'Kod doğrulanamadı')
+        return
+      }
+      window.location.href = json.redirect || '/dashboard'
+    } catch {
+      setError('Bağlantı hatası')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resendMfa() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/mfa-verify', { method: 'PUT', credentials: 'same-origin' })
+      const json = await res.json()
+      if (!res.ok) setError(json.error || 'Kod gönderilemedi')
+      else setError('')
+    } catch {
+      setError('Bağlantı hatası')
     } finally {
       setLoading(false)
     }
@@ -218,6 +284,50 @@ export default function LoginForm() {
             <p className="text-slate-500 text-sm mt-1.5">Hesabınıza giriş yapın</p>
           </div>
 
+          {mfaStep ? (
+          <form onSubmit={handleMfaVerify} className="space-y-5">
+            <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-sm text-sky-900">
+              <p className="font-semibold">E-posta doğrulama</p>
+              <p className="text-xs mt-1">
+                {mfaHint ? `${mfaHint} adresine` : 'E-posta adresinize'} 6 haneli kod gönderildi.
+                {process.env.NODE_ENV === 'development' ? ' Dev: 000000 de kabul edilir.' : ''}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Doğrulama Kodu</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                required
+                className={`w-full px-4 py-3 rounded-xl border bg-slate-50/50 text-sm text-slate-900 tracking-[0.3em] text-center font-mono
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white
+                  transition-all duration-200 ${error ? 'border-red-300' : 'border-slate-200'}`}
+                autoFocus
+              />
+            </div>
+            {error && (
+              <div className="flex items-start gap-2.5 bg-red-50 border border-red-200/80 rounded-xl px-4 py-3">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={loading || mfaCode.length < 6}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-xl
+                disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              Doğrula
+            </button>
+            <button type="button" onClick={() => void resendMfa()} className="w-full text-xs text-sky-600 font-semibold">
+              Kodu yeniden gönder
+            </button>
+          </form>
+          ) : (
           <form onSubmit={handleLogin} className="space-y-5">
             {hasSession && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900 space-y-2">
@@ -293,6 +403,7 @@ export default function LoginForm() {
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </button>
           </form>
+          )}
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center space-y-3">
             <p className="text-slate-500 text-sm">

@@ -183,6 +183,33 @@ export default async function HomePage() {
             </p>
           </div>
           <PricingGrid trialDays={trialDays} plans={plans} />
+
+          <div className="mt-12 max-w-3xl mx-auto rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--landing-accent)] mb-2">Kapsam netliği</p>
+            <h3 className="text-lg font-black text-[var(--landing-text)] mb-3">Dahil / dahil değil</h3>
+            <div className="grid sm:grid-cols-2 gap-4 text-sm">
+              <ul className="space-y-2 text-[var(--landing-muted)]">
+                <li className="flex gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /> Servis kabul → atölye → teslim</li>
+                <li className="flex gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /> Stok, POS, kasa vardiyası, cari</li>
+                <li className="flex gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /> Alış / tedarik / sayım</li>
+                <li className="flex gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" /> Raporlar & gün sonu (Paket 3)</li>
+              </ul>
+              <ul className="space-y-2 text-[var(--landing-muted)]">
+                <li className="flex gap-2"><span className="text-amber-500 font-bold shrink-0">—</span> e-Fatura GİB: opsiyonel entegratör (NES/Logo)</li>
+                <li className="flex gap-2"><span className="text-amber-500 font-bold shrink-0">—</span> Muhasebe defteri / e-Defter değil</li>
+                <li className="flex gap-2"><span className="text-amber-500 font-bold shrink-0">—</span> SMS & WhatsApp: bayi ayarına bağlı</li>
+                <li className="flex gap-2"><span className="text-amber-500 font-bold shrink-0">—</span> Pazaryeri / e-ticaret yok</li>
+              </ul>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link href="/basvuru" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--landing-accent)] text-white text-sm font-bold">
+                Demo / bayi başvurusu <ArrowRight size={14} />
+              </Link>
+              <Link href="/login" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--landing-border)] text-sm font-bold text-[var(--landing-text)]">
+                Giriş yap
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 

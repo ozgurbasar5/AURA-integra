@@ -7,6 +7,7 @@ import {
   CheckCircle, XCircle, Edit2, Database, RotateCcw
 } from 'lucide-react'
 import { requestAdminTourRestart } from '@/lib/onboarding/use-admin-onboarding-tour'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 
 const TABS = [
   { id: 'paketler',   label: 'Paket Yönetimi',     icon: Package },
@@ -80,8 +81,11 @@ export default function AyarlarPage() {
         const s = json.settings as Record<string, unknown> | undefined
         if (s?.platform_adi) setGenelForm(g => ({ ...g, platform_adi: String(s.platform_adi) }))
         if (s?.iletisim_email) setGenelForm(g => ({ ...g, iletisim_email: String(s.iletisim_email) }))
+        if (s?.destek_tel) setGenelForm(g => ({ ...g, destek_tel: String(s.destek_tel) }))
+        if (s?.kdv_orani != null) setGenelForm(g => ({ ...g, kdv_orani: String(s.kdv_orani) }))
         if (s?.deneme_suresi) setGenelForm(g => ({ ...g, deneme_suresi: String(s.deneme_suresi) }))
         if (s?.odeme_hatirlama) setBildirimForm(b => ({ ...b, odeme_hatirlama: String(s.odeme_hatirlama) }))
+        if (s?.abonelik_uyari != null) setBildirimForm(b => ({ ...b, abonelik_uyari: String(s.abonelik_uyari) }))
         if (s?.email_bildirim != null) setBildirimForm(b => ({ ...b, email_bildirim: !!s.email_bildirim }))
         if (s?.sms_bildirim != null) setBildirimForm(b => ({ ...b, sms_bildirim: !!s.sms_bildirim }))
         if (s?.whatsapp_bildirim != null) setBildirimForm(b => ({ ...b, whatsapp_bildirim: !!s.whatsapp_bildirim }))
@@ -232,11 +236,11 @@ export default function AyarlarPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Sistem Ayarları</h1>
-        <p className="text-slate-500 text-sm mt-1">Paketler, bildirimler ve sistem yapılandırması</p>
-      </div>
+      <AdminPageHeader
+        title="Sistem Ayarları"
+        description="Paketler, bildirimler ve sistem yapılandırması"
+        icon={Settings}
+      />
 
       {/* Toast */}
       {toast && (

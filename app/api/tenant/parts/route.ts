@@ -122,3 +122,30 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ error: 'stock_qty veya delta gerekli' }, { status: 400 })
 }
+
+export async function DELETE(req: NextRequest) {
+  const auth = await requireTenantAuth()
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status })
+  }
+
+  let body: { id?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Geçersiz JSON' }, { status: 400 })
+  }
+
+  if (!body.id || !isUuid(body.id)) {
+    return NextResponse.json({ error: 'Geçerli part id gerekli' }, { status: 400 })
+  }
+
+  const { error } = await auth.supabase
+    .from('parts')
+    .delete()
+    .eq('tenant_id', auth.tenantId)
+    .eq('id', body.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

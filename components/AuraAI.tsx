@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, X, ChevronDown, MessageSquare, Cpu } from "lucide-react";
+import { useIsMobileNav } from "@/hooks/useMediaQuery";
 
 type Message = {
   role: "user" | "assistant";
@@ -9,6 +10,7 @@ type Message = {
 };
 
 export default function AuraAI() {
+  const isMobileNav = useIsMobileNav();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -84,7 +86,10 @@ export default function AuraAI() {
   return (
     <div className="fixed z-50 flex flex-col items-end font-sans safe-bottom"
       style={{
-        bottom: 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
+        // Bottom nav (~3.5rem) + gap — avoid FAB overlap on phone
+        bottom: isMobileNav
+          ? 'calc(3.75rem + 0.75rem + env(safe-area-inset-bottom, 0px))'
+          : 'max(1.25rem, env(safe-area-inset-bottom, 0px))',
         right: 'max(1.25rem, env(safe-area-inset-right, 0px))',
       }}
     >

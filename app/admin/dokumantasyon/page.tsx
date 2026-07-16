@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BookOpen, Plus, Trash2, Eye, EyeOff, Save, Loader2, Edit3, Globe } from 'lucide-react'
 import { toast } from 'sonner'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 
 interface DocPage {
   id: string
@@ -143,23 +144,16 @@ export default function AdminDokumantasyonPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BookOpen size={20} style={{ color: 'var(--accent)' }} />
-            Dokümantasyon Yönetimi
-          </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Bayilerin göreceği dokümantasyon içeriklerini buradan oluşturun ve düzenleyin
-          </p>
-        </div>
-        <button onClick={openNew}
-          className="btn-primary gap-2"
-          style={{ backgroundColor: 'var(--accent)' }}>
-          <Plus size={15} /> Yeni Sayfa
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Dokümantasyon Yönetimi"
+        description="Bayilerin göreceği dokümantasyon içeriklerini buradan oluşturun ve düzenleyin"
+        icon={BookOpen}
+        actions={(
+          <button onClick={openNew} className="btn-primary gap-2" style={{ backgroundColor: 'var(--accent)' }}>
+            <Plus size={15} /> Yeni Sayfa
+          </button>
+        )}
+      />
 
       <div className="flex gap-5">
         {/* Doc List */}

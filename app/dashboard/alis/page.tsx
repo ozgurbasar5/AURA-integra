@@ -6,7 +6,13 @@ import {
   X, Edit3, Trash2, FileText, Phone, Tag, Hash, CreditCard, Truck,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle
 } from 'lucide-react'
-import { getPurchases, setPurchases, recordPurchase, onStoreChange, type Purchase } from '@/lib/store'
+import { getPurchases, setPurchases as writePurchases, onStoreChange, type Purchase } from '@/lib/store'
+import {
+  loadPurchasesFromApi,
+  recordPurchaseViaApi,
+  updatePurchaseViaApi,
+  deletePurchaseViaApi,
+} from '@/lib/purchase-bridge'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -148,7 +154,7 @@ export default function AlisPage() {
 
   useEffect(() => {
     setMounted(true)
-    refresh()
+    void loadPurchasesFromApi().then(items => setPurchases(items))
     return onStoreChange(m => { if (!m || m === 'purchases' || m === 'all') refresh() })
   }, [refresh])
 
@@ -231,36 +237,44 @@ export default function AlisPage() {
 
   // ─── CRUD Operations ───────────────────────────────────────────────────
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) return
 
     const list = getPurchases()
     const totalCost = form.quantity * form.buy_price
 
     if (editingId) {
-      const next = list.map(p =>
-        p.id === editingId
-          ? {
-              ...p,
-              supplier_name: form.supplier_name.trim(),
-              supplier_phone: form.supplier_phone.trim() || undefined,
-              category: form.category,
-              quality: form.quality,
-              device_brand: form.category === 'telefon' ? form.device_brand.trim() || undefined : undefined,
-              device_model: form.category === 'telefon' ? form.device_model.trim() || undefined : undefined,
-              imei: form.category === 'telefon' ? form.imei.trim() || undefined : undefined,
-              quantity: form.quantity,
-              buy_price: form.buy_price,
-              total_cost: totalCost,
-              payment_method: form.payment_method,
-              invoice_no: form.invoice_no.trim() || undefined,
-              notes: form.notes.trim() || undefined,
-            }
-          : p
-      )
-      setPurchases(next)
-    } else {
-      recordPurchase({
+      const current = list.find(p => p.id === editingId)
+      if (!current) return
+      try {
+        await updatePurchaseViaApi({
+          ...current,
+          supplier_name: form.supplier_name.trim(),
+          supplier_phone: form.supplier_phone.trim() || undefined,
+          category: form.category,
+          quality: form.quality,
+          device_brand: form.category === 'telefon' ? form.device_brand.trim() || undefined : undefined,
+          device_model: form.category === 'telefon' ? form.device_model.trim() || undefined : undefined,
+          imei: form.category === 'telefon' ? form.imei.trim() || undefined : undefined,
+          quantity: form.quantity,
+          buy_price: form.buy_price,
+          total_cost: totalCost,
+          payment_method: form.payment_method,
+          invoice_no: form.invoice_no.trim() || undefined,
+          notes: form.notes.trim() || undefined,
+        })
+        refresh()
+        closeModal()
+      } catch (err) {
+        setFormErrors({
+          supplier_name: err instanceof Error ? err.message : 'Güncelleme başarısız',
+        })
+      }
+      return
+    }
+
+    try {
+      await recordPurchaseViaApi({
         supplier_name: form.supplier_name.trim(),
         supplier_phone: form.supplier_phone.trim() || undefined,
         category: form.category,
@@ -274,15 +288,22 @@ export default function AlisPage() {
         invoice_no: form.invoice_no.trim() || undefined,
         notes: form.notes.trim() || undefined,
       })
+      refresh()
+      closeModal()
+    } catch (err) {
+      setFormErrors({
+        supplier_name: err instanceof Error ? err.message : 'Alış kaydedilemedi',
+      })
     }
-
-    refresh()
-    closeModal()
   }
 
-  const handleDelete = (id: string) => {
-    setPurchases(getPurchases().filter(p => p.id !== id))
-    refresh()
+  const handleDelete = async (id: string) => {
+    try {
+      await deletePurchaseViaApi(id)
+      refresh()
+    } catch {
+      /* keep modal */
+    }
     setDeleteId(null)
   }
 

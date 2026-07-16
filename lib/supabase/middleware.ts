@@ -61,6 +61,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // E-posta 2FA bekleniyor → dashboard/admin engelle
+  const mfaPending = request.cookies.get('aura_mfa_pending')?.value === '1'
+  const mfaVerified = request.cookies.get('aura_mfa_verified')?.value === '1'
+  if (session && mfaPending && !mfaVerified && (isDashboardPage || isAdminPage)) {
+    return NextResponse.redirect(new URL('/login?mfa=1', request.url))
+  }
+
   // Login sayfası her zaman açılır (oturum varken admin'e zorla yönlendirme YOK)
   return supabaseResponse
 }

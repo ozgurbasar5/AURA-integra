@@ -5,12 +5,12 @@ import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import {
   Package, Plus, Search, AlertTriangle, X,
-  Download, BarChart3, TrendingDown, ArrowDownCircle, Printer
+  Download, BarChart3, TrendingDown, ArrowDownCircle, Printer, ArrowRightLeft
 } from 'lucide-react'
 import { PART_CATEGORIES } from '@/lib/constants'
 import { formatCurrency } from '@/lib/validators'
 import {
-  getStock, getFinanceSummary, onStoreChange,
+  getStock, getFinanceSummary, onStoreChange, getBranches,
   type StockItem
 } from '@/lib/store'
 import {
@@ -32,6 +32,13 @@ export default function StokPage() {
   const [receiveQty, setReceiveQty] = useState('')
   const [mounted, setMounted] = useState(false)
   const [printLabels, setPrintLabels] = useState<ReturnType<typeof stockLabelFromItem>[] | null>(null)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transfers, setTransfers] = useState<Array<{
+    id: string; qty: number; note?: string; created_at: string
+    from_branch?: { name: string }; to_branch?: { name: string }; part?: { name: string }
+  }>>([])
+  const [transferForm, setTransferForm] = useState({ from_branch_id: '', to_branch_id: '', part_id: '', qty: '', note: '' })
+  const branches = getBranches()
 
   // Add part form
   const [newPart, setNewPart] = useState({ name: '', barcode: generateStockBarcode(), category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
@@ -44,6 +51,10 @@ export default function StokPage() {
   useEffect(() => {
     setMounted(true)
     void loadStockFromApi().then(() => refresh())
+    void fetch('/api/tenant/stock/transfer', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(j => { if (j.items) setTransfers(j.items) })
+      .catch(() => {})
     const unsub = onStoreChange((mod) => {
       if (mod === 'stock' || mod === 'finance') refresh()
     })
@@ -107,6 +118,36 @@ export default function StokPage() {
     }
   }
 
+  async function handleTransfer() {
+    const qty = parseInt(transferForm.qty)
+    if (!transferForm.from_branch_id || !transferForm.to_branch_id || !transferForm.part_id) {
+      toast.error('Kaynak, hedef şube ve parça seçin')
+      return
+    }
+    if (!qty || qty <= 0) {
+      toast.error('Geçerli adet girin')
+      return
+    }
+    try {
+      const res = await fetch('/api/tenant/stock/transfer', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...transferForm, qty }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Transfer başarısız')
+      toast.success('Şubeler arası transfer tamamlandı')
+      setShowTransferModal(false)
+      setTransferForm({ from_branch_id: '', to_branch_id: '', part_id: '', qty: '', note: '' })
+      const listRes = await fetch('/api/tenant/stock/transfer', { credentials: 'same-origin' })
+      const listJson = await listRes.json()
+      if (listJson.items) setTransfers(listJson.items)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Transfer başarısız')
+    }
+  }
+
   return (
     <>
     <div className="space-y-6 pb-8 no-print">
@@ -119,6 +160,12 @@ export default function StokPage() {
           <p className="text-slate-400 text-sm mt-0.5">Stok değişiklikleri otomatik olarak finansa yansır</p>
         </div>
         <div className="flex gap-2">
+          {branches.length >= 2 && (
+            <button onClick={() => setShowTransferModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-all">
+              <ArrowRightLeft size={14} /> Şube Transferi
+            </button>
+          )}
           <a href="/dashboard/stok/sayim" data-tour="stok-sayim-link" className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-50 transition-all">
             Stok Sayım
           </a>
@@ -243,6 +290,24 @@ export default function StokPage() {
         </div>
       </div>
 
+      {transfers.length > 0 && (
+        <div className="card p-5">
+          <h3 className="font-bold text-slate-900 text-sm mb-3 flex items-center gap-2">
+            <ArrowRightLeft size={14} className="text-sky-500" /> Son Şube Transferleri
+          </h3>
+          <div className="space-y-2">
+            {transfers.slice(0, 5).map(t => (
+              <div key={t.id} className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-50 pb-2">
+                <span className="font-semibold">{t.part?.name ?? 'Parça'}</span>
+                <span>{t.from_branch?.name} → {t.to_branch?.name}</span>
+                <span className="font-bold">{t.qty} adet</span>
+                <span className="text-slate-400">{new Date(t.created_at).toLocaleDateString('tr-TR')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Add Part Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -322,6 +387,54 @@ export default function StokPage() {
             <div className="flex gap-3 p-5 border-t border-slate-100">
               <button onClick={() => setShowReceiveModal(false)} className="btn-secondary flex-1">İptal</button>
               <button onClick={handleReceiveStock} className="btn-primary flex-1">Stok Girişi Yap</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Şubeler Arası Transfer</h3>
+              <button onClick={() => setShowTransferModal(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Kaynak Şube</label>
+                  <select className="select" value={transferForm.from_branch_id} onChange={e => setTransferForm(f => ({ ...f, from_branch_id: e.target.value }))}>
+                    <option value="">Seçin</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Hedef Şube</label>
+                  <select className="select" value={transferForm.to_branch_id} onChange={e => setTransferForm(f => ({ ...f, to_branch_id: e.target.value }))}>
+                    <option value="">Seçin</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Parça</label>
+                <select className="select" value={transferForm.part_id} onChange={e => setTransferForm(f => ({ ...f, part_id: e.target.value }))}>
+                  <option value="">Seçin</option>
+                  {stock.map(p => <option key={p.id} value={p.id}>{p.name} ({p.stock_qty} adet)</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Adet</label>
+                <input type="number" className="input" value={transferForm.qty} onChange={e => setTransferForm(f => ({ ...f, qty: e.target.value }))} min="1" />
+              </div>
+              <div>
+                <label className="label">Not (opsiyonel)</label>
+                <input className="input" value={transferForm.note} onChange={e => setTransferForm(f => ({ ...f, note: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-3 p-5 border-t border-slate-100">
+              <button onClick={() => setShowTransferModal(false)} className="btn-secondary flex-1">İptal</button>
+              <button onClick={() => void handleTransfer()} className="btn-primary flex-1">Transfer Et</button>
             </div>
           </div>
         </div>

@@ -1,8 +1,9 @@
 import dynamic from 'next/dynamic'
 import { getAdminDataClient } from '@/lib/supabase/admin-data'
-import { TrendingUp, AlertTriangle, UserPlus, Building2, CreditCard } from 'lucide-react'
+import { TrendingUp, AlertTriangle, UserPlus, Building2, CreditCard, LayoutDashboard } from 'lucide-react'
 import { formatCurrency, formatDate, PAYMENT_STATUS_COLORS, PAYMENT_STATUS_LABELS } from '@/lib/utils'
 import { getPlanLevel, PLAN_LEVEL_LABELS, type PlanLevel } from '@/lib/plan-tiers'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 
 const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
   ssr: false,
@@ -14,6 +15,7 @@ const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), {
 const AdminChurnPanel = dynamic(() => import('./AdminChurnPanel'), { ssr: false })
 const AdminOpsAlerts = dynamic(() => import('@/components/admin/AdminOpsAlerts'), { ssr: false })
 const ModuleMaturityPanel = dynamic(() => import('@/components/admin/ModuleMaturityPanel'), { ssr: false })
+const AdminAiCostWidget = dynamic(() => import('@/components/admin/AdminAiCostWidget'), { ssr: false })
 
 interface TenantRow {
   id: string
@@ -79,29 +81,27 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-8 animate-fade-in-up">
-      <div>
-        <h1 className="text-white text-2xl font-black">Komuta Merkezi</h1>
-        <p className="text-zinc-500 text-sm mt-1">
-          {now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} — Tüm sistemler aktif
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Komuta Merkezi"
+        description={`${now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} — Bayi, ödeme ve operasyon özeti`}
+        icon={LayoutDashboard}
+      />
 
       <AdminOpsAlerts />
-
-      <div className="card p-5">
-        <h2 className="text-white font-bold text-sm mb-3">Modül Olgunluğu</h2>
-        <ModuleMaturityPanel />
-      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {METRICS.map(m => {
           const Icon = m.icon
           return (
-            <div key={m.label} className="card p-5 space-y-4">
+            <div
+              key={m.label}
+              className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900/90 to-zinc-950 p-5 space-y-4 shadow-lg shadow-black/20"
+            >
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-500/40 to-transparent" />
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">{m.label}</p>
-                  <p className="text-2xl font-black text-white mt-1">{m.value}</p>
+                  <p className="text-2xl font-black text-white mt-1 tabular-nums">{m.value}</p>
                 </div>
                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${m.bg}`}>
                   <Icon size={18} className={m.color} />
@@ -111,6 +111,14 @@ export default async function AdminDashboardPage() {
             </div>
           )
         })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card p-5 border border-sky-500/10">
+          <h2 className="text-white font-bold text-sm mb-3">Modül Olgunluğu</h2>
+          <ModuleMaturityPanel />
+        </div>
+        <AdminAiCostWidget />
       </div>
 
       <AdminChurnPanel />

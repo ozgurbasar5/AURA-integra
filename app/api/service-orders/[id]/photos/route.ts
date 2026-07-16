@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { parseDeviceImages } from '@/lib/device-images'
 
@@ -10,23 +10,6 @@ type RouteParams = { params: { id: string } }
 const BUCKET = 'device-photos'
 const MAX_PHOTOS = 8
 const MAX_BYTES = 1_048_576
-
-async function getAuthContext() {
-  const supabase = createClient()
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
-  if (authErr || !user) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id, role')
-    .eq('id', user.id)
-    .single()
-  if (!profile?.tenant_id || profile.role === 'super_admin') {
-    return { error: NextResponse.json({ error: 'Yetkisiz' }, { status: 403 }) }
-  }
-  return { supabase, profile, userId: user.id }
-}
 
 async function getOrderImages(tenantId: string, orderId: string) {
   const admin = getServiceClient()
@@ -41,11 +24,12 @@ async function getOrderImages(tenantId: string, orderId: string) {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return ctx.error
-  const { profile } = ctx
+  const auth = await requireTenantAuth()
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status })
+  }
 
-  const order = await getOrderImages(profile.tenant_id, params.id)
+  const order = await getOrderImages(auth.tenantId, params.id)
   if (!order) return NextResponse.json({ error: 'Kayıt bulunamadı.' }, { status: 404 })
 
   const form = await req.formData()
@@ -66,7 +50,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
 
   const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg'
-  const path = `${profile.tenant_id}/${params.id}/${Date.now()}.${ext}`
+  const path = `${auth.tenantId}/${params.id}/${Date.now()}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error: uploadErr } = await admin.storage
@@ -85,7 +69,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .from('service_orders')
     .update({ device_images: nextImages, updated_at: new Date().toISOString() })
     .eq('id', params.id)
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', auth.tenantId)
 
   if (updateErr) {
     await admin.storage.from(BUCKET).remove([path])
@@ -96,9 +80,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return ctx.error
-  const { profile } = ctx
+  const auth = await requireTenantAuth()
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status })
+  }
 
   let body: { url?: string }
   try {
@@ -108,7 +93,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   }
   if (!body.url) return NextResponse.json({ error: 'url gerekli' }, { status: 400 })
 
-  const order = await getOrderImages(profile.tenant_id, params.id)
+  const order = await getOrderImages(auth.tenantId, params.id)
   if (!order) return NextResponse.json({ error: 'Kayıt bulunamadı.' }, { status: 404 })
 
   const current = parseDeviceImages(order as Record<string, unknown>)
@@ -130,7 +115,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     .from('service_orders')
     .update({ device_images: nextImages, updated_at: new Date().toISOString() })
     .eq('id', params.id)
-    .eq('tenant_id', profile.tenant_id)
+    .eq('tenant_id', auth.tenantId)
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
   return NextResponse.json({ images: nextImages })

@@ -4,6 +4,15 @@ import { isSuperAdminEmail, tenantHasOverduePaymentService, requireSuperAdminFro
 import { getServiceClient } from '@/lib/supabase/service'
 import { evaluateTenantAccess, getTenantBlockMessage } from '@/lib/subscription'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import {
+  MFA_PENDING_COOKIE,
+  MFA_TOKEN_COOKIE,
+  MFA_VERIFIED_COOKIE,
+  generateOtpCode,
+  createMfaToken,
+  mfaCookieOptions,
+} from '@/lib/email-2fa'
+import { sendMail, isSmtpConfigured } from '@/lib/mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -196,10 +205,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: access.message }, { status: 403 })
     }
 
+    // E-posta 2FA — tenant_settings.email_2fa_users[userId]
+    const { data: ts } = await admin
+      .from('tenant_settings')
+      .select('settings')
+      .eq('tenant_id', profile.tenant_id)
+      .maybeSingle()
+    const settings = (ts?.settings ?? {}) as Record<string, unknown>
+    const mfaUsers = (settings.email_2fa_users as Record<string, boolean>) || {}
+    const mfaEnabled = Boolean(mfaUsers[user.id])
+
+    if (mfaEnabled && user.email) {
+      const code = generateOtpCode()
+      const { token } = createMfaToken(user.id, code)
+      if (isSmtpConfigured()) {
+        await sendMail({
+          to: user.email,
+          subject: 'AURA İntegra giriş kodu',
+          html: `<p>Giriş doğrulama kodunuz: <strong>${code}</strong></p><p>10 dakika geçerlidir.</p>`,
+        })
+      } else if (process.env.NODE_ENV === 'development') {
+        console.info('[email-2fa] OTP', code)
+      }
+
+      const json = NextResponse.json({
+        ok: true,
+        mfa_required: true,
+        email_hint: user.email.replace(/(.{2}).+(@.+)/, '$1***$2'),
+        message: !isSmtpConfigured() && process.env.NODE_ENV === 'development'
+          ? 'Dev: kod konsola yazıldı veya 000000 kullanın'
+          : 'Doğrulama kodu e-postanıza gönderildi',
+      })
+      cookieResponse.cookies.getAll().forEach((cookie) => {
+        json.cookies.set(cookie)
+      })
+      json.cookies.set(MFA_PENDING_COOKIE, '1', mfaCookieOptions(600))
+      json.cookies.set(MFA_TOKEN_COOKIE, token, mfaCookieOptions(600))
+      json.cookies.set(MFA_VERIFIED_COOKIE, '', { ...mfaCookieOptions(0), maxAge: 0 })
+      return json
+    }
+
     const json = NextResponse.json({ ok: true, redirect: '/dashboard', tenant_id: profile.tenant_id })
     cookieResponse.cookies.getAll().forEach((cookie) => {
       json.cookies.set(cookie)
     })
+    json.cookies.set(MFA_VERIFIED_COOKIE, '1', mfaCookieOptions(60 * 60 * 12))
     return json
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Bilinmeyen hata'

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { X, ChevronRight, ChevronLeft, Sparkles, Store, MessageSquare, Wallet } from 'lucide-react'
-import { getNotificationSettings } from '@/lib/store'
+import { getNotificationSettings, setNotificationSettings } from '@/lib/store'
 import { getBusinessBranding } from '@/lib/business-branding'
 import {
   patchOnboardingFlags,
@@ -34,6 +34,14 @@ export default function SetupWizard({ userId, setupWizardCompleted }: Props) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>('welcome')
   const [dismissed, setDismissed] = useState(setupWizardCompleted)
+  const [shopName, setShopName] = useState(() => {
+    try {
+      const s = getNotificationSettings()
+      return s.shop_name && s.shop_name !== 'AURA İntegra' ? s.shop_name : ''
+    } catch {
+      return ''
+    }
+  })
 
   const alreadyDone =
     setupWizardCompleted ||
@@ -127,14 +135,33 @@ export default function SetupWizard({ userId, setupWizardCompleted }: Props) {
             <>
               <h3 className="font-bold text-[var(--text-primary)]">1. Marka & Mağaza</h3>
               <p className="text-sm text-[var(--text-secondary)]">
-                Ayarlar → Genel bölümünden <strong>mağaza adı</strong>, telefon ve adres girin.
-                Servis fişi ve WhatsApp mesajlarında bu bilgiler görünür.
+                Mağaza adınız servis fişi ve WhatsApp mesajlarında görünür. Logo ve telefonu sonra Ayarlar&apos;dan ekleyebilirsiniz.
               </p>
-              {brand.shopName && brand.shopName !== 'AURA İntegra' && (
+              <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Mağaza adı</label>
+              <input
+                type="text"
+                value={shopName}
+                onChange={e => setShopName(e.target.value)}
+                placeholder="Örn. Aura Teknik"
+                className="w-full px-3 py-2.5 rounded-xl border border-[var(--bg-border)] bg-[var(--bg-base)] text-sm text-[var(--text-primary)]"
+              />
+              {brand.shopName && brand.shopName !== 'AURA İntegra' && !shopName && (
                 <p className="text-xs text-emerald-600 font-semibold">Mevcut: {brand.shopName}</p>
               )}
-              <Link href="/dashboard/ayarlar" onClick={close} className="text-sm text-[var(--accent)] font-semibold hover:underline">
-                Ayarlara git →
+              <button
+                type="button"
+                className="btn-primary btn-sm mt-2"
+                onClick={() => {
+                  const name = shopName.trim()
+                  if (!name) return
+                  setNotificationSettings({ shop_name: name })
+                  setStep('sms')
+                }}
+              >
+                Kaydet ve devam
+              </button>
+              <Link href="/dashboard/ayarlar" onClick={close} className="block text-sm text-[var(--accent)] font-semibold hover:underline mt-2">
+                Daha fazla ayar →
               </Link>
             </>
           )}

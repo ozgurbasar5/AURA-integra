@@ -23,15 +23,19 @@ export function PageHeader({
   actions?: ReactNode
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4" {...rest}>
+    <div
+      className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4 rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white via-sky-50/40 to-cyan-50/30 px-4 py-4 sm:px-5 sm:py-5 shadow-sm"
+      {...rest}
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/50 to-transparent rounded-t-2xl" />
       <div>
         {eyebrow && (
           <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">{eyebrow}</p>
         )}
         <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
           {Icon && (
-            <span className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
-              <Icon size={18} className="text-sky-600" />
+            <span className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-sky-600/25">
+              <Icon size={18} />
             </span>
           )}
           {title}

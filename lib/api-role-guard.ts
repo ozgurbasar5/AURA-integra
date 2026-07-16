@@ -19,11 +19,6 @@ export function canPushFinance(role: string): boolean {
 }
 
 const PUSH_MODULE_ALLOWLIST = new Set([
-  'stock',
-  'customers',
-  'transactions',
-  'sales',
-  'purchases',
   'todos',
   'customerOrders',
   'storeProducts',
@@ -33,12 +28,8 @@ const PUSH_MODULE_ALLOWLIST = new Set([
   'secondHandDevices',
   'stolenIMEIs',
   'branches',
-  'appointments',
-  'warranties',
-  'invoices',
   'notificationLogs',
   'supportTickets',
-  'cashShifts',
   'supplierOrders',
   'personnel',
   'foreignDevices',
@@ -46,6 +37,28 @@ const PUSH_MODULE_ALLOWLIST = new Set([
   'statusHistory',
   'notificationSettings',
 ])
+
+/** API-first — push kapalı (client no-op + server reject) */
+const PUSH_DISABLED_MODULES = new Set([
+  'serviceOrders',
+  'stock',
+  'sales',
+  'transactions',
+  'cashShifts',
+  'kasaBalance',
+  'appointments',
+  'warranties',
+  'invoices',
+  'purchases',
+  'secondHandDevices',
+  'supplierOrders',
+  'serviceExpenses',
+  'customers',
+])
+
+export function isPushDisabledModule(module: string): boolean {
+  return PUSH_DISABLED_MODULES.has(module)
+}
 
 export function isKnownPushModule(module: string): boolean {
   return PUSH_MODULE_ALLOWLIST.has(module)

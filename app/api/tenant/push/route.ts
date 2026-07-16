@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
-import { canPushModule, isKnownPushModule } from '@/lib/api-role-guard'
+import { canPushModule, isKnownPushModule, isPushDisabledModule } from '@/lib/api-role-guard'
 import { writeTenantAuditLog } from '@/lib/tenant-audit-log'
 import { getServiceClient } from '@/lib/supabase/service'
 import { deepMergeSettings } from '@/lib/tenant-store'
@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const moduleKey = String(body.module)
+    if (isPushDisabledModule(moduleKey)) {
+      return NextResponse.json({
+        error: `Modül API-first: ${moduleKey} bulk push kapalı`,
+      }, { status: 400 })
+    }
     if (!isKnownPushModule(moduleKey)) {
       return NextResponse.json({ error: `Bilinmeyen modül: ${moduleKey}` }, { status: 400 })
     }

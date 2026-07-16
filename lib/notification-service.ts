@@ -71,6 +71,27 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; e
   return sendMail(payload)
 }
 
+export async function sendWhatsApp(input: {
+  to: string
+  message: string
+  tenantId?: string
+}): Promise<{ ok: boolean; status: string; error?: string; waMeUrl?: string; messageId?: string }> {
+  const { getWhatsAppProvider } = await import('@/lib/whatsapp/provider')
+  const provider = getWhatsAppProvider()
+  const result = await provider.send({
+    to: input.to,
+    message: input.message,
+    tenantId: input.tenantId,
+  })
+  return {
+    ok: result.ok,
+    status: result.ok ? (provider.id === 'wa_me' ? 'wa_me' : 'sent') : 'failed',
+    error: result.error,
+    waMeUrl: result.waMeUrl,
+    messageId: result.messageId,
+  }
+}
+
 const STATUS_SMS: Record<string, string> = {
   kalite_kontrol: 'Cihazınız tamir aşamasını tamamladı. Takip: {order_no}',
   teslim: 'Cihazınız teslime hazır! Servisimizi ziyaret edebilirsiniz. Sipariş: {order_no}',

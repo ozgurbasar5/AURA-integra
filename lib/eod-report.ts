@@ -88,12 +88,14 @@ export function buildShiftReport(shift: CashShift, shopName = 'Mağaza'): ShiftR
   const expenseMap = new Map<string, number>()
   const lines: ShiftReportLine[] = []
 
+  // Satırlar yalnızca transactions üzerinden — sales[] zaten POS Satış olarak yazılmış (çift sayım yok)
   for (const t of getTransactions()) {
     if (!inWindow(t.date, from, to)) continue
+    if (t.category === 'Cari Borç' || t.category === 'Cari Tahsilat') continue
     if (t.type === 'gider') {
       expenseMap.set(t.category, (expenseMap.get(t.category) ?? 0) + t.amount)
     }
-    const isStock = t.description?.includes('Stok alımı')
+    const isStock = t.description?.includes('Stok alımı') || t.category === 'Alış' || t.category === 'Tedarikçi'
     lines.push({
       time: t.date,
       type: isStock ? 'stok' : t.type === 'gelir' ? (t.category === 'Satış' ? 'pos' : t.category === 'Servis Teslim' ? 'servis' : 'gelir') : 'gider',
@@ -101,18 +103,6 @@ export function buildShiftReport(shift: CashShift, shopName = 'Mağaza'): ShiftR
       description: t.description,
       amount: t.amount,
       payment_method: t.payment_method,
-    })
-  }
-
-  for (const s of salesInShift) {
-    const itemNames = s.items?.map(i => `${i.name}×${i.qty}`).join(', ') || 'POS'
-    lines.push({
-      time: s.date,
-      type: 'pos',
-      category: 'Satış',
-      description: `POS — ${itemNames} (${s.customer_name})`,
-      amount: s.total_with_vat || s.subtotal || 0,
-      payment_method: s.payment_method,
     })
   }
 

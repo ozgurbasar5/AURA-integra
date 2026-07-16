@@ -21,16 +21,23 @@ Multi-tenant SaaS ERP for technical service shops and dealer networks.
 
 ## Module maturity
 
+Odak: **teknik servis + stok + POS + kasa ERP**. Pazaryeri / e-ticaret yok.
+
 | Module | Data | API | Notes |
 |--------|------|-----|-------|
-| Atölye / Kabul | API-first (hybrid cache) | Yes | Service orders API + Storage foto |
-| Stok / POS / Kasa | localStorage + sync | Push + bridge | pos-bridge, cash-bridge, stock-bridge |
-| Bildirimler | localStorage | `/api/notify` | Real SMS/email send |
-| Global search | — | `/api/search` | Cmd+K modal |
-| e-Fatura | localStorage | Stub + queue | Test modu — docs/EFATURA-ROADMAP.md |
+| Kabul / Atölye | API-first | `/api/service-orders` | Müşteri geçmişi + technician_id |
+| Servis teslim | API-first | `/deliver` + `/use-parts` | Parça + kasa + finans atomik |
+| Stok / POS / Kasa | API-first | Dedicated APIs | POS/teslim açık vardiyaya bağlanır |
+| Alış / Tedarik | API-first | purchases + receive | Teslim alındı → stok |
+| Stok sayım | API-first | `/api/tenant/stock/count` | `stock_movements` fark notu |
+| Bildirimler | hybrid | `/api/notify` | SMS + WhatsApp (Meta Cloud / wa.me) |
+| e-Fatura | Queue + UBL | Stub/NES/Logo | Kuyruk UI + cron — docs/EFATURA-ROADMAP.md |
 | AI Asistan | — | `/api/ai` | Gemini 2.5 + kota (Paket 2+) |
 | Müşteri Portalı | — | `/portal/[slug]` | Landing vitrin + public showcase API |
-| Raporlar | Store + DB views | `/api/tenant/reports` | Paket 3 |
+| Raporlar | API-first 100% | `/api/tenant/reports` + export | Finans + KDV + vardiya + CSV |
+| Vitrin | API-first 100% | `/api/tenant/showcase` | CRUD + sell; push kapalı |
+| Tedarik | API-first 100% | supplier-orders GET/PATCH/receive | Push kapalı |
+| PWA / Expo | — | manifest + `mobile/` | Kabul / Atölye / Satış / Sayım / Kasa + foto/WA/fiş |
 
 ## Environment
 
@@ -118,3 +125,10 @@ Detaylı dokümantasyon: `/dashboard/dokumantasyon`
 POST /api/cron/appointment-reminders
 Authorization: Bearer $CRON_SECRET
 ```
+
+```http
+POST /api/cron/efatura-queue
+Authorization: Bearer $CRON_SECRET
+```
+
+e-Fatura kuyruk worker her 15 dk (`vercel.json`). Stub modda pending → submitted; NES/Logo env ile gerçek HTTP.

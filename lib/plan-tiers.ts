@@ -34,11 +34,12 @@ export const PLAN_TIERS: PlanTierDef[] = [
     features: [
       'Stok & Envanter Yönetimi',
       'Satış & POS',
+      'Kasa Vardiyası',
       'Müşteri Yönetimi',
       'Fatura & İrsaliye',
       'Alış / Tedarik',
     ],
-    modules: ['Stok', 'Satış & POS', 'Müşteriler', 'Fatura', 'Alış'],
+    modules: ['Stok', 'Satış & POS', 'Kasa', 'Müşteriler', 'Fatura', 'Alış'],
   },
   {
     level: 2,
@@ -131,9 +132,13 @@ export const ROUTE_MIN_LEVEL: Record<string, PlanLevel> = {
   '/dashboard/personel': 2,
   '/dashboard/yapilacaklar': 2,
 
+  // Seviye 1 — günlük kasa (POS ile birlikte)
+  '/dashboard/kasa': 1,
+  '/dashboard/kasa/rapor': 1,
+
   // Seviye 3 — Finans & Analitik
   '/dashboard/finans': 3,
-  '/dashboard/kasa': 3,
+  '/dashboard/cari': 3,
   '/dashboard/ikinci-el': 3,
   '/dashboard/vitrin': 3,
   '/dashboard/raporlar': 3,
@@ -142,9 +147,9 @@ export const ROUTE_MIN_LEVEL: Record<string, PlanLevel> = {
   '/dashboard/kampanyalar': 3,
   '/dashboard/firsatlar': 3,
   '/dashboard/musteri-portali': 2,
+  '/dashboard/yenilikler': 1,
   '/dashboard/dokumantasyon': 1,
   '/dashboard/magaza': 3,
-  '/dashboard/kasa/rapor': 3,
   '/dashboard/plan-yukselt': 1,
   '/dashboard/stok/sayim': 1,
 }

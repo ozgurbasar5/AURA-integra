@@ -10,6 +10,7 @@ const ALLOWED: CronJobId[] = [
   'payment-reminders',
   'appointment-reminders',
   'churn-interventions',
+  'efatura-queue',
 ]
 
 export async function POST(request: NextRequest) {

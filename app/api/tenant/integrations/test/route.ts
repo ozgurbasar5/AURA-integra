@@ -6,8 +6,9 @@ import { getServiceClient } from '@/lib/supabase/service'
 import { sendSms } from '@/lib/notification-service'
 import { sendMail, isSmtpConfigured } from '@/lib/mail'
 import { getTenantSmsCredentials } from '@/lib/tenant-sms'
+import { getWhatsAppProvider } from '@/lib/whatsapp/provider'
 
-/** Entegrasyon bağlantı testi */
+/** Entegrasyon bağlantı testi — her id kendi adapter'ına gider */
 export async function POST(req: NextRequest) {
   const auth = await requireTenantOwner()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Geçersiz JSON' }, { status: 400 })
   }
 
-  const integration = body.integration || 'sms'
+  const integration = (body.integration || 'sms').toLowerCase()
 
   if (integration === 'sms') {
     const admin = getServiceClient()
@@ -85,6 +86,47 @@ export async function POST(req: NextRequest) {
       ok: result.ok,
       integration: 'smtp',
       error: result.error,
+    })
+  }
+
+  if (integration === 'iyzico') {
+    const configured = Boolean(process.env.IYZICO_SECRET)
+    return NextResponse.json({
+      ok: configured,
+      integration: 'iyzico',
+      message: configured
+        ? 'IYZICO_SECRET yapılandırılmış — webhook /api/webhooks/iyzico hazır'
+        : undefined,
+      error: configured ? undefined : 'IYZICO_SECRET yapılandırılmamış',
+    })
+  }
+
+  if (integration === 'whatsapp') {
+    const provider = getWhatsAppProvider()
+    const result = await provider.test()
+    return NextResponse.json({
+      ok: result.ok,
+      integration: 'whatsapp',
+      provider: provider.id,
+      message: result.message,
+      error: result.error,
+    })
+  }
+
+  if (integration === 'nes') {
+    return NextResponse.json({
+      ok: false,
+      integration: 'nes',
+      connected: false,
+      error: 'NES Kargo UI’dan kaldırıldı — henüz adapter yok',
+    })
+  }
+
+  if (integration === 'mikro' || integration === 'logo') {
+    return NextResponse.json({
+      ok: true,
+      integration,
+      message: 'CSV dışa aktarım için GET /api/tenant/export/accounting kullanın',
     })
   }
 

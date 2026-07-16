@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Users, Plus, Trash2, Mail, Search, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { TENANT_ROLE_OPTIONS, normalizeTenantRole } from '@/lib/tenant-roles'
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader'
 
 const ROLES = TENANT_ROLE_OPTIONS
 
@@ -47,6 +48,51 @@ export default function BayiKullanicilariPage() {
   const [newRole, setNewRole]           = useState('teknisyen')
   const [adding, setAdding]             = useState(false)
   const [maxUsers, setMaxUsers]         = useState(99)
+  const [globalFind, setGlobalFind]     = useState('')
+  const [foundUser, setFoundUser]       = useState<{
+    id: string; email?: string; profile?: { full_name?: string; role?: string; tenant_id?: string } | null
+  } | null>(null)
+  const [finding, setFinding]           = useState(false)
+
+  async function findAuthUser() {
+    if (!globalFind.trim()) return
+    setFinding(true)
+    setFoundUser(null)
+    try {
+      const res = await fetch(`/api/admin/find-user?email=${encodeURIComponent(globalFind.trim())}`, {
+        credentials: 'same-origin',
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Bulunamadı')
+      setFoundUser(json.user)
+      toast.success('Kullanıcı bulundu')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Arama hatası')
+    } finally {
+      setFinding(false)
+    }
+  }
+
+  async function deleteAuthUser(userId: string) {
+    if (!confirm('Auth kullanıcısı kalıcı silinsin mi? Bu işlem geri alınamaz.')) return
+    try {
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Silinemedi')
+      toast.success(json.message || 'Silindi')
+      setFoundUser(null)
+      if (selectedTenant) {
+        setUsers(prev => prev.filter(u => u.user_id !== userId))
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Silinemedi')
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -204,17 +250,11 @@ export default function BayiKullanicilariPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users size={20} style={{ color: 'var(--accent)' }} />
-            Bayi Kullanıcıları
-          </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Her bayiye birden fazla kullanıcı atayın — roller bayi paneli ile uyumludur
-          </p>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Bayi Kullanıcıları"
+        description="Her bayiye birden fazla kullanıcı atayın — roller bayi paneli ile uyumludur"
+        icon={Users}
+      />
 
       <div className="card p-5">
         <label className="label">Bayi Seçin</label>
@@ -251,6 +291,44 @@ export default function BayiKullanicilariPage() {
                 {selectedTenant?.id === t.id && <Check size={16} className="ml-auto text-white flex-shrink-0" />}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card p-5 space-y-3">
+        <h2 className="font-semibold text-slate-900 text-sm">Auth kullanıcı ara / sil</h2>
+        <p className="text-xs text-slate-500">Platform genelinde e-posta ile Auth kaydı bulur (find-user / delete-user)</p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            className="input text-sm flex-1 min-w-[200px]"
+            placeholder="email@ornek.com"
+            value={globalFind}
+            onChange={e => setGlobalFind(e.target.value)}
+          />
+          <button type="button" className="btn-secondary btn-sm" disabled={finding} onClick={() => void findAuthUser()}>
+            {finding ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+            Ara
+          </button>
+        </div>
+        {foundUser && (
+          <div className="rounded-xl border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{foundUser.email}</p>
+              <p className="text-xs text-slate-500 font-mono">{foundUser.id}</p>
+              {foundUser.profile && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {foundUser.profile.full_name || '—'} · {foundUser.profile.role || '—'}
+                  {foundUser.profile.tenant_id ? ` · tenant ${foundUser.profile.tenant_id.slice(0, 8)}…` : ''}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="btn-sm bg-red-600 text-white rounded-lg px-3 py-2 flex items-center gap-1"
+              onClick={() => void deleteAuthUser(foundUser.id)}
+            >
+              <Trash2 size={13} /> Auth sil
+            </button>
           </div>
         )}
       </div>

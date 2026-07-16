@@ -20,6 +20,8 @@ import SetupWizard from '@/components/help/SetupWizard'
 import OnboardingTourTrigger from '@/components/dashboard/OnboardingTourTrigger'
 import SubscriptionBanner from '@/components/dashboard/SubscriptionBanner'
 import MobileBottomNav from '@/components/layout/MobileBottomNav'
+import PwaInstallBanner from '@/components/PwaInstallBanner'
+import ConnectionStatusBanner from '@/components/ConnectionStatusBanner'
 
 interface Props {
   tenant: {
@@ -71,6 +73,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
       <OnboardingTourTrigger
         userId={user.id}
         onboardingCompleted={user.onboarding_completed}
+        setupWizardCompleted={user.setup_wizard_completed}
       />
       <div className="flex h-screen bg-[var(--bg-base)] overflow-hidden">
         <SidebarErrorBoundary>
@@ -78,6 +81,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
         </SidebarErrorBoundary>
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
+          {mounted && <ConnectionStatusBanner compact />}
           <main className="flex-1 overflow-y-auto has-mobile-bottom-nav">
             <div className="page-wrapper">
               <SubscriptionBanner />
@@ -123,6 +127,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
         </div>
       </div>
       <MobileBottomNav />
+      <PwaInstallBanner />
       </RoleProvider>
      </PlanProvider>
     </ThemeProvider>

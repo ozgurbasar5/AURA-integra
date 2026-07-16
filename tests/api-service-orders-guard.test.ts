@@ -1,24 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
+vi.mock('@/lib/supabase/tenant-auth', () => ({
+  requireTenantAuth: vi.fn(),
 }))
 
-import { createClient } from '@/lib/supabase/server'
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { GET } from '@/app/api/service-orders/route'
 
 describe('service-orders route auth', () => {
   beforeEach(() => {
-    vi.mocked(createClient).mockReset()
+    vi.mocked(requireTenantAuth).mockReset()
   })
 
   it('GET returns 401 when unauthenticated', async () => {
-    vi.mocked(createClient).mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      },
-    } as never)
+    vi.mocked(requireTenantAuth).mockResolvedValue({
+      ok: false,
+      status: 401,
+      message: 'Oturum bulunamadı',
+    })
 
     const req = new NextRequest('http://localhost/api/service-orders')
     const res = await GET(req)

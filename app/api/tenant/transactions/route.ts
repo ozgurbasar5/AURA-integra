@@ -5,6 +5,7 @@ import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { canPushFinance } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { txToDb } from '@/lib/db-mappers'
+import { normalizePaymentMethod } from '@/lib/payment-method'
 import type { FinanceTransaction } from '@/lib/store'
 
 export async function POST(req: NextRequest) {
@@ -47,19 +48,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insErr.message }, { status: 500 })
   }
 
-  const delta = tx.type === 'gelir' ? Number(tx.amount) : -Number(tx.amount)
-  const { data: newBalance, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
-    p_tenant_id: auth.tenantId,
-    p_delta: delta,
-  })
-
-  if (kasaErr) {
-    return NextResponse.json({ error: kasaErr.message, transaction_id: inserted?.id }, { status: 500 })
+  // Nakit kasa yalnızca nakit ödemelerde değişir (kart/havale/veresiye kasaya girmez)
+  const paymentMethod = normalizePaymentMethod(tx.payment_method)
+  let newBalance: number | undefined
+  if (paymentMethod === 'nakit') {
+    const delta = tx.type === 'gelir' ? Number(tx.amount) : -Number(tx.amount)
+    const { data: bal, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
+      p_tenant_id: auth.tenantId,
+      p_delta: delta,
+    })
+    if (kasaErr) {
+      return NextResponse.json({ error: kasaErr.message, transaction_id: inserted?.id }, { status: 500 })
+    }
+    newBalance = Number(bal)
   }
 
   return NextResponse.json({
     ok: true,
     transaction_id: inserted?.id,
-    kasa_balance: Number(newBalance),
+    kasa_balance: newBalance,
   })
 }

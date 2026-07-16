@@ -13,15 +13,15 @@ import {
 import { PAYMENT_METHODS, INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '@/lib/constants'
 import { formatCurrency, formatRelativeTime } from '@/lib/validators'
 import {
-  getTransactions, getFinanceSummary, addTransactionViaApi, onStoreChange,
+  getTransactions, getFinanceSummary, addTransactionViaApi, onStoreChange, isCariTransaction,
   type FinanceTransaction
 } from '@/lib/store'
 
-// Chart data computed from real transactions
+// Chart data computed from real transactions (cari defter hareketleri hariç)
 function computeMonthlyChart(transactions: FinanceTransaction[]) {
   const monthNames = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
   const months: Record<string, { month: string; gelir: number; gider: number }> = {}
-  transactions.forEach(tx => {
+  transactions.filter(tx => !isCariTransaction(tx)).forEach(tx => {
     const d = new Date(tx.date)
     const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`
     if (!months[key]) months[key] = { month: monthNames[d.getMonth()], gelir: 0, gider: 0 }
@@ -244,8 +244,8 @@ export default function FinansPage() {
         <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-100">
           <span className="text-xs text-slate-500">{sorted.length} işlem</span>
           <div className="flex gap-4 text-xs font-bold">
-            <span className="text-emerald-600">Gelir: {formatCurrency(sorted.filter(t => t.type === 'gelir').reduce((s, t) => s + t.amount, 0))}</span>
-            <span className="text-red-600">Gider: {formatCurrency(sorted.filter(t => t.type === 'gider').reduce((s, t) => s + t.amount, 0))}</span>
+            <span className="text-emerald-600">Gelir: {formatCurrency(sorted.filter(t => t.type === 'gelir' && !isCariTransaction(t)).reduce((s, t) => s + t.amount, 0))}</span>
+            <span className="text-red-600">Gider: {formatCurrency(sorted.filter(t => t.type === 'gider' && !isCariTransaction(t)).reduce((s, t) => s + t.amount, 0))}</span>
           </div>
         </div>
       </div>

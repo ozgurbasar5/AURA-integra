@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canSeeFinance } from '@/lib/role-access'
 
-/** Muhasebe yazılımları için CSV export (Mikro / Logo uyumlu basit format) */
+/** Hazır muhasebe CSV export — Mikro / Logo dosya içe aktarımı (canlı REST yok) */
 export async function GET() {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })

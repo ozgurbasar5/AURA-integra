@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import ColorModeToggle from '@/components/ColorModeToggle'
 import { useUserRole } from '@/lib/role-context'
-import { Bell, Cloud, CloudOff, Loader2, Search, HelpCircle } from 'lucide-react'
+import { Bell, Cloud, CloudOff, Loader2, Search, HelpCircle, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { getSyncState, subscribeSyncState, type SyncState } from '@/lib/sync-status'
 import SyncPanel from '@/components/sync/SyncPanel'
+import { useYenilikUnread } from '@/lib/use-yenilik-unread'
 
 interface Props {
   companyName: string
@@ -58,12 +59,13 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
   const { homeLabel, role } = useUserRole()
   const [syncState, setSyncState] = useState<SyncState>(getSyncState())
   const [syncPanelOpen, setSyncPanelOpen] = useState(false)
+  const { unread: yenilikUnread } = useYenilikUnread()
 
   useEffect(() => subscribeSyncState(setSyncState), [])
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 md:px-6 py-3 border-b border-[var(--bg-border)] bg-[var(--bg-card)]/90 backdrop-blur-md no-print safe-top">
-      <div className="min-w-0 pl-10 lg:pl-0 flex-1">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-widest text-sky-500 truncate">{homeLabel}</p>
         <h2 className="text-sm font-bold text-[var(--text-primary)] truncate">{companyName}</h2>
       </div>
@@ -81,6 +83,18 @@ export default function DashboardHeader({ companyName, onOpenSearch }: Props) {
             <Search size={17} />
           </button>
         )}
+        <Link
+          href="/dashboard/yenilikler"
+          className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-[var(--bg-border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-sky-600 transition-colors"
+          title={yenilikUnread > 0 ? `${yenilikUnread} yeni yenilik` : 'Yenilikler'}
+        >
+          <Sparkles size={17} />
+          {yenilikUnread > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-[9px] font-bold text-white flex items-center justify-center">
+              {yenilikUnread > 9 ? '9+' : yenilikUnread}
+            </span>
+          )}
+        </Link>
         <Link
           href="/dashboard/nasil-calisir"
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-[var(--bg-border)] text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] hover:text-sky-600 transition-colors"

@@ -145,9 +145,26 @@ export async function hydrateFromSupabase(): Promise<boolean> {
   return false
 }
 
+/** API-first modüller — bulk push kapalı (service-orders pattern) */
+const PUSH_DISABLED = new Set<string>([
+  'serviceOrders',
+  'stock',
+  'sales',
+  'transactions',
+  'cashShifts',
+  'appointments',
+  'warranties',
+  'invoices',
+  'purchases',
+  'secondHandDevices',
+  'supplierOrders',
+  'serviceExpenses',
+  'customers',
+])
+
 async function pushModule(module: keyof StoreData | 'notificationSettings') {
   if (syncing) return
-  if (module === 'serviceOrders') return
+  if (PUSH_DISABLED.has(String(module))) return
   incrementPending(String(module))
   try {
     const store = getStore()

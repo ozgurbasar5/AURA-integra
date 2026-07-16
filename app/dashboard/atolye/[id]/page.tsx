@@ -6,8 +6,9 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   ArrowLeft, Save, Printer, MessageCircle, Phone, User, Wrench,
-  Package, Loader2, CheckCircle2, Plus, Trash2, X, Lock, EyeOff, Eye, FileText,
+  Package, Loader2, CheckCircle2, Plus, Trash2, X, Lock, EyeOff, Eye, FileText, Shield,
 } from 'lucide-react'
+import { buildWaMeUrl } from '@/lib/portal-messaging'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
 import { getBusinessBranding } from '@/lib/business-branding'
 import ServicePrintSheet from '@/components/atolye/ServicePrintSheet'
@@ -15,18 +16,25 @@ import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
 import {
   updateServiceStatus, updateServiceOrder,
   addServiceExpense, removeServiceExpense, getServiceExpenses, getServiceProfitPreview,
-  getStock, usePartsForService, getPersonnel, getStatusHistory,
-  deliverService, getServiceDelivery, canDeliverService,
+  getStock, getPersonnel, getStatusHistory,
+  getServiceDelivery, canDeliverService, getNotificationSettings,
   type StoreServiceOrder,
+  type WarrantyRecord,
 } from '@/lib/store'
 import ExpertiseModal from '@/components/atolye/ExpertiseModal'
 import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
 import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
-import { fetchServiceOrderById, updateServiceOrderRemote } from '@/lib/service-order-bridge'
+import {
+  fetchServiceOrderById,
+  updateServiceOrderRemote,
+  usePartsForServiceViaApi,
+  deliverServiceViaApi,
+} from '@/lib/service-order-bridge'
 import { useUserRole } from '@/lib/role-context'
 
 const STATUSES: Record<string, { label: string; cls: string }> = {
   waiting_diagnosis: { label: 'Bekliyor', cls: 'bg-slate-500/15 text-slate-700 dark:text-slate-300' },
+  parts_waiting: { label: 'Parça Bekliyor', cls: 'bg-orange-500/15 text-orange-800 dark:text-orange-300' },
   in_repair: { label: 'Tamirde', cls: 'bg-sky-500/15 text-sky-800 dark:text-sky-300' },
   customer_approval_pending: { label: 'Onay Bekliyor', cls: 'bg-amber-500/15 text-amber-800 dark:text-amber-300' },
   ready_for_pickup: { label: 'Teslime Hazır', cls: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
@@ -66,6 +74,10 @@ export default function AtolyeDetailPage() {
   const [technician, setTechnician] = useState<string>('')
   const [deviceImages, setDeviceImages] = useState<string[]>([])
   const [savingPhotos, setSavingPhotos] = useState(false)
+  const [payMethod, setPayMethod] = useState('nakit')
+  const [techOptions, setTechOptions] = useState<Array<{ id: string; full_name: string }>>([])
+  const [technicianId, setTechnicianId] = useState<string>('')
+  const [orderWarranty, setOrderWarranty] = useState<WarrantyRecord | null>(null)
   const personnel = getPersonnel().filter(p => p.is_active)
   const statusTimeline = getStatusHistory(id)
 
@@ -87,14 +99,43 @@ export default function AtolyeDetailPage() {
       setFinalChecks(o.final_checks || [])
       setCompatible(getCompatibleParts(getStock(), o.device_brand, o.device_model))
     }
+    try {
+      const wRes = await fetch('/api/tenant/warranties', { credentials: 'same-origin' })
+      const wJson = await wRes.json()
+      if (wRes.ok && o) {
+        const match = (wJson.items as WarrantyRecord[] | undefined)?.find(
+          w => w.order_id === id || w.order_no === o.job_no
+        )
+        setOrderWarranty(match ?? null)
+      }
+    } catch { /* ignore */ }
     setLoading(false)
   }, [id])
 
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    void fetch('/api/tenant/technicians', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then((json: { items?: Array<{ id: string; full_name: string | null }> }) => {
+        const items = (json.items ?? []).map(t => ({
+          id: t.id,
+          full_name: t.full_name || 'Teknisyen',
+        }))
+        setTechOptions(items)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (order) setProfit(getServiceProfitPreview(id, price))
   }, [order, id, price, parts])
+
+  useEffect(() => {
+    if (!technician || !techOptions.length) return
+    const hit = techOptions.find(t => t.full_name === technician)
+    if (hit) setTechnicianId(hit.id)
+  }, [technician, techOptions])
 
   const isDone = status === 'delivered'
 
@@ -115,25 +156,41 @@ export default function AtolyeDetailPage() {
   async function handleSave() {
     if (!order) return
     setSaving(true)
-    updateServiceOrder(id, {
-      notes, private_note: privateNote, actual_cost: price, estimated_cost: price, status,
-      technician: technician || null,
-      final_checks: finalChecks,
-      images: deviceImages,
-      used_parts: parts.map(p => ({
-        id: p.id, name: p.name, qty: p.quantity,
-        unit_buy: p.unit_cost, unit_sell: p.unit_price,
-      })),
-    })
-    await updateServiceOrderRemote(id, {
-      status, actual_cost: price, estimated_cost: price, notes, images: deviceImages,
-    })
-    setOrder(prev => prev ? {
-      ...prev, notes, private_note: privateNote, actual_cost: price, status,
-      technician: technician || null, images: deviceImages,
-    } : prev)
-    toast.success('Kaydedildi')
-    setSaving(false)
+    const usedParts = parts.map(p => ({
+      id: p.id, name: p.name, qty: p.quantity,
+      unit_buy: p.unit_cost, unit_sell: p.unit_price,
+    }))
+    try {
+      const remote = await updateServiceOrderRemote(id, {
+        status,
+        actual_cost: price,
+        estimated_cost: price,
+        notes,
+        private_note: privateNote,
+        final_checks: finalChecks,
+        images: deviceImages,
+        used_parts: usedParts,
+        technician: technician || null,
+      })
+      if (remote) {
+        setOrder(remote)
+        setPrivateNote(remote.private_note || '')
+        setFinalChecks(remote.final_checks || [])
+      } else {
+        updateServiceOrder(id, {
+          notes, private_note: privateNote, actual_cost: price, estimated_cost: price, status,
+          technician: technician || null,
+          final_checks: finalChecks,
+          images: deviceImages,
+          used_parts: usedParts,
+        })
+      }
+      toast.success('Kaydedildi')
+    } catch {
+      toast.error('Sunucuya kaydedilemedi')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleStatusChange(v: string) {
@@ -147,7 +204,7 @@ export default function AtolyeDetailPage() {
     toast.success(`Durum: ${STATUSES[v]?.label || v}`)
   }
 
-  function addPart() {
+  async function addPart() {
     if (!partForm.stock_id || !order) return
     const stockItem = compatible.find(s => s.id === partForm.stock_id) || getStock().find(s => s.id === partForm.stock_id)
     if (!stockItem) { toast.error('Parça seçin'); return }
@@ -158,6 +215,17 @@ export default function AtolyeDetailPage() {
     }
     const unitCost = stockItem.buy_price
     const unitSell = stockItem.sell_price || stockItem.buy_price
+    const result = await usePartsForServiceViaApi(id, [{
+      stock_id: stockItem.id,
+      name: stockItem.name,
+      qty,
+      unit_buy: unitCost,
+      unit_sell: unitSell,
+    }])
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
     const p: Part = {
       id: stockItem.id,
       name: stockItem.name,
@@ -165,22 +233,42 @@ export default function AtolyeDetailPage() {
       unit_cost: unitCost,
       unit_price: unitSell,
     }
-    usePartsForService(
-      [{ stock_id: stockItem.id, name: stockItem.name, qty, unit_buy: unitCost, unit_sell: unitSell }],
-      order.job_no,
-      order.customer_name,
-    )
+    addServiceExpense(id, {
+      source: 'part',
+      description: stockItem.name,
+      amount: unitCost * qty,
+      reference_id: stockItem.id,
+    })
     setParts(prev => [...prev, p])
     setCompatible(getCompatibleParts(getStock(), order.device_brand, order.device_model))
     setPartForm({ stock_id: '', qty: '1' })
     setShowPartForm(false)
-    toast.success('Parça eklendi — stok düşüldü, maliyet güncellendi')
+    toast.success('Parça eklendi — stok sunucuda düşüldü')
   }
 
-  function removePart(partId: string) {
-    setParts(prev => prev.filter(p => p.id !== partId))
-    const exp = getServiceExpenses(id).find(e => e.reference_id === partId)
-    if (exp) removeServiceExpense(id, exp.id)
+  async function removePart(partId: string) {
+    const part = parts.find(p => p.id === partId)
+    if (!part) return
+    try {
+      const res = await fetch(`/api/service-orders/${id}/restore-parts`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_id: partId, qty: part.quantity }),
+      })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) {
+        toast.error(json.error || 'Stok iade edilemedi')
+        return
+      }
+      setParts(prev => prev.filter(p => p.id !== partId))
+      const exp = getServiceExpenses(id).find(e => e.reference_id === partId)
+      if (exp) removeServiceExpense(id, exp.id)
+      if (order) setCompatible(getCompatibleParts(getStock(), order.device_brand, order.device_model))
+      toast.success('Parça kaldırıldı — stok iade edildi')
+    } catch {
+      toast.error('Bağlantı hatası')
+    }
   }
 
   function toggleQc(item: string) {
@@ -188,17 +276,40 @@ export default function AtolyeDetailPage() {
     setFinalChecks(prev => prev.includes(item) ? prev.filter(x => x !== item) : [...prev, item])
   }
 
-  function handleDeliver() {
+  async function handleDeliver() {
     if (!order || price <= 0) { toast.warning('Ücret girin'); return }
     const check = canDeliverService(id)
     if (!check.ok) { toast.error(check.reason || 'Teslim edilemez'); return }
     updateServiceOrder(id, { final_checks: finalChecks })
-    const result = deliverService(id, price, order.job_no, order.customer_name, 'nakit')
-    if (!result) { toast.error('Teslim kaydedilemedi'); return }
+    const warrantyMonths = getNotificationSettings().service_warranty_months
+    const result = await deliverServiceViaApi(id, {
+      service_fee: price,
+      payment_method: payMethod,
+      job_no: order.job_no,
+      customer_name: order.customer_name,
+      warranty_months: warrantyMonths > 0 ? warrantyMonths : undefined,
+      final_checks: finalChecks,
+      used_parts: parts.map(p => ({
+        stock_id: p.id,
+        name: p.name,
+        qty: p.quantity,
+        unit_buy: p.unit_cost,
+        unit_sell: p.unit_price,
+      })),
+    })
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
     setStatus('delivered')
     updateServiceStatus(id, 'delivered')
-    void updateServiceOrderRemote(id, { status: 'delivered' })
-    toast.success(`Teslim edildi · Kâr: ${fmt(profit.netProfit)}`)
+    setProfit({
+      netProfit: result.delivery.net_profit,
+      totalExpense: result.delivery.total_expense,
+      profitMargin: result.delivery.profit_margin,
+    })
+    await load()
+    toast.success(`Teslim edildi · Kâr: ${fmt(result.delivery.net_profit)}`)
   }
 
   function buildWaMessage() {
@@ -358,18 +469,29 @@ export default function AtolyeDetailPage() {
               <label className="label">Teknisyen</label>
               <select
                 className="select"
-                value={technician}
+                value={technicianId || technician}
                 onChange={e => {
-                  const name = e.target.value
+                  const val = e.target.value
+                  const byId = techOptions.find(t => t.id === val)
+                  const name = byId?.full_name || val
+                  setTechnicianId(byId?.id || '')
                   setTechnician(name)
                   updateServiceOrder(id, { technician: name || null })
+                  void updateServiceOrderRemote(id, {
+                    technician: name || null,
+                    technician_id: byId?.id || null,
+                  })
                 }}
                 disabled={isDone}
               >
                 <option value="">Atanmadı</option>
-                {personnel.map(p => (
-                  <option key={p.id} value={p.full_name}>{p.full_name} — {p.position}</option>
-                ))}
+                {techOptions.length > 0
+                  ? techOptions.map(t => (
+                      <option key={t.id} value={t.id}>{t.full_name}</option>
+                    ))
+                  : personnel.map(p => (
+                      <option key={p.id} value={p.full_name}>{p.full_name} — {p.position}</option>
+                    ))}
               </select>
             </div>
             {canEditPricing && (
@@ -377,6 +499,15 @@ export default function AtolyeDetailPage() {
                 <div>
                   <label className="label">Toplam Ücret (₺)</label>
                   <input type="number" className="input text-lg font-bold" value={price || ''} onChange={e => setPrice(Number(e.target.value))} disabled={isDone} />
+                </div>
+                <div>
+                  <label className="label">Ödeme</label>
+                  <select className="select" value={payMethod} onChange={e => setPayMethod(e.target.value)} disabled={isDone}>
+                    <option value="nakit">Nakit</option>
+                    <option value="kredi_karti">Kredi Kartı</option>
+                    <option value="havale">Havale</option>
+                    <option value="veresiye">Veresiye</option>
+                  </select>
                 </div>
                 {canSeeFinance && (
                   <div className="rounded-xl bg-[var(--bg-muted)] p-3 flex justify-between text-sm">
@@ -392,10 +523,43 @@ export default function AtolyeDetailPage() {
             {delivery?.financial_posted && (
               <p className="text-xs text-emerald-600 font-medium">Finansa yazıldı</p>
             )}
-            {approvalLink && status === 'customer_approval_pending' && (
+            {approvalLink && (
               <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-xs">
                 <p className="font-bold text-amber-800 mb-1">Müşteri onay linki</p>
-                <code className="block break-all text-amber-900">{approvalLink}</code>
+                <code className="block break-all text-amber-900 mb-2">{approvalLink}</code>
+                <a
+                  href={buildWaMeUrl(order.customer_phone, `Merhaba ${order.customer_name}, servis onay linkiniz: ${approvalLink}`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#25D366] text-white font-bold hover:opacity-90"
+                >
+                  <MessageCircle size={12} /> Onay Linkini WhatsApp ile Gönder
+                </a>
+              </div>
+            )}
+            {status === 'delivered' && orderWarranty && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield size={16} className="text-emerald-600" />
+                  <p className="font-bold text-emerald-800">Servis Garantisi Aktif</p>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-emerald-900">
+                  <dt className="text-emerald-600">Süre</dt>
+                  <dd className="font-semibold">{orderWarranty.warranty_months} ay</dd>
+                  <dt className="text-emerald-600">Başlangıç</dt>
+                  <dd>{new Date(orderWarranty.start_date).toLocaleDateString('tr-TR')}</dd>
+                  <dt className="text-emerald-600">Bitiş</dt>
+                  <dd className="font-bold">{new Date(orderWarranty.end_date).toLocaleDateString('tr-TR')}</dd>
+                  {orderWarranty.covered_parts && orderWarranty.covered_parts.length > 0 && (
+                    <>
+                      <dt className="text-emerald-600">Kapsam</dt>
+                      <dd>{orderWarranty.covered_parts.join(', ')}</dd>
+                    </>
+                  )}
+                </dl>
+                <Link href="/dashboard/garanti" className="text-[10px] font-bold text-emerald-700 hover:underline mt-2 inline-block">
+                  Garanti modülünde görüntüle →
+                </Link>
               </div>
             )}
             <Link href="/dashboard/tedarik" className="text-xs font-bold text-sky-600 hover:underline block">Parça siparişi oluştur →</Link>

@@ -88,7 +88,7 @@ const STEPS: TourStep[] = [
     bullets: [
       'Yeni parça → otomatik barkod + etiket yazdırma',
       'Stok girişi → maliyet finansa gider olarak düşer',
-      'Sayım → Excel tablosu (mobil barkod yakında)',
+      'Sayım → kamera barkod + Excel tablosu',
     ],
     tip: 'Alış modülü ikinci el cihaz alımı içindir; Stok yedek parça içindir.',
   },

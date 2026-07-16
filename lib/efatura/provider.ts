@@ -1,4 +1,8 @@
-/** e-Fatura entegratör adapter — NES / Logo / Mikro */
+/** e-Fatura entegratör adapter — stub | nes | logo */
+
+import { buildUblTrInvoice } from './ubl-builder'
+import { submitViaNes } from './nes-adapter'
+import { submitViaLogo } from './logo-adapter'
 
 export type EfaturaInvoicePayload = {
   invoice_no: string
@@ -16,41 +20,77 @@ export type EfaturaSubmitResult = {
   gib_reference?: string
   message: string
   provider: string
+  xml?: string
+}
+
+export type EfaturaProviderId = 'stub' | 'nes' | 'logo'
+
+export function getEfaturaProviderId(): EfaturaProviderId {
+  const p = (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
+  if (p === 'nes') return 'nes'
+  if (p === 'logo') return 'logo'
+  return 'stub'
 }
 
 export function getEfaturaProviderLabel(): string {
-  const p = (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
+  const p = getEfaturaProviderId()
   if (p === 'nes' && process.env.NES_EFATURA_API_KEY) return 'NES (aktif)'
   if (p === 'logo' && process.env.LOGO_EFATURA_URL) return 'Logo (aktif)'
-  return 'Test modu — GIB\'e gönderilmez'
+  if (p === 'nes') return 'NES (anahtar eksik)'
+  if (p === 'logo') return 'Logo (URL eksik)'
+  return "Test modu — GIB'e gönderilmez"
 }
 
-function providerName(): string {
-  return (process.env.EFATURA_PROVIDER || 'stub').toLowerCase()
+/** Sandbox / env hazırlık özeti — UI ve ops için */
+export function getEfaturaSandboxStatus(): {
+  provider: EfaturaProviderId
+  label: string
+  configured: boolean
+  sandboxReady: boolean
+  missing: string[]
+} {
+  const provider = getEfaturaProviderId()
+  const label = getEfaturaProviderLabel()
+  const missing: string[] = []
+
+  if (provider === 'nes') {
+    if (!process.env.NES_EFATURA_API_KEY?.trim()) missing.push('NES_EFATURA_API_KEY')
+  } else if (provider === 'logo') {
+    if (!process.env.LOGO_EFATURA_URL?.trim()) missing.push('LOGO_EFATURA_URL')
+  }
+
+  const configured = provider !== 'stub' && missing.length === 0
+  return {
+    provider,
+    label,
+    configured,
+    sandboxReady: configured,
+    missing,
+  }
 }
 
-/** Gerçek entegratör bağlandığında burada HTTP çağrısı yapılır */
 export async function submitInvoiceToGib(
   invoice: EfaturaInvoicePayload,
 ): Promise<EfaturaSubmitResult> {
-  const provider = providerName()
+  const xml = buildUblTrInvoice(invoice)
+  const provider = getEfaturaProviderId()
 
-  if (provider === 'nes' && process.env.NES_EFATURA_API_KEY) {
-    // NES API entegrasyonu — env ile aktif
-    const ref = `NES-${Date.now()}`
-    return { ok: true, gib_reference: ref, message: 'NES entegratörüne iletildi', provider: 'nes' }
+  if (provider === 'nes') {
+    const result = await submitViaNes(invoice, xml)
+    return { ...result, xml: result.xml || xml }
   }
 
-  if (provider === 'logo' && process.env.LOGO_EFATURA_URL) {
-    const ref = `LOGO-${Date.now()}`
-    return { ok: true, gib_reference: ref, message: 'Logo entegratörüne iletildi', provider: 'logo' }
+  if (provider === 'logo') {
+    const result = await submitViaLogo(invoice, xml)
+    return { ...result, xml: result.xml || xml }
   }
 
   const ref = `GIB-${Date.now()}-${invoice.invoice_no}`
   return {
     ok: true,
     gib_reference: ref,
-    message: 'Test modu: GIB\'e gönderilmedi — kuyruğa alındı (gelir artınca NES/Logo bağlanır)',
+    message: "Test modu: GIB'e gönderilmedi — UBL üretildi, kuyruğa alındı",
     provider: 'stub',
+    xml,
   }
 }

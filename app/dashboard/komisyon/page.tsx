@@ -1,43 +1,71 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Percent, Loader2 } from 'lucide-react'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
 import { getServiceOrders, getPersonnel, onStoreChange } from '@/lib/store'
-import { calcTechnicianCommissions } from '@/lib/erp-features'
+import { calcTechnicianCommissions, type CommissionRow } from '@/lib/erp-features'
 import { formatCurrency } from '@/lib/validators'
+
+type CommissionSummary = {
+  from?: string
+  to?: string
+  total_commission: number
+  total_revenue?: number
+  delivered_count?: number
+  technician_count?: number
+}
 
 export default function KomisyonPage() {
   const [mounted, setMounted] = useState(false)
-  const [rows, setRows] = useState<ReturnType<typeof calcTechnicianCommissions>>([])
+  const [rows, setRows] = useState<CommissionRow[]>([])
+  const [summary, setSummary] = useState<CommissionSummary>({ total_commission: 0 })
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/commissions', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok && json.ok) {
+        setRows(json.items ?? [])
+        setSummary(json.summary ?? { total_commission: 0 })
+        return
+      }
+    } catch { /* fallback below */ }
+
+    const localRows = calcTechnicianCommissions(getServiceOrders(), getPersonnel())
+    setRows(localRows)
+    setSummary({
+      total_commission: localRows.reduce((s, r) => s + r.commission_amount, 0),
+    })
+  }, [])
 
   useEffect(() => {
     setMounted(true)
-    const load = () => {
-      setRows(calcTechnicianCommissions(getServiceOrders(), getPersonnel()))
-    }
-    load()
-    return onStoreChange(m => { if (!m || m === 'service' || m === 'personnel') load() })
-  }, [])
+    void load()
+    return onStoreChange(m => { if (!m || m === 'service' || m === 'personnel') void load() })
+  }, [load])
 
   if (!mounted) {
     return <div className="flex justify-center py-32"><Loader2 className="animate-spin text-sky-500" size={28} /></div>
   }
 
-  const totalCommission = rows.reduce((s, r) => s + r.commission_amount, 0)
+  const totalCommission = summary.total_commission ?? rows.reduce((s, r) => s + r.commission_amount, 0)
 
   return (
     <PageShell>
       <PageHeader
         eyebrow="Personel"
         title="Teknisyen Komisyonu"
-        description="Teslim edilen servisler üzerinden prim hesaplama."
+        description="Teslim edilen servisler ve satışlar üzerinden prim hesaplama."
         icon={Percent}
       />
 
       <div className="surface p-5 rounded-2xl max-w-xs">
         <p className="text-xs font-bold text-slate-500 uppercase">Toplam Prim</p>
         <p className="text-3xl font-black text-sky-600">{formatCurrency(totalCommission)}</p>
+        {summary.from && summary.to && (
+          <p className="text-[10px] text-slate-400 mt-1">{summary.from} — {summary.to}</p>
+        )}
       </div>
 
       <PageCard title="Teknisyen Bazlı" noPadding>

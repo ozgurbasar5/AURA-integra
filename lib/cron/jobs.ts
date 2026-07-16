@@ -12,6 +12,7 @@ export type CronJobId =
   | 'payment-reminders'
   | 'appointment-reminders'
   | 'churn-interventions'
+  | 'efatura-queue'
 
 type PaymentRow = {
   id: string
@@ -348,6 +349,110 @@ export async function runChurnInterventionsJob() {
   }
 }
 
+export async function runEfaturaQueueJob() {
+  const admin = getServiceClient()
+  if (!admin) return { ok: false as const, status: 503, body: { error: 'Service unavailable' } }
+
+  const { submitInvoiceToGib, getEfaturaProviderId } = await import('@/lib/efatura/provider')
+
+  const { data: pending, error } = await admin
+    .from('efatura_queue')
+    .select('*')
+    .eq('status', 'pending')
+    .lt('retry_count', 5)
+    .order('created_at', { ascending: true })
+    .limit(20)
+
+  if (error) {
+    return { ok: false as const, status: 500, body: { error: error.message } }
+  }
+
+  const provider = getEfaturaProviderId()
+  const results: { id: string; ok: boolean; status?: string; error?: string }[] = []
+
+  for (const row of pending ?? []) {
+    await admin
+      .from('efatura_queue')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+
+    const payload = (row.payload ?? {}) as Record<string, unknown>
+    const invoice = {
+      invoice_no: String(payload.invoice_no ?? row.invoice_id),
+      customer_name: String(payload.customer_name ?? ''),
+      customer_vkn: payload.customer_vkn ? String(payload.customer_vkn) : null,
+      subtotal: Number(payload.subtotal ?? 0),
+      tax_amount: Number(payload.tax_amount ?? 0),
+      total: Number(payload.total ?? 0),
+      invoice_date: String(payload.invoice_date ?? new Date().toISOString().slice(0, 10)),
+      description: payload.description ? String(payload.description) : null,
+    }
+
+    // Stub: mark submitted with existing/fake ref — real providers attempt HTTP
+    if (provider === 'stub') {
+      const ref = row.gib_reference || `GIB-Q-${Date.now()}`
+      await admin
+        .from('efatura_queue')
+        .update({
+          status: 'submitted',
+          gib_reference: ref,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
+      results.push({ id: row.id, ok: true, status: 'submitted' })
+      continue
+    }
+
+    const result = await submitInvoiceToGib(invoice)
+    if (result.ok) {
+      await admin
+        .from('efatura_queue')
+        .update({
+          status: 'submitted',
+          gib_reference: result.gib_reference,
+          error_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
+      if (row.invoice_id) {
+        await admin
+          .from('invoices')
+          .update({
+            status: 'submitted',
+            gib_reference: result.gib_reference,
+            submitted_at: new Date().toISOString(),
+            ...(result.xml ? { xml_content: result.xml } : {}),
+          })
+          .eq('id', row.invoice_id)
+      }
+      results.push({ id: row.id, ok: true, status: 'submitted' })
+    } else {
+      const retries = Number(row.retry_count ?? 0) + 1
+      await admin
+        .from('efatura_queue')
+        .update({
+          status: retries >= 5 ? 'failed' : 'pending',
+          retry_count: retries,
+          error_message: result.message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
+      results.push({ id: row.id, ok: false, error: result.message })
+    }
+  }
+
+  return {
+    ok: true as const,
+    status: 200,
+    body: {
+      ok: true,
+      provider,
+      processed: results.length,
+      results,
+    },
+  }
+}
+
 export async function dispatchCronJob(job: CronJobId) {
   switch (job) {
     case 'trial-reminders':
@@ -358,6 +463,8 @@ export async function dispatchCronJob(job: CronJobId) {
       return runAppointmentRemindersJob()
     case 'churn-interventions':
       return runChurnInterventionsJob()
+    case 'efatura-queue':
+      return runEfaturaQueueJob()
     default:
       return { ok: false as const, status: 400, body: { error: 'Geçersiz job' } }
   }

@@ -208,7 +208,12 @@ export function saleToStore(row: Row): Sale {
   }
 }
 
-export function saleToDb(s: Sale, tenantId: string, userId?: string): Row {
+export function saleToDb(
+  s: Sale,
+  tenantId: string,
+  userId?: string,
+  opts?: { cash_shift_id?: string | null },
+): Row {
   return {
     id: s.id.match(/^[0-9a-f-]{36}$/i) ? s.id : undefined,
     tenant_id: tenantId,
@@ -224,7 +229,12 @@ export function saleToDb(s: Sale, tenantId: string, userId?: string): Row {
     expense_total: s.expense_total,
     payment_method: s.payment_method,
     sold_by: userId ?? null,
-    extra: { expenses: s.expenses, profit_margin: s.profit_margin, total_with_vat: s.total_with_vat },
+    extra: {
+      expenses: s.expenses,
+      profit_margin: s.profit_margin,
+      total_with_vat: s.total_with_vat,
+      ...(opts?.cash_shift_id ? { cash_shift_id: opts.cash_shift_id } : {}),
+    },
   }
 }
 
@@ -476,6 +486,8 @@ export function appointmentToStore(row: Row): Appointment {
     technician_name: row.technician_name ? String(row.technician_name) : undefined,
     status: APPT_STATUS_FROM_DB[st] ?? 'bekliyor',
     notes: row.notes ? String(row.notes) : undefined,
+    deposit_amount: Number(row.deposit_amount) || 0,
+    deposit_paid: Boolean(row.deposit_paid),
     created_at: String(row.created_at ?? new Date().toISOString()),
   }
 }
@@ -495,6 +507,8 @@ export function appointmentToDb(a: Appointment, tenantId: string): Row {
     technician_name: a.technician_name ?? null,
     status: APPT_STATUS_TO_DB[a.status] ?? 'beklemede',
     notes: a.notes ?? null,
+    deposit_amount: a.deposit_amount ?? 0,
+    deposit_paid: a.deposit_paid ?? false,
   }
 }
 
@@ -514,6 +528,7 @@ export function warrantyToStore(row: Row): WarrantyRecord {
     covered_parts: (row.covered_parts as string[]) ?? [],
     terms: row.terms ? String(row.terms) : undefined,
     status: (String(row.status ?? 'aktif') as WarrantyRecord['status']),
+    claim_status: (String(row.claim_status ?? 'yok') as WarrantyRecord['claim_status']),
     customer_name: row.customer_name ? String(row.customer_name) : undefined,
     order_no: row.order_no ? String(row.order_no) : undefined,
     created_at: String(row.created_at ?? new Date().toISOString()),
@@ -536,6 +551,7 @@ export function warrantyToDb(w: WarrantyRecord, tenantId: string): Row {
     covered_parts: w.covered_parts ?? [],
     terms: w.terms ?? null,
     status: w.status,
+    claim_status: w.claim_status ?? 'yok',
   }
 }
 
@@ -555,6 +571,7 @@ export function invoiceToStore(row: Row): InvoiceRecord {
     kdv_amount: Number(row.kdv_amount) || 0,
     total: Number(row.total) || 0,
     status: (String(row.status ?? 'taslak') as InvoiceRecord['status']),
+    gib_reference: row.gib_reference ? String(row.gib_reference) : undefined,
     created_at: String(row.created_at ?? new Date().toISOString()),
   }
 }
@@ -574,6 +591,7 @@ export function invoiceToDb(inv: InvoiceRecord, tenantId: string): Row {
     kdv_amount: inv.kdv_amount,
     total: inv.total,
     status: inv.status,
+    gib_reference: inv.gib_reference ?? null,
   }
 }
 

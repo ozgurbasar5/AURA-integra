@@ -5,6 +5,8 @@ import { getSessionUser, resolveSuperAdminAccess } from '@/lib/supabase/auth-hel
 
 const AdminSidebar = dynamic(() => import('@/components/layout/AdminSidebar'), { ssr: false })
 const AdminOnboardingTour = dynamic(() => import('@/components/admin/AdminOnboardingTour'), { ssr: false })
+const AdminTopBar = dynamic(() => import('@/components/admin/AdminTopBar'), { ssr: false })
+const ConnectionStatusBanner = dynamic(() => import('@/components/ConnectionStatusBanner'), { ssr: false })
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -29,8 +31,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         )}
         <div className="flex flex-1 overflow-hidden min-w-0">
           <AdminSidebar user={{ email: user.email ?? '', full_name: auth.data.full_name }} />
-          <main className="flex-1 overflow-y-auto min-w-0 pt-14 lg:pt-0">
-            <div className="page-wrapper">{children}</div>
+          <main className="flex-1 overflow-y-auto min-w-0 pt-14 lg:pt-0 flex flex-col">
+            <AdminTopBar />
+            <ConnectionStatusBanner compact />
+            <div className="page-wrapper flex-1">{children}</div>
           </main>
         </div>
         <AdminOnboardingTour />

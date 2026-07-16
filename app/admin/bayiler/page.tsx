@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, Search, Filter, MoreHorizontal, X, Loader2, Building2, Check, Pencil, Trash2, PauseCircle, LogIn, Activity, Mail, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency, TENANT_STATUS_COLORS, TENANT_STATUS_LABELS } from '@/lib/utils'
@@ -36,6 +37,7 @@ function getExpiryStatus(endDate: string) {
 }
 
 export default function BayilerPage() {
+  const router = useRouter()
   const [tenants, setTenants] = useState<(Tenant & { _user_count?: number })[]>([])
   const [plans,   setPlans]   = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,17 +111,18 @@ export default function BayilerPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
-    if (loading || tenants.length === 0) return
+    if (loading) return
     const params = new URLSearchParams(window.location.search)
+    const q = params.get('q')
+    if (q) setSearch(q)
+    if (tenants.length === 0) return
     const id = params.get('highlight')
     if (!id) return
     const t = tenants.find(x => x.id === id)
     if (t) {
-      setSelectedTenant(t)
-      setDrawerOpen(true)
-      window.history.replaceState({}, '', '/admin/bayiler')
+      router.replace(`/admin/bayiler/${t.id}`)
     }
-  }, [loading, tenants])
+  }, [loading, tenants, router])
 
   // Dropdown menüyü dışarı tıklayınca kapat
   useEffect(() => {
@@ -135,8 +138,7 @@ export default function BayilerPage() {
 
   const handleEdit = (t: Tenant) => {
     setOpenMenuId(null)
-    setSelectedTenant(t)
-    setDrawerOpen(true)
+    router.push(`/admin/bayiler/${t.id}`)
   }
 
   const handleDelete = async (t: Tenant) => {
@@ -427,7 +429,7 @@ export default function BayilerPage() {
                     <tr
                       key={t.id}
                       className="cursor-pointer"
-                      onClick={() => { setSelectedTenant(t); setDrawerOpen(true) }}
+                      onClick={() => router.push(`/admin/bayiler/${t.id}`)}
                     >
                       <td>
                         <div className="flex items-center gap-3">

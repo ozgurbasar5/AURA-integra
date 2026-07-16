@@ -97,6 +97,10 @@ const STATUS_BADGE: Record<ServiceOrderStatus, { label: string; classes: string 
     label: 'Kalite Kontrol',
     classes: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
   },
+  teslime_hazir: {
+    label: 'Teslime Hazır',
+    classes: 'bg-teal-500/20 text-teal-300 border border-teal-500/40',
+  },
   teslim: {
     label: 'Teslim Edildi',
     classes: 'bg-green-500/20 text-green-300 border border-green-500/40',

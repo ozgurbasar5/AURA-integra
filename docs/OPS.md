@@ -9,7 +9,13 @@
 ## Uptime izleme
 
 - Endpoint: `https://integra.aurabilisim.net/api/health/supabase`
-- Beklenen: `{ "ok": true }` ve `env.ok === true` (dev)
+- Beklenen: `{ "ok": true }` (+ canlı reachability; TLS/DNS bozulursa `hint` döner)
+- Pilot checklist: [PILOT-CHECKLIST.md](./PILOT-CHECKLIST.md)
+
+## POS atomik satış
+
+- Migration: `supabase/migrations/20260716_pos_sale_atomic.sql` → `complete_pos_sale`
+- Uygulanmazsa API legacy + stok rollback kullanır
 
 ## Webhook hataları
 
@@ -56,6 +62,7 @@ Lokal SMTP test: `npm run test:smtp` (alıcı opsiyonel: `npm run test:smtp -- s
 | `GET /api/cron/payment-reminders` | 10:00 günlük | Vadesi yaklaşan + gecikmiş ödemeler |
 | `GET /api/cron/churn-interventions` | 11:00 günlük | Düşük health skoru — otomatik e-posta |
 | `GET /api/cron/appointment-reminders` | 18:00 günlük | Yarınki randevu SMS |
+| `GET /api/cron/efatura-queue` | her 15 dk | e-Fatura kuyruk (stub/NES/Logo) |
 
 Admin panel: **Operasyon → Zamanlanmış Görevler** — manuel tetikleme.
 
@@ -89,8 +96,27 @@ Production SQL Editor'da sırayla çalıştırın (`npm run check:migrations` do
 | `20260626_service_order_device_images.sql` | Cihaz fotoğrafları JSONB |
 | `20260627_user_onboarding_flags.sql` | Sihirbaz/tur bir kez |
 | `20260628_maturity_sprint.sql` | Storage bucket, e-Fatura kuyruk, AI kota tabloları |
+| `20260713_platform_yenilikler.sql` | Platform yenilikler CMS + okundu takibi |
 
 Storage bucket oluşturulduktan sonra cihaz fotoğrafları URL olarak saklanır (base64 yerine).
+
+## Mobil & PWA
+
+- **PWA:** Web dashboard installable (`manifest.json`, `PwaInstallBanner`) — tam bayi erişimi
+- **Expo:** `mobile/` — tezgahtar saha kabuğu (kabul, atölye, satış, sayım, kasa); `npm run mobile`
+- **Email 2FA:** `WHATSAPP` değil — `EMAIL_2FA` / login MFA (`/api/auth/email-2fa`, `mfa-verify`)
+
+## WhatsApp / e-Fatura env
+
+| Değişken | Amaç |
+|----------|------|
+| `WHATSAPP_PROVIDER` | `meta_cloud` \| `wa_me` \| `stub` (boş + token varsa otomatik Meta) |
+| `WHATSAPP_ACCESS_TOKEN` | Meta Cloud |
+| `WHATSAPP_PHONE_NUMBER_ID` | Meta Cloud |
+| `EFATURA_PROVIDER` | `stub` \| `nes` \| `logo` |
+| `NES_EFATURA_API_KEY` / `LOGO_EFATURA_URL` | Entegratör |
+
+Admin: Operasyon → Zamanlanmış Görevler → **e-Fatura Kuyruk**
 
 ## AI kota env
 

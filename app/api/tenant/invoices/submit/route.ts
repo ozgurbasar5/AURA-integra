@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       status: 'submitted',
       gib_reference: result.gib_reference,
       submitted_at: new Date().toISOString(),
+      ...(result.xml ? { xml_content: result.xml } : {}),
     })
     .eq('id', body.invoice_id)
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     await admin.from('efatura_queue').insert({
       tenant_id: auth.tenantId,
       invoice_id: body.invoice_id,
-      payload: invoice,
+      payload: { ...invoice, xml_content: result.xml },
       status: result.provider === 'stub' ? 'pending' : 'submitted',
       gib_reference: result.gib_reference,
     })
@@ -90,5 +91,6 @@ export async function POST(req: NextRequest) {
     gib_reference: result.gib_reference,
     provider: result.provider,
     message: result.message,
+    has_xml: Boolean(result.xml),
   })
 }

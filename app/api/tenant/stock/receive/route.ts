@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
     total_cost?: number
     supplier?: string
     item_name?: string
+    payment_method?: string
+    /** Aynı referans ikinci kez stok girmesin (alış / tedarik id) */
+    reference_id?: string
   }
   try {
     body = await req.json()
@@ -38,6 +41,23 @@ export async function POST(req: NextRequest) {
 
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
+
+  if (body.reference_id && isUuid(body.reference_id)) {
+    const { data: prior } = await admin
+      .from('stock_movements')
+      .select('id')
+      .eq('tenant_id', auth.tenantId)
+      .eq('reference_id', body.reference_id)
+      .eq('movement_type', 'giris')
+      .limit(1)
+      .maybeSingle()
+    if (prior) {
+      return NextResponse.json({
+        error: 'Bu referans için stok zaten girilmiş (çift kayıt engellendi)',
+        code: 'DUPLICATE_RECEIVE',
+      }, { status: 409 })
+    }
+  }
 
   const { data: part, error: fetchErr } = await admin
     .from('parts')
@@ -62,28 +82,47 @@ export async function POST(req: NextRequest) {
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
   const itemName = body.item_name || String(part.name ?? 'Parça')
+  const paymentMethod = normalizePaymentMethod(body.payment_method || 'havale')
+  const refId = body.reference_id && isUuid(body.reference_id) ? body.reference_id : crypto.randomUUID()
+
+  await admin.from('stock_movements').insert({
+    tenant_id: auth.tenantId,
+    part_id: partId,
+    movement_type: 'giris',
+    quantity: qty,
+    notes: `Stok alımı — ${itemName}`,
+    reference_id: refId,
+    created_by: auth.userId,
+  })
+
   const { error: txErr } = await admin.from('financial_transactions').insert({
     tenant_id: auth.tenantId,
     type: 'gider',
     description: `Stok alımı — ${itemName} (${qty} adet)`,
     category: 'Tedarikçi',
     amount: totalCost,
-    payment_method: normalizePaymentMethod('havale'),
+    payment_method: paymentMethod,
     transaction_date: new Date().toISOString(),
     created_by: auth.userId,
+    reference_id: refId,
   })
   if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 })
 
-  const { data: kasaBalance, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
-    p_tenant_id: auth.tenantId,
-    p_delta: -totalCost,
-  })
-  if (kasaErr) return NextResponse.json({ error: kasaErr.message }, { status: 500 })
+  // Havale varsayılan; nakit kasa yalnızca nakit ödemede düşer
+  let kasaBalance: number | undefined
+  if (paymentMethod === 'nakit' && totalCost > 0) {
+    const { data: bal, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
+      p_tenant_id: auth.tenantId,
+      p_delta: -totalCost,
+    })
+    if (kasaErr) return NextResponse.json({ error: kasaErr.message }, { status: 500 })
+    kasaBalance = Number(bal)
+  }
 
   return NextResponse.json({
     ok: true,
     item: updated,
     stock_item: partToStock(updated as Record<string, unknown>),
-    kasa_balance: Number(kasaBalance),
+    kasa_balance: kasaBalance,
   })
 }

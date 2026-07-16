@@ -365,12 +365,14 @@ export default function TenantSidebar({ tenant, user, onOpenSearch }: Props) {
 
   return (
     <>
+      {/* Floating hamburger only when bottom nav is hidden (tablet landscape / rare) — phone uses bottom Menü */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed z-50 p-2.5 rounded-xl bg-slate-900 text-white shadow-lg"
+        className="hidden fixed z-50 p-2.5 rounded-xl bg-slate-900 text-white shadow-lg"
         style={{ top: 'max(1rem, env(safe-area-inset-top, 0px))', left: 'max(1rem, env(safe-area-inset-left, 0px))' }}
         aria-label="Menüyü aç"
+        data-testid="mobile-hamburger"
       >
         <Menu size={20} />
       </button>

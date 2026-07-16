@@ -1,16 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
   FileText, Search, Plus, X, Download, Send,
   CheckCircle, Clock, XCircle, Eye, Printer, AlertTriangle
 } from 'lucide-react'
 import PageHeader from '@/components/dashboard/PageHeader'
-import { useStoreSlice } from '@/hooks/useStoreSlice'
 import { useFeatureFlags } from '@/hooks/useFeatureFlags'
 import { isFeatureEnabled } from '@/lib/feature-flags'
-import { getInvoices, setInvoices, addInvoice, type InvoiceRecord } from '@/lib/store'
+import { type InvoiceRecord } from '@/lib/store'
 import { formatCurrency, formatDate } from '@/lib/validators'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof CheckCircle }> = {
@@ -35,7 +34,8 @@ const emptyForm: {
 }
 
 export default function FaturaPage() {
-  const { items: invoices, saveAll, mounted } = useStoreSlice(getInvoices, setInvoices, 'invoices')
+  const [invoices, setInvoicesState] = useState<InvoiceRecord[]>([])
+  const [mounted, setMounted] = useState(false)
   const { flags, loading: flagsLoading } = useFeatureFlags()
   const efaturaEnabled = flags ? isFeatureEnabled(flags, 'efatura') : false
   const [search, setSearch] = useState('')
@@ -44,13 +44,39 @@ export default function FaturaPage() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [efaturaProvider, setEfaturaProvider] = useState('')
+  const [queueInfo, setQueueInfo] = useState<{
+    pending: number; processing: number; failed: number; done: number
+    sandboxReady?: boolean; missing?: string[]
+    recent?: Array<{ id: string; status?: string; gib_reference?: string; last_error?: string; updated_at?: string }>
+  } | null>(null)
+
+  const loadInvoices = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/invoices', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok) setInvoicesState(json.items ?? [])
+    } catch { /* ignore */ }
+    finally { setMounted(true) }
+  }, [])
 
   useEffect(() => {
+    void loadInvoices()
     fetch('/api/tenant/efatura-status', { credentials: 'same-origin' })
       .then(r => r.json())
-      .then(json => setEfaturaProvider(json.provider ?? ''))
+      .then(json => {
+        setEfaturaProvider(json.provider ?? '')
+        setQueueInfo(json.queue ? {
+          ...json.queue,
+          sandboxReady: json.sandboxReady,
+          missing: json.missing,
+        } : null)
+      })
       .catch(() => {})
-  }, [])
+  }, [loadInvoices])
+
+  function saveAll(next: InvoiceRecord[]) {
+    setInvoicesState(next)
+  }
 
   if (!mounted || flagsLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -90,13 +116,14 @@ export default function FaturaPage() {
         )
         saveAll(updated)
         toast.success(json.message || 'GIB kuyruğuna alındı (test modu)')
+        void loadInvoices()
       } else {
         toast.error(json.error || 'Gönderilemedi')
       }
     })()
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!form.customer_name || form.unit_price <= 0) { toast.error('Müşteri ve tutar zorunlu'); return }
     if (form.invoice_type === 'efatura' && !efaturaEnabled) {
       toast.error('e-Fatura özelliği aktif değil')
@@ -106,24 +133,46 @@ export default function FaturaPage() {
     const kdv = subtotal * 0.2
     const prefix = form.invoice_type === 'efatura' ? 'FAT' : 'ARA'
     const no = `${prefix}${new Date().getFullYear()}${String(Date.now()).slice(-6)}`
-    addInvoice({
-      invoice_type: form.invoice_type,
-      invoice_no: no,
-      invoice_date: new Date().toISOString().split('T')[0],
-      customer_name: form.customer_name,
-      customer_vkn: form.customer_vkn || undefined,
-      order_no: form.order_no || undefined,
-      items: [{ description: form.description || 'Hizmet', quantity: form.quantity, unit_price: form.unit_price, kdv_rate: 20 }],
-      subtotal, kdv_amount: kdv, total: subtotal + kdv, status: 'taslak',
-    })
-    toast.success('Fatura oluşturuldu')
-    setForm(emptyForm)
-    setShowNewModal(false)
+    try {
+      const res = await fetch('/api/tenant/invoices', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_type: form.invoice_type,
+          invoice_no: no,
+          invoice_date: new Date().toISOString().split('T')[0],
+          customer_name: form.customer_name,
+          customer_vkn: form.customer_vkn || undefined,
+          order_no: form.order_no || undefined,
+          items: [{ description: form.description || 'Hizmet', quantity: form.quantity, unit_price: form.unit_price, kdv_rate: 20 }],
+          subtotal, kdv_amount: kdv, total: subtotal + kdv, status: 'taslak',
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Oluşturulamadı')
+      toast.success('Fatura oluşturuldu')
+      setForm(emptyForm)
+      setShowNewModal(false)
+      await loadInvoices()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Oluşturulamadı')
+    }
   }
 
-  function sendInvoice(id: string) {
-    saveAll(invoices.map(i => i.id === id ? { ...i, status: 'gonderildi' as const } : i))
-    toast.success('Fatura gönderildi')
+  async function sendInvoice(id: string) {
+    try {
+      await fetch('/api/tenant/invoices', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'gonderildi' }),
+      })
+      saveAll(invoices.map(i => i.id === id ? { ...i, status: 'gonderildi' as const } : i))
+      toast.success('Fatura gönderildi')
+    } catch {
+      toast.error('Gönderilemedi')
+    }
   }
 
   function printInvoice(inv: InvoiceRecord) {
@@ -163,6 +212,59 @@ export default function FaturaPage() {
         description={efaturaProvider ? `GİB uyumlu fatura — Entegratör: ${efaturaProvider}` : 'GİB uyumlu fatura yönetimi'}
         actions={<button data-tour="fatura-yeni-btn" onClick={() => setShowNewModal(true)} className="btn-primary text-sm flex items-center gap-1.5"><Plus size={14} /> Yeni Fatura</button>}
       />
+
+      {(!queueInfo?.sandboxReady || efaturaProvider.toLowerCase().includes('test') || efaturaProvider.toLowerCase().includes('stub')) && (
+        <div
+          className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 flex gap-3 items-start"
+          data-tour="efatura-stub-uyari"
+        >
+          <AlertTriangle className="text-sky-600 shrink-0 mt-0.5" size={18} />
+          <div className="text-sm text-sky-950">
+            <p className="font-bold">e-Fatura opsiyonel — şu an test / stub modu</p>
+            <p className="mt-1 text-sky-900/90">
+              Çekirdek ERP (servis, stok, POS, kasa) e-Fatura olmadan çalışır. GİB’e gerçek gönderim için{' '}
+              <code className="text-xs bg-sky-100 px-1 rounded">EFATURA_PROVIDER=nes|logo</code> ve API anahtarları gerekir.
+              Ayrıntı: docs/EFATURA-ROADMAP.md
+            </p>
+          </div>
+        </div>
+      )}
+
+      {queueInfo && (
+        <div className="card p-4 space-y-3 border border-sky-100 bg-sky-50/40">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-slate-800">e-Fatura kuyruk durumu</p>
+            <span className="text-xs text-slate-500">
+              {queueInfo.sandboxReady ? 'Sandbox hazır' : (queueInfo.missing?.length ? `Eksik: ${queueInfo.missing.join(', ')}` : 'Test / stub modu')}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { label: 'Bekleyen', val: queueInfo.pending },
+              { label: 'İşleniyor', val: queueInfo.processing },
+              { label: 'Tamam', val: queueInfo.done },
+              { label: 'Hatalı', val: queueInfo.failed },
+            ].map(m => (
+              <div key={m.label} className="rounded-lg bg-white border border-slate-100 px-3 py-2">
+                <p className="text-lg font-black tabular-nums text-slate-900">{m.val}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{m.label}</p>
+              </div>
+            ))}
+          </div>
+          {queueInfo.recent && queueInfo.recent.length > 0 && (
+            <ul className="text-xs text-slate-600 space-y-1 max-h-28 overflow-auto">
+              {queueInfo.recent.slice(0, 5).map(r => (
+                <li key={r.id} className="flex justify-between gap-2">
+                  <span className="font-mono truncate">{r.gib_reference || r.id.slice(0, 8)}</span>
+                  <span className={r.status === 'failed' ? 'text-red-600' : 'text-slate-500'}>
+                    {r.status}{r.last_error ? ` — ${r.last_error.slice(0, 40)}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Metrikler */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

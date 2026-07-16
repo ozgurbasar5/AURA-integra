@@ -6,10 +6,11 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { PageShell, PageHeader, PageCard, EmptyState } from '@/components/ui/PageShell'
 import {
-  getSupplierOrders, addSupplierOrder, updateSupplierOrderStatus,
-  getServiceOrders, onStoreChange, type SupplierOrder,
+  getSupplierOrders, upsertSupplierOrder, updateSupplierOrderStatus,
+  getServiceOrders, onStoreChange, upsertStockItem, type SupplierOrder,
 } from '@/lib/store'
 import { formatCurrency } from '@/lib/validators'
+import type { StockItem } from '@/lib/store'
 
 const STATUS: Record<string, string> = {
   pending: 'Bekliyor',
@@ -34,31 +35,134 @@ export default function TedarikPage() {
 
   const refresh = useCallback(() => setOrders(getSupplierOrders()), [])
 
-  useEffect(() => {
-    setMounted(true)
-    refresh()
-    return onStoreChange(m => { if (!m || m === 'supplier') refresh() })
+  const loadFromApi = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/supplier-orders', { credentials: 'same-origin' })
+      if (!res.ok) return
+      const json = await res.json() as { items?: Array<Record<string, unknown>> }
+      for (const row of json.items ?? []) {
+        upsertSupplierOrder({
+          id: String(row.id),
+          order_no: String(row.order_no ?? ''),
+          supplier_name: String(row.supplier_name ?? ''),
+          supplier_phone: row.supplier_phone ? String(row.supplier_phone) : undefined,
+          service_order_id: row.service_order_id ? String(row.service_order_id) : undefined,
+          service_job_no: row.service_job_no ? String(row.service_job_no) : undefined,
+          items: Array.isArray(row.items) ? row.items as SupplierOrder['items'] : [],
+          total: Number(row.total) || 0,
+          status: (String(row.status || 'pending') as SupplierOrder['status']),
+          notes: row.notes ? String(row.notes) : undefined,
+          created_at: String(row.created_at ?? new Date().toISOString()),
+        })
+      }
+      refresh()
+    } catch {
+      /* offline — cache */
+    }
   }, [refresh])
 
-  function handleCreate(e: React.FormEvent) {
+  useEffect(() => {
+    setMounted(true)
+    void loadFromApi()
+    return onStoreChange(m => { if (!m || m === 'supplier') refresh() })
+  }, [refresh, loadFromApi])
+
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!form.supplier_name || !form.item_name) { toast.error('Tedarikçi ve parça adı zorunlu'); return }
     const qty = Number(form.qty) || 1
     const unit = Number(form.unit_price) || 0
     const svc = getServiceOrders().find(o => o.id === form.service_order_id)
-    addSupplierOrder({
-      supplier_name: form.supplier_name,
-      supplier_phone: form.supplier_phone || undefined,
-      service_order_id: form.service_order_id || undefined,
-      service_job_no: svc?.job_no,
-      items: [{ name: form.item_name, qty, unit_price: unit }],
-      total: qty * unit,
-      notes: form.notes || undefined,
-    })
-    toast.success('Tedarik siparişi oluşturuldu')
-    setShowForm(false)
-    setForm({ supplier_name: '', supplier_phone: '', service_order_id: '', item_name: '', qty: '1', unit_price: '', notes: '' })
-    refresh()
+    try {
+      const res = await fetch('/api/tenant/supplier-orders', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier_name: form.supplier_name,
+          supplier_phone: form.supplier_phone || undefined,
+          service_order_id: form.service_order_id || undefined,
+          service_job_no: svc?.job_no,
+          items: [{ name: form.item_name, qty, unit_price: unit }],
+          notes: form.notes || undefined,
+        }),
+      })
+      const json = await res.json() as { error?: string; item?: Record<string, unknown> }
+      if (!res.ok || !json.item) {
+        toast.error(json.error || 'Oluşturulamadı')
+        return
+      }
+      const row = json.item
+      upsertSupplierOrder({
+        id: String(row.id),
+        order_no: String(row.order_no ?? ''),
+        supplier_name: String(row.supplier_name ?? form.supplier_name),
+        supplier_phone: row.supplier_phone ? String(row.supplier_phone) : undefined,
+        service_order_id: form.service_order_id || undefined,
+        service_job_no: svc?.job_no,
+        items: [{ name: form.item_name, qty, unit_price: unit }],
+        total: Number(row.total) || qty * unit,
+        status: 'pending',
+        notes: form.notes || undefined,
+        created_at: String(row.created_at ?? new Date().toISOString()),
+      })
+      toast.success('Tedarik siparişi oluşturuldu')
+      setShowForm(false)
+      setForm({ supplier_name: '', supplier_phone: '', service_order_id: '', item_name: '', qty: '1', unit_price: '', notes: '' })
+      refresh()
+    } catch {
+      toast.error('Bağlantı hatası')
+    }
+  }
+
+  async function handleStatusChange(order: SupplierOrder, next: SupplierOrder['status']) {
+    if (next === 'received' && order.status !== 'received') {
+      try {
+        const res = await fetch('/api/tenant/supplier-orders/receive', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: order.id,
+            items: order.items,
+            supplier_name: order.supplier_name,
+            post_finance: true,
+          }),
+        })
+        const json = await res.json() as { error?: string; stock_items?: StockItem[]; total_cost?: number }
+        if (!res.ok) {
+          toast.error(json.error || 'Stok girişi başarısız')
+          return
+        }
+        for (const item of json.stock_items ?? []) {
+          upsertStockItem(item, { silent: true })
+        }
+        updateSupplierOrderStatus(order.id, 'received')
+        toast.success(`Teslim alındı — stoka işlendi (${formatCurrency(json.total_cost ?? order.total)})`)
+        refresh()
+        return
+      } catch {
+        toast.error('Bağlantı hatası — stok girilemedi')
+        return
+      }
+    }
+    try {
+      const res = await fetch('/api/tenant/supplier-orders', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id, status: next }),
+      })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) {
+        toast.error(json.error || 'Durum güncellenemedi')
+        return
+      }
+      updateSupplierOrderStatus(order.id, next)
+      refresh()
+    } catch {
+      toast.error('Bağlantı hatası')
+    }
   }
 
   if (!mounted) {
@@ -103,7 +207,7 @@ export default function TedarikPage() {
                 <select
                   className="select text-xs py-1.5"
                   value={o.status}
-                  onChange={e => { updateSupplierOrderStatus(o.id, e.target.value as SupplierOrder['status']); refresh() }}
+                  onChange={e => { void handleStatusChange(o, e.target.value as SupplierOrder['status']) }}
                 >
                   {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>

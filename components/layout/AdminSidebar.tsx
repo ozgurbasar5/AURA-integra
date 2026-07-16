@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
-  Zap, ClipboardList, LogOut, Users, BookOpen, Menu, X,
-  Shield, Webhook, Clock,
+  Zap, ClipboardList, LogOut, BookOpen, Menu, X,
+  Activity, Sparkles,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { TOUR_PREPARE_EVENT, TOUR_MOBILE_SIDEBAR_EVENT } from '@/lib/onboarding/tour-targets'
@@ -18,7 +18,6 @@ const SECTIONS = [
     items: [
       { href: '/admin/basvurular', icon: ClipboardList, label: 'Başvurular' },
       { href: '/admin/bayiler', icon: Building2, label: 'Bayi Yönetimi' },
-      { href: '/admin/bayiler/kullanicilari', icon: Users, label: 'Bayi Kullanıcıları' },
     ],
   },
   {
@@ -32,15 +31,14 @@ const SECTIONS = [
     id: 'operasyon',
     label: 'Operasyon',
     items: [
-      { href: '/admin/operasyon/audit', icon: Shield, label: 'Denetim Kayıtları' },
-      { href: '/admin/operasyon/webhook', icon: Webhook, label: 'Webhook Hataları' },
-      { href: '/admin/operasyon/cron', icon: Clock, label: 'Zamanlanmış Görevler' },
+      { href: '/admin/operasyon', icon: Activity, label: 'Operasyon Merkezi' },
     ],
   },
   {
     id: 'sistem',
     label: 'Sistem',
     items: [
+      { href: '/admin/yenilikler', icon: Sparkles, label: 'Yenilikler' },
       { href: '/admin/dokumantasyon', icon: BookOpen, label: 'Dokümantasyon' },
       { href: '/admin/ayarlar', icon: Settings, label: 'Ayarlar' },
     ],
@@ -109,6 +107,19 @@ export default function AdminSidebar({ user }: Props) {
             })}
           </div>
         ))}
+        {/* Bayi kullanıcıları — Bayiler bağlamında secondary */}
+        <Link
+          href="/admin/bayiler/kullanicilari"
+          onClick={onNavigate}
+          data-tour-nav="/admin/bayiler/kullanicilari"
+          className={`relative flex items-center gap-3 px-3 py-1.5 ml-3 rounded-lg text-xs font-medium transition-all ${
+            pathname.startsWith('/admin/bayiler/kullanicilari')
+              ? 'text-sky-300'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          → Bayi kullanıcıları
+        </Link>
       </>
     )
   }
