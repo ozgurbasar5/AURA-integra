@@ -17,7 +17,7 @@ export const SUPABASE_ANON_KEY =
 export const API_BASE_URL =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ||
   (extra.apiUrl as string | undefined) ||
-  'http://localhost:3000'
+  'https://integra.aurabilisim.net'
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
 

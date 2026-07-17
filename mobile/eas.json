@@ -9,6 +9,11 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://integra.aurabilisim.net",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dipyrdidkvljojkyaqmd.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcHlyZGlka3Zsam9qa3lhcW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzY3NjgsImV4cCI6MjA5NTY1Mjc2OH0.6p1Yuqe1UmP-IQ4rO3zWjI2_oz22y46OHmcGkEVygFc"
       }
     },
     "preview": {
@@ -17,7 +22,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://integra.aurabilisim.net"
+        "EXPO_PUBLIC_API_URL": "https://integra.aurabilisim.net",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dipyrdidkvljojkyaqmd.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcHlyZGlka3Zsam9qa3lhcW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzY3NjgsImV4cCI6MjA5NTY1Mjc2OH0.6p1Yuqe1UmP-IQ4rO3zWjI2_oz22y46OHmcGkEVygFc"
       }
     },
     "production": {
@@ -26,7 +33,9 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://integra.aurabilisim.net"
+        "EXPO_PUBLIC_API_URL": "https://integra.aurabilisim.net",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dipyrdidkvljojkyaqmd.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcHlyZGlka3Zsam9qa3lhcW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzY3NjgsImV4cCI6MjA5NTY1Mjc2OH0.6p1Yuqe1UmP-IQ4rO3zWjI2_oz22y46OHmcGkEVygFc"
       }
     }
   },

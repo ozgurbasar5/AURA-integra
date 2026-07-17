@@ -89,6 +89,8 @@
     },
     "extra": {
       "apiUrl": "https://integra.aurabilisim.net",
+      "supabaseUrl": "https://dipyrdidkvljojkyaqmd.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcHlyZGlka3Zsam9qa3lhcW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzY3NjgsImV4cCI6MjA5NTY1Mjc2OH0.6p1Yuqe1UmP-IQ4rO3zWjI2_oz22y46OHmcGkEVygFc",
       "eas": {
         "projectId": "b677e1a8-f4d2-411d-8907-4439cd6bc69c"
       }
