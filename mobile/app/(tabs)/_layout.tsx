@@ -1,15 +1,20 @@
 import React from 'react'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
+import { Platform, StyleSheet } from 'react-native'
 import { Tabs } from 'expo-router'
 import { AuraColors } from '@/constants/AuraColors'
 import { useAuth } from '@/lib/auth'
 import { isMobileTabAllowed, type MobileTab } from '@/lib/role-tabs'
 
 function TabIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string }) {
-  return <FontAwesome size={20} style={{ marginBottom: -2 }} {...props} />
+  return <FontAwesome size={22} style={{ marginBottom: -1 }} {...props} />
 }
 
+/** Alt barda sadece ana operasyon sekmeleri — diğerleri Ana ekrandan */
+const PRIMARY_TABS: MobileTab[] = ['index', 'kabul', 'atolye', 'satis', 'kasa']
+
 function href(tab: MobileTab, role?: string | null) {
+  if (!PRIMARY_TABS.includes(tab)) return null
   return isMobileTabAllowed(tab, role) ? undefined : null
 }
 
@@ -22,14 +27,24 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: AuraColors.primary,
         tabBarInactiveTintColor: AuraColors.muted,
-        headerStyle: { backgroundColor: AuraColors.card },
-        headerTitleStyle: { fontWeight: '800', color: AuraColors.text },
+        headerStyle: {
+          backgroundColor: AuraColors.card,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: AuraColors.border,
+        },
+        headerTitleStyle: { fontWeight: '800', color: AuraColors.text, fontSize: 17 },
         tabBarStyle: {
           backgroundColor: AuraColors.card,
           borderTopColor: AuraColors.border,
-          minHeight: 56,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: Platform.OS === 'ios' ? 84 : 64,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
         },
-        tabBarLabelStyle: { fontSize: 10 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+        tabBarItemStyle: { paddingVertical: 2 },
       }}
     >
       <Tabs.Screen
@@ -65,38 +80,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="cari"
-        options={{
-          title: 'Cari',
-          href: href('cari', role),
-          tabBarIcon: ({ color }) => <TabIcon name="book" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="vitrin"
-        options={{
-          title: 'Vitrin',
-          href: href('vitrin', role),
-          tabBarIcon: ({ color }) => <TabIcon name="mobile" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="alis"
-        options={{
-          title: 'Alış',
-          href: href('alis', role),
-          tabBarIcon: ({ color }) => <TabIcon name="truck" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="sayim"
-        options={{
-          title: 'Sayım',
-          href: href('sayim', role),
-          tabBarIcon: ({ color }) => <TabIcon name="barcode" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="kasa"
         options={{
           title: 'Kasa',
@@ -104,6 +87,11 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="money" color={color} />,
         }}
       />
+      {/* İkincil — alt barda gizli, Ana ekrandan erişilir */}
+      <Tabs.Screen name="cari" options={{ href: null, title: 'Cari' }} />
+      <Tabs.Screen name="vitrin" options={{ href: null, title: 'Vitrin' }} />
+      <Tabs.Screen name="alis" options={{ href: null, title: 'Alış' }} />
+      <Tabs.Screen name="sayim" options={{ href: null, title: 'Sayım' }} />
     </Tabs>
   )
 }

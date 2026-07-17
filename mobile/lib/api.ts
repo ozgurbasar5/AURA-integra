@@ -63,12 +63,21 @@ export async function apiUpload(path: string, form: FormData) {
   return json
 }
 
-export async function checkApiHealth(): Promise<{ ok: boolean; hint?: string | null }> {
+export async function checkApiHealth(): Promise<{ ok: boolean; hint?: string | null; status?: number }> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/health/supabase`, { cache: 'no-store' })
-    const json = await res.json() as { ok?: boolean; hint?: string | null; reachability?: { ok?: boolean } }
-    const ok = json.ok !== false && json.reachability?.ok !== false
-    return { ok, hint: json.hint }
+    if (res.status === 404) {
+      return { ok: false, hint: 'API bulunamadı (404) — web deploy güncel mi?', status: 404 }
+    }
+    const json = await res.json().catch(() => ({})) as {
+      ok?: boolean
+      hint?: string | null
+      reachability?: { ok?: boolean }
+    }
+    // reachability yoksa sadece ok alanına bak
+    const reachBad = json.reachability != null && json.reachability.ok === false
+    const ok = res.ok && json.ok !== false && !reachBad
+    return { ok, hint: json.hint ?? (ok ? null : `Sağlık HTTP ${res.status}`), status: res.status }
   } catch (e) {
     return { ok: false, hint: networkHint(e) }
   }

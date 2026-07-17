@@ -429,23 +429,28 @@ html.dark .badge-slate { @apply bg-slate-500/15 text-slate-300; }
   /* ─── Mobile bottom navigation ─────────────────────────────────────────── */
   .mobile-bottom-nav {
     @apply fixed bottom-0 inset-x-0 z-40 flex items-stretch justify-around
-           border-t border-[var(--bg-border)] backdrop-blur-md;
-    background-color: color-mix(in srgb, var(--bg-card) 95%, transparent);
+           border-t border-[var(--bg-border)];
+    background-color: var(--bg-card);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
   }
 
   .mobile-bottom-nav-item {
-    @apply flex flex-1 flex-col items-center justify-center gap-0.5 py-2 px-1
-           text-[10px] font-semibold text-slate-500 transition-colors min-h-[52px]
-           active:bg-[var(--bg-muted)];
+    @apply flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 px-1
+           text-[10px] font-bold text-slate-500 transition-colors min-h-[56px]
+           active:bg-slate-50;
   }
 
   .mobile-bottom-nav-item-active {
     @apply text-sky-600;
   }
 
+  .mobile-bottom-nav-item-active svg {
+    stroke-width: 2.5;
+  }
+
   .has-mobile-bottom-nav {
-    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
 
   @media (min-width: 1024px) {

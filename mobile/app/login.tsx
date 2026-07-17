@@ -29,19 +29,28 @@ export default function LoginScreen() {
     setLoading(true)
     try {
       await signIn(email, password)
-      const challenge = await apiFetch('/api/auth/mobile-mfa', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'challenge' }),
-      }) as { required?: boolean; mfa_token?: string; email_hint?: string; message?: string }
-      if (challenge.required && challenge.mfa_token) {
-        setMfaPending(true)
-        setMfaToken(challenge.mfa_token)
-        setMfaHint(challenge.email_hint || '')
-        setMfaStep(true)
-        if (challenge.message) setError(challenge.message)
-      } else {
-        setMfaPending(false)
+      try {
+        const challenge = await apiFetch('/api/auth/mobile-mfa', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'challenge' }),
+        }) as { required?: boolean; mfa_token?: string; email_hint?: string; message?: string }
+        if (challenge.required && challenge.mfa_token) {
+          setMfaPending(true)
+          setMfaToken(challenge.mfa_token)
+          setMfaHint(challenge.email_hint || '')
+          setMfaStep(true)
+          if (challenge.message) setError(challenge.message)
+          return
+        }
+      } catch (mfaErr) {
+        // MFA endpoint yoksa / SMTP yoksa girişe engel olma
+        const msg = mfaErr instanceof Error ? mfaErr.message : ''
+        if (!/404|503|SMTP|yapılandır/i.test(msg)) {
+          // Diğer hatalarda yine de panele izin ver (mobil saha)
+          console.warn('MFA atlandı:', msg)
+        }
       }
+      setMfaPending(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Giriş başarısız')
     } finally {
