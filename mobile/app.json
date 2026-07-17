@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "AURA İntegra",
+    "name": "AURA Integra",
     "slug": "aura-integra",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,7 +26,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -36,11 +41,26 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-system-ui",
       [
         "expo-image-picker",
         {
           "photosPermission": "Cihaz fotoğraflarını servis kaydına eklemek için galeri erişimi gerekir.",
           "cameraPermission": "Cihaz fotoğrafı çekmek için kamera erişimi gerekir."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Barkod ve IMEI taraması için kamera erişimi gerekir.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0e5568"
         }
       ],
       [
@@ -50,7 +70,19 @@
           "resizeMode": "contain",
           "backgroundColor": "#0e5568"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          }
+        }
+      ],
+      "./plugins/withAndroidBuildConfig"
     ],
     "experiments": {
       "typedRoutes": true
@@ -65,4 +97,3 @@
     "runtimeVersion": "1.0.0"
   }
 }
-
