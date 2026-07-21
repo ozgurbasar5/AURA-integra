@@ -1,61 +1,19 @@
-/** Mobil sekme / modül erişimi — web role-access ile hizalı */
+/** Mobil sekme / modül erişimi — lib/role-matrix.ts tek kaynak */
 
-const OWNER = new Set(['tenant_admin', 'admin', 'mudur', 'owner'])
+import type { AppModule } from '../../lib/role-matrix'
+import {
+  isModuleAllowed,
+  isMobileTabAllowed as matrixTabAllowed,
+} from '../../lib/role-matrix'
 
-export type MobileTab =
-  | 'index'
-  | 'kabul'
-  | 'atolye'
-  | 'satis'
-  | 'sayim'
-  | 'kasa'
-  | 'cari'
-  | 'vitrin'
-  | 'alis'
-  | 'stok'
-  | 'tedarik'
-  | 'musteriler'
-  | 'randevu'
-  | 'garanti'
-  | 'finans'
-  | 'raporlar'
-  | 'komisyon'
-  | 'bildirimler'
-  | 'ayarlar'
-
-const TAB_ROLES: Record<MobileTab, Set<string> | '*'> = {
-  index: '*',
-  kabul: new Set(['satis', 'kasiyer', 'teknisyen', ...OWNER]),
-  atolye: new Set(['teknisyen', 'viewer', 'satis', ...OWNER]),
-  satis: new Set(['satis', 'kasiyer', ...OWNER]),
-  sayim: new Set(['teknisyen', 'satis', 'kasiyer', ...OWNER]),
-  kasa: new Set(['kasiyer', 'muhasebe', ...OWNER]),
-  cari: new Set(['kasiyer', 'muhasebe', 'satis', ...OWNER]),
-  vitrin: new Set(['satis', 'kasiyer', ...OWNER]),
-  alis: new Set(['muhasebe', 'satis', ...OWNER]),
-  stok: new Set(['teknisyen', 'satis', 'kasiyer', 'muhasebe', ...OWNER]),
-  tedarik: new Set(['muhasebe', 'satis', 'teknisyen', ...OWNER]),
-  musteriler: new Set(['satis', 'kasiyer', 'muhasebe', ...OWNER]),
-  randevu: new Set(['satis', 'teknisyen', 'kasiyer', ...OWNER]),
-  garanti: new Set(['teknisyen', 'satis', ...OWNER]),
-  finans: new Set(['muhasebe', 'kasiyer', ...OWNER]),
-  raporlar: new Set(['muhasebe', ...OWNER]),
-  komisyon: new Set([...OWNER]),
-  bildirimler: '*',
-  ayarlar: new Set([...OWNER, 'mudur']),
-}
+export type MobileTab = AppModule
 
 export function normalizeMobileRole(role?: string | null): string {
   return (role || '').trim().toLowerCase()
 }
 
 export function isMobileTabAllowed(tab: MobileTab, role?: string | null): boolean {
-  const r = normalizeMobileRole(role)
-  if (!r) return true
-  if (OWNER.has(r)) return true
-  const allowed = TAB_ROLES[tab]
-  if (allowed === '*') return true
-  return allowed.has(r)
+  return matrixTabAllowed(tab, role)
 }
 
 export type ModuleLink = {
@@ -89,5 +47,8 @@ export const ALL_MODULES: ModuleLink[] = [
 ]
 
 export function getModulesForRole(role?: string | null): ModuleLink[] {
-  return ALL_MODULES.filter(m => isMobileTabAllowed(m.tab, role))
+  return ALL_MODULES.filter(m => isModuleAllowed(m.tab, role))
 }
+
+// re-export for guards
+export { isModuleAllowed }

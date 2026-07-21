@@ -24,23 +24,23 @@ export function PageHeader({
 } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4 rounded-2xl border border-sky-100/80 bg-gradient-to-br from-white via-sky-50/40 to-cyan-50/30 px-4 py-4 sm:px-5 sm:py-5 shadow-sm"
+      className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4 rounded-2xl border border-sky-100/80 dark:border-slate-700/80 bg-gradient-to-br from-white via-sky-50/40 to-cyan-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/90 px-4 py-4 sm:px-5 sm:py-5 shadow-sm"
       {...rest}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/50 to-transparent rounded-t-2xl" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/50 dark:via-sky-500/30 to-transparent rounded-t-2xl" />
       <div>
         {eyebrow && (
-          <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">{eyebrow}</p>
+          <p className="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider mb-1">{eyebrow}</p>
         )}
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+        <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2.5">
           {Icon && (
-            <span className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-sky-600/25">
+            <span className="w-10 h-10 rounded-xl bg-sky-600 dark:bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-sky-600/25">
               <Icon size={18} />
             </span>
           )}
           {title}
         </h1>
-        {description && <p className="text-sm text-slate-500 mt-1.5 max-w-xl">{description}</p>}
+        {description && <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-xl">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
     </div>
@@ -64,8 +64,8 @@ export function PageCard({
   return (
     <div className={`surface overflow-hidden ${className}`} {...rest}>
       {title && (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
-          <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{title}</h2>
           {action}
         </div>
       )}

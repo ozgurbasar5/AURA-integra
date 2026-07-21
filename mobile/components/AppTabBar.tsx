@@ -80,6 +80,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
               onPress={onPress}
               style={styles.item}
               accessibilityRole="button"
+              accessibilityLabel={`${label} sekmesi`}
               accessibilityState={focused ? { selected: true } : {}}
             >
               <View

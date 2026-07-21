@@ -1,11 +1,11 @@
 import {
-  LayoutDashboard, ClipboardCheck, Wrench, ShoppingCart, ScanBarcode, Wallet,
+  LayoutDashboard, ClipboardCheck, Wrench, ShoppingCart, Wallet,
   type LucideIcon,
 } from 'lucide-react'
 
 /** Telefon alt gezinme — yüksek frekanslı akışlar (rol filtreli) */
 
-export type WebMobileTabId = 'index' | 'kabul' | 'atolye' | 'satis' | 'sayim' | 'kasa'
+export type WebMobileTabId = 'index' | 'kabul' | 'atolye' | 'satis' | 'kasa'
 
 const OWNER = new Set(['tenant_admin', 'admin', 'mudur', 'owner'])
 
@@ -14,7 +14,6 @@ const TAB_ROLES: Record<WebMobileTabId, Set<string> | '*'> = {
   kabul: new Set(['satis', 'kasiyer', 'teknisyen', ...OWNER]),
   atolye: new Set(['teknisyen', 'viewer', 'satis', ...OWNER]),
   satis: new Set(['satis', 'kasiyer', ...OWNER]),
-  sayim: new Set(['teknisyen', 'satis', 'kasiyer', ...OWNER]),
   kasa: new Set(['kasiyer', 'muhasebe', ...OWNER]),
 }
 
@@ -31,7 +30,6 @@ export const MOBILE_BOTTOM_TABS: Array<{
   { id: 'atolye', href: '/dashboard/atolye', label: 'Atölye', icon: Wrench, testId: 'mobile-nav-atolye' },
   { id: 'satis', href: '/dashboard/satis', label: 'Satış', icon: ShoppingCart, testId: 'mobile-nav-satis' },
   { id: 'kasa', href: '/dashboard/kasa', label: 'Kasa', icon: Wallet, testId: 'mobile-nav-kasa' },
-  { id: 'sayim', href: '/dashboard/stok/sayim', label: 'Sayım', icon: ScanBarcode, testId: 'mobile-nav-sayim' },
 ]
 
 export function isWebMobileTabAllowed(tabId: WebMobileTabId, role?: string | null): boolean {

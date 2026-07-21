@@ -39,24 +39,44 @@ export async function enqueueJob(job: Omit<QueuedJob, 'id' | 'created_at'>): Pro
   return full
 }
 
+let flushInProgress: Promise<{ ok: number; fail: number }> | null = null
+
 export async function flushQueue(): Promise<{ ok: number; fail: number }> {
-  const list = await listQueuedJobs()
-  if (!list.length) return { ok: 0, fail: 0 }
-  const remaining: QueuedJob[] = []
-  let ok = 0
-  let fail = 0
-  for (const job of list) {
-    try {
-      await apiFetch(job.path, {
-        method: job.method,
-        body: JSON.stringify(job.body),
-      })
-      ok += 1
-    } catch {
-      remaining.push(job)
-      fail += 1
+  if (flushInProgress) return flushInProgress
+
+  flushInProgress = (async () => {
+    const list = await listQueuedJobs()
+    if (!list.length) return { ok: 0, fail: 0 }
+    const remaining: QueuedJob[] = []
+    let ok = 0
+    let fail = 0
+    for (let i = 0; i < list.length; i++) {
+      const job = list[i]
+      try {
+        await apiFetch(job.path, {
+          method: job.method,
+          body: JSON.stringify(job.body),
+          skipUnauthorizedHandler: true,
+        })
+        ok += 1
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : ''
+        if (/401|403|Oturum|HTTP 401/i.test(msg)) {
+          remaining.push(...list.slice(i))
+          fail += list.length - i
+          break
+        }
+        remaining.push(job)
+        fail += 1
+      }
     }
+    await save(remaining)
+    return { ok, fail }
+  })()
+
+  try {
+    return await flushInProgress
+  } finally {
+    flushInProgress = null
   }
-  await save(remaining)
-  return { ok, fail }
 }

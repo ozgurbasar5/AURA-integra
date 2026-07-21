@@ -11,6 +11,7 @@ import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { printLabel } from '@/lib/label-print'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { FormModal } from '@/components/ui/FormModal'
 import { ListRow } from '@/components/ui/ListRow'
@@ -143,6 +144,7 @@ export default function VitrinScreen() {
   }
 
   return (
+    <ModuleGuard tab="vitrin">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={styles.toolbar}>
         <Button title="Cihaz ekle" onPress={() => setShowForm(true)} />
@@ -204,6 +206,7 @@ export default function VitrinScreen() {
         <TextField label="Durum" value={form.condition} onChangeText={t => setForm(f => ({ ...f, condition: t }))} placeholder="iyi / orta / kötü" />
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

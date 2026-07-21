@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { useFocusEffect } from 'expo-router'
 import { apiFetch } from '@/lib/api'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Card } from '@/components/ui/Card'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { EmptyState, ErrorBanner, LoadingBlock, StatPill } from '@/components/ui/States'
@@ -123,12 +124,14 @@ function Row({
   raw?: boolean
 }) {
   return (
+    <ModuleGuard tab="raporlar">
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
       <Text style={{ color: colors.muted }}>{label}</Text>
       <Text style={{ color: colors.text, fontWeight: bold ? '900' : '700' }}>
         {value == null ? '—' : raw ? String(value) : `${Number(value).toLocaleString('tr-TR')} ₺`}
       </Text>
     </View>
+    </ModuleGuard>
   )
 }
 

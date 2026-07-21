@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { FormModal } from '@/components/ui/FormModal'
@@ -113,6 +114,7 @@ export default function FinansScreen() {
   }
 
   return (
+    <ModuleGuard tab="finans">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={{ padding: 16, gap: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -165,6 +167,7 @@ export default function FinansScreen() {
         </View>
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

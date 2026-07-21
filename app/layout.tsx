@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { Toaster } from 'sonner'
+import { ThemeAwareToaster } from '@/components/ThemeAwareToaster'
 import SupabaseEnvScript from '@/components/SupabaseEnvScript'
 import CookieConsent from '@/components/CookieConsent'
 import PwaRegister from '@/components/PwaRegister'
@@ -60,23 +60,7 @@ export default function RootLayout({
         <PwaRegister />
         {children}
         <CookieConsent />
-        <Toaster
-          theme="dark"
-          position="top-right"
-          richColors
-          expand
-          closeButton
-          toastOptions={{
-            style: {
-              background: 'rgba(17, 17, 19, 0.95)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(39, 39, 42, 0.8)',
-              color: '#fafafa',
-              borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-            },
-          }}
-        />
+        <ThemeAwareToaster />
       </body>
     </html>
   )

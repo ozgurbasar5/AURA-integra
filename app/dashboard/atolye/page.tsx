@@ -9,6 +9,7 @@ import { onStoreChange, getServiceOrders, type StoreServiceOrder } from '@/lib/s
 import { loadServiceOrdersFromApi, createServiceOrderRemote } from '@/lib/service-order-bridge'
 import dynamic from 'next/dynamic'
 import AtolyeOrderTable, { type AtolyeTableOrder } from '@/components/atolye/AtolyeOrderTable'
+import { PageShell, PageHeader, LoadingCenter, EmptyState } from '@/components/ui/PageShell'
 import { filterOrdersByTrackingQuery } from '@/lib/tracking-search'
 
 const AtolyeKanban = dynamic(() => import('@/components/atolye/AtolyeKanban'), { ssr: false })
@@ -111,23 +112,25 @@ export default function AtolyePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      <div data-tour="atolye-baslik" className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-1">Teknik Servis</p>
-          <h1 className="text-2xl font-black text-slate-900">Atölye</h1>
-          <p className="text-sm text-slate-500 mt-1">{counts.active} aktif · {counts.repair} tamirde · {counts.ready} teslime hazır</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div data-tour="atolye-gorunum" className="flex rounded-xl border border-slate-200 overflow-hidden">
-            <button type="button" onClick={() => setViewMode('kanban')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'kanban' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Kanban</button>
-            <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'list' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Liste</button>
+    <PageShell className="max-w-6xl mx-auto">
+      <PageHeader
+        data-tour="atolye-baslik"
+        eyebrow="Teknik Servis"
+        title="Atölye"
+        description={`${counts.active} aktif · ${counts.repair} tamirde · ${counts.ready} teslime hazır`}
+        icon={Wrench}
+        actions={
+          <div className="flex items-center gap-2 shrink-0">
+            <div data-tour="atolye-gorunum" className="flex rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+              <button type="button" onClick={() => setViewMode('kanban')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'kanban' ? 'bg-slate-900 text-white dark:bg-sky-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>Kanban</button>
+              <button type="button" onClick={() => setViewMode('list')} className={`px-3 py-2 text-xs font-bold ${viewMode === 'list' ? 'bg-slate-900 text-white dark:bg-sky-600' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>Liste</button>
+            </div>
+            <button data-tour="atolye-yeni-servis-btn" type="button" onClick={() => setShowModal(true)} className="btn-primary">
+              <Plus size={16} /> Yeni Servis
+            </button>
           </div>
-          <button data-tour="atolye-yeni-servis-btn" type="button" onClick={() => setShowModal(true)} className="btn-primary">
-            <Plus size={16} /> Yeni Servis
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="relative">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -156,14 +159,11 @@ export default function AtolyePage() {
 
       <div data-tour="atolye-icerik">
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="animate-spin text-sky-500" /></div>
+        <LoadingCenter />
       ) : viewMode === 'kanban' ? (
         <AtolyeKanban orders={filtered} onRefresh={fetchOrders} />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 px-4 surface">
-          <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
-          <p className="text-sm text-slate-500">Kayıt bulunamadı</p>
-        </div>
+        <EmptyState icon={Wrench} title="Kayıt bulunamadı" description="Yeni servis kaydı oluşturun veya filtreyi değiştirin." />
       ) : (
         <AtolyeOrderTable orders={filtered} />
       )}
@@ -198,6 +198,6 @@ export default function AtolyePage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

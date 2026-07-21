@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Chip } from '@/components/ui/Chip'
 import { ListRow } from '@/components/ui/ListRow'
 import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
@@ -75,6 +76,7 @@ export default function GarantiScreen() {
   }
 
   return (
+    <ModuleGuard tab="garanti">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       {error ? <ErrorBanner message={error} onRetry={() => void load(true, true)} /> : null}
       <FlatList
@@ -105,6 +107,7 @@ export default function GarantiScreen() {
         )}
       />
     </View>
+    </ModuleGuard>
   )
 }
 

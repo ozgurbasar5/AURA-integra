@@ -11,8 +11,10 @@ import { formatCurrency } from '@/lib/validators'
 import confetti from 'canvas-confetti'
 import { PAYMENT_METHODS } from '@/lib/constants'
 import { completePosSaleViaApi } from '@/lib/pos-bridge'
+import { enqueueWebJob, isNetworkErrorMessage } from '@/lib/offline-queue-web'
 import { loadStockFromApi } from '@/lib/stock-bridge'
 import BarcodeScanField from '@/components/barcode/BarcodeScanField'
+import { PageShell, PageHeader, LoadingCenter } from '@/components/ui/PageShell'
 import {
   getStock, getSales, getFinanceSummary,
   getCampaigns,
@@ -50,6 +52,10 @@ export default function SatisPage() {
 
   useEffect(() => {
     setMounted(true)
+    try {
+      const raw = sessionStorage.getItem('aura_web_cart')
+      if (raw) setCart(JSON.parse(raw) as CartItem[])
+    } catch { /* ignore */ }
     void (async () => {
       await loadStockFromApi()
       try {
@@ -67,7 +73,15 @@ export default function SatisPage() {
     return unsub
   }, [refresh])
 
-  if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
+  useEffect(() => {
+    if (!mounted) return
+    try {
+      if (cart.length) sessionStorage.setItem('aura_web_cart', JSON.stringify(cart))
+      else sessionStorage.removeItem('aura_web_cart')
+    } catch { /* ignore */ }
+  }, [cart, mounted])
+
+  if (!mounted) return <LoadingCenter />
 
   // Rafta stoklu ürünler her zaman görünür; arama opsiyonel filtre
   const filteredProducts = stock.filter(p => {
@@ -155,6 +169,16 @@ export default function SatisPage() {
   const handleCompleteSale = async () => {
     if (cart.length === 0) { toast.error('Sepet boş'); return }
 
+    await loadStockFromApi()
+    const freshStock = getStock()
+    for (const c of cart) {
+      const p = freshStock.find(x => x.id === c.stock_id)
+      if (!p || p.stock_qty < c.qty) {
+        toast.error(`${c.name}: stok yetersiz (max ${p?.stock_qty ?? 0})`)
+        return
+      }
+    }
+
     const saleItems = cart.map(c => ({
       stock_id: c.stock_id,
       name: c.name,
@@ -169,7 +193,26 @@ export default function SatisPage() {
       setCart([])
       setCustomerName('')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Satış tamamlanamadı')
+      const msg = e instanceof Error ? e.message : 'Satış tamamlanamadı'
+      if (isNetworkErrorMessage(msg)) {
+        enqueueWebJob({
+          path: '/api/tenant/sales',
+          method: 'POST',
+          body: {
+            items: saleItems,
+            customer_name: customerName || 'Walk-in',
+            payment_method: paymentMethod,
+            vat_rate: vatRate,
+          },
+          label: 'POS satış',
+        })
+        setCart([])
+        setCustomerName('')
+        sessionStorage.removeItem('aura_web_cart')
+        toast.info('Satış kuyruğa alındı — bağlantı gelince senkron panelinden gönderin')
+      } else {
+        toast.error(msg)
+      }
     }
   }
 
@@ -179,16 +222,14 @@ export default function SatisPage() {
     .reduce((s, sale) => s + (sale.total_with_vat ?? sale.total ?? 0), 0)
 
   return (
-    <div className="space-y-6 pb-28 lg:pb-8">
-      {/* Header */}
-      <div data-tour="satis-baslik" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <ShoppingCart size={20} className="text-sky-600" /> Satış & POS
-          </h1>
-          <p className="text-slate-400 text-sm mt-0.5">Satış otomatik olarak stok ve finansa yansır</p>
-        </div>
-      </div>
+    <PageShell className="pb-28 lg:pb-8">
+      <PageHeader
+        data-tour="satis-baslik"
+        eyebrow="Satış"
+        title="Satış & POS"
+        description="Satış otomatik olarak stok ve finansa yansır"
+        icon={ShoppingCart}
+      />
 
       {/* Metrics */}
       <div data-tour="satis-metrikler" className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -433,6 +474,6 @@ export default function SatisPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

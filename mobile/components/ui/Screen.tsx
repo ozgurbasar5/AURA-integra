@@ -38,6 +38,13 @@ export function Screen({ scroll, padded = true, style, children, ...rest }: Prop
   )
 }
 
+/** Tab bar + safe area alt boşluk — checkout / FAB overlay için */
+export function useTabBarBottomInset(): number {
+  const insets = useSafeAreaInsets()
+  const { appearance } = useAppTheme()
+  return appearance.tabBarStyle === 'floating' ? 72 + insets.bottom : insets.bottom + 16
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
 })

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import {
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -16,6 +17,7 @@ import { ListRow } from '@/components/ui/ListRow'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { TextField } from '@/components/ui/TextField'
 import { EmptyState, ErrorBanner, LoadingBlock, StatPill } from '@/components/ui/States'
+import { parseLocaleNumber } from '@/lib/parse-locale-number'
 
 type Shift = {
   id: string
@@ -128,9 +130,9 @@ export default function KasaScreen() {
   }
 
   async function submitAdjust() {
-    const delta = Number(adjustDelta)
-    if (!delta || adjustReason.trim().length < 5) {
-      setError('Delta ve en az 5 karakter neden gerekli')
+    const delta = parseLocaleNumber(adjustDelta)
+    if (!Number.isFinite(delta) || delta === 0 || adjustReason.trim().length < 5) {
+      setError('Geçerli tutar (örn. 50,5) ve en az 5 karakter neden gerekli')
       return
     }
     setBusy(true)
@@ -156,6 +158,17 @@ export default function KasaScreen() {
   }
 
   const totals = report?.totals || report?.summary
+
+  async function shareReport() {
+    if (!totals) return
+    const lines = Object.entries(totals).slice(0, 12).map(([k, v]) =>
+      `${k.replace(/_/g, ' ')}: ${typeof v === 'number' ? `${Number(v).toLocaleString('tr-TR')} ₺` : String(v)}`,
+    )
+    await Share.share({
+      message: `Z raporu özeti\n${lines.join('\n')}`,
+      title: 'Kasa Z raporu',
+    })
+  }
 
   return (
     <ScrollView
@@ -217,6 +230,9 @@ export default function KasaScreen() {
           ) : (
             <Text style={{ color: colors.muted }}>Özet alanları yok — web’de detaylı rapor</Text>
           )}
+          {totals ? (
+            <Button title="Raporu paylaş" variant="secondary" onPress={() => void shareReport()} style={{ marginTop: 12 }} />
+          ) : null}
         </Card>
       ) : null}
 

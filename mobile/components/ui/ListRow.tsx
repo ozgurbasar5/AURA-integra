@@ -26,6 +26,8 @@ export function ListRow({ title, subtitle, meta, right, icon, chevron, style, ..
         },
         style as object,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={[title, subtitle, meta].filter(Boolean).join(', ')}
       {...rest}
     >
       {icon ? (

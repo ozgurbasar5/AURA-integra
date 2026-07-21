@@ -12,6 +12,7 @@ import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { enqueueJob } from '@/lib/offline-queue'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { FormModal } from '@/components/ui/FormModal'
@@ -142,6 +143,7 @@ export default function AlisScreen() {
   }
 
   return (
+    <ModuleGuard tab="alis">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={styles.toolbar}>
         <Button title="Yeni alış" onPress={() => setShowForm(true)} style={{ flex: 1 }} />
@@ -243,6 +245,7 @@ export default function AlisScreen() {
         </View>
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

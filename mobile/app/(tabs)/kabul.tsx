@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -10,12 +9,12 @@ import {
   Text,
   View,
 } from 'react-native'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { apiFetch, apiUpload } from '@/lib/api'
-import { enqueueJob, flushQueue, listQueuedJobs } from '@/lib/offline-queue'
+import { enqueueJob, listQueuedJobs } from '@/lib/offline-queue'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { useAppTheme } from '@/lib/ThemeContext'
 import { Button } from '@/components/ui/Button'
@@ -48,6 +47,8 @@ export default function KabulScreen() {
   const { profile } = useAuth()
   const { colors } = useAppTheme()
   const router = useRouter()
+  const params = useLocalSearchParams<{ phone?: string | string[]; name?: string | string[] }>()
+  const prefillHandled = useRef(false)
   const [items, setItems] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -64,6 +65,20 @@ export default function KabulScreen() {
   const [queued, setQueued] = useState(0)
   const [imeiScanOpen, setImeiScanOpen] = useState(false)
   const hasItems = useRef(false)
+
+  useEffect(() => {
+    const phone = Array.isArray(params.phone) ? params.phone[0] : params.phone
+    const name = Array.isArray(params.name) ? params.name[0] : params.name
+    if (!phone && !name) return
+    if (prefillHandled.current) return
+    prefillHandled.current = true
+    setForm(f => ({
+      ...f,
+      customer_phone: phone || f.customer_phone,
+      customer_name: name || f.customer_name,
+    }))
+    setShowForm(true)
+  }, [params.phone, params.name])
 
   useEffect(() => {
     if (!showForm) return
@@ -105,8 +120,6 @@ export default function KabulScreen() {
     if (!hasItems.current && !isRefresh) setLoading(true)
     if (isRefresh) setRefreshing(true)
     try {
-      const flushed = await flushQueue()
-      if (flushed.ok > 0) setError('')
       setQueued((await listQueuedJobs()).length)
       try {
         const json = await apiFetch('/api/service-orders?limit=40') as { data?: Order[] }
@@ -181,6 +194,11 @@ export default function KabulScreen() {
         setQueued((await listQueuedJobs()).length)
         setForm(empty)
         setShowForm(false)
+        setSuccess({
+          id: '',
+          order_no: payload.customer_name.slice(0, 12),
+          tracking: 'Kuyrukta',
+        })
         Alert.alert('Çevrimdışı kuyruk', 'Bağlantı yok — kabul kuyruğa alındı. İnternet gelince otomatik gönderilir.')
       } else {
         setFormError(msg)
@@ -285,34 +303,40 @@ export default function KabulScreen() {
             <Text style={{ fontWeight: '800', color: colors.text, fontSize: 16 }}>Kabul alındı</Text>
             <Text style={{ fontWeight: '900', fontSize: 24, color: colors.primary }}>{success?.order_no}</Text>
             {success?.tracking ? (
-              <Text style={{ color: colors.muted, fontSize: 13 }}>Takip: {success.tracking}</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {success.tracking === 'Kuyrukta' ? 'Çevrimdışı kuyrukta — senkron sonrası atölye/fotoğraf' : `Takip: ${success.tracking}`}
+              </Text>
             ) : null}
-            <Button
-              title="Fotoğraf ekle"
-              variant="secondary"
-              loading={photoBusy}
-              onPress={() => void addSuccessPhoto()}
-            />
-            <Button
-              title="Etiket yazdır"
-              variant="secondary"
-              onPress={() => {
-                if (!success) return
-                void printLabel({
-                  title: success.order_no,
-                  orderNo: success.order_no,
-                  subtitle: 'Servis kabul',
-                })
-              }}
-            />
-            <Button
-              title="Atölyeye git"
-              onPress={() => {
-                const id = success?.id
-                setSuccess(null)
-                if (id) router.push(`/atolye/${id}`)
-              }}
-            />
+            {success?.id ? (
+              <>
+                <Button
+                  title="Fotoğraf ekle"
+                  variant="secondary"
+                  loading={photoBusy}
+                  onPress={() => void addSuccessPhoto()}
+                />
+                <Button
+                  title="Etiket yazdır"
+                  variant="secondary"
+                  onPress={() => {
+                    if (!success) return
+                    void printLabel({
+                      title: success.order_no,
+                      orderNo: success.order_no,
+                      subtitle: 'Servis kabul',
+                    })
+                  }}
+                />
+                <Button
+                  title="Atölyeye git"
+                  onPress={() => {
+                    const id = success?.id
+                    setSuccess(null)
+                    if (id) router.push(`/atolye/${id}`)
+                  }}
+                />
+              </>
+            ) : null}
             <Button title="Kapat" variant="ghost" onPress={() => setSuccess(null)} />
           </View>
         </View>

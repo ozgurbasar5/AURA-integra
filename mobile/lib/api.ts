@@ -8,12 +8,33 @@ type CacheEntry = { at: number; data: unknown }
 const getCache = new Map<string, CacheEntry>()
 const inflight = new Map<string, Promise<unknown>>()
 
+let unauthorizedHandler: (() => void) | null = null
+let unauthorizedFiredAt = 0
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  unauthorizedHandler = fn
+  unauthorizedFiredAt = 0
+}
+
+function fireUnauthorized() {
+  const now = Date.now()
+  if (now - unauthorizedFiredAt < 4000) return
+  unauthorizedFiredAt = now
+  unauthorizedHandler?.()
+}
+
 function networkHint(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   if (/Network request failed|Failed to fetch|ECONNREFUSED|ENOTFOUND|TLS|certificate|AbortError|timed out/i.test(msg)) {
     return 'Sunucuya ulaşılamıyor. Wi‑Fi / DNS / aile filtresini kontrol edin.'
   }
   return msg || 'Bağlantı hatası'
+}
+
+async function cacheScope(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const uid = session?.user?.id ?? 'anon'
+  return uid.slice(0, 12)
 }
 
 async function authHeaders(extra?: HeadersInit, skipJson = false): Promise<Headers> {
@@ -64,11 +85,14 @@ export type ApiFetchOptions = RequestInit & {
   /** Önbelleği yok say */
   fresh?: boolean
   timeoutMs?: number
+  /** 401'de global oturum kapatma handler'ını atla */
+  skipUnauthorizedHandler?: boolean
 }
 
 export function invalidateApiCache(prefix?: string) {
   if (!prefix) {
     getCache.clear()
+    inflight.clear()
     return
   }
   for (const key of getCache.keys()) {
@@ -79,7 +103,8 @@ export function invalidateApiCache(prefix?: string) {
 export async function apiFetch(path: string, init: ApiFetchOptions = {}) {
   const method = (init.method || 'GET').toUpperCase()
   const useCache = method === 'GET' && init.cache !== false && !init.fresh
-  const cacheKey = `${method}:${path}`
+  const scope = await cacheScope()
+  const cacheKey = `${scope}:${method}:${path}`
 
   if (useCache) {
     const hit = getCache.get(cacheKey)
@@ -88,7 +113,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}) {
     if (pending) return pending
   }
 
-  const { cache: _c, fresh: _f, timeoutMs, ...rest } = init
+  const { cache: _c, fresh: _f, timeoutMs, skipUnauthorizedHandler, ...rest } = init
   const run = (async () => {
     const headers = await authHeaders(rest.headers)
     const res = await fetchWithRetry(
@@ -99,6 +124,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}) {
     )
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
+      if (res.status === 401 && !skipUnauthorizedHandler) fireUnauthorized()
       throw new Error((json as { error?: string }).error || `HTTP ${res.status}`)
     }
     if (useCache) getCache.set(cacheKey, { at: Date.now(), data: json })
@@ -126,6 +152,7 @@ export async function apiUpload(path: string, form: FormData) {
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) {
+    if (res.status === 401) fireUnauthorized()
     throw new Error((json as { error?: string }).error || `HTTP ${res.status}`)
   }
   invalidateApiCache('/api/')

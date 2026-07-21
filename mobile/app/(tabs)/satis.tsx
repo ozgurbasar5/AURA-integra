@@ -7,17 +7,21 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/lib/auth'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
+import { enqueueJob } from '@/lib/offline-queue'
+import { showToast } from '@/lib/toast'
 import { usePartsCatalog } from '@/lib/PartsCatalog'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { useAppTheme } from '@/lib/ThemeContext'
 import { Chip } from '@/components/ui/Chip'
 import { SearchBar } from '@/components/ui/SearchBar'
+import { TextField } from '@/components/ui/TextField'
 import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 
 const PAYMENTS = [
@@ -26,9 +30,13 @@ const PAYMENTS = [
   { id: 'havale', label: 'Havale' },
 ]
 
+const CART_KEY = 'aura_mobile_cart_draft'
+
 export default function SatisScreen() {
   const { profile } = useAuth()
   const { colors } = useAppTheme()
+  const insets = useSafeAreaInsets()
+  const bottomPad = 72 + insets.bottom
   const catalog = usePartsCatalog()
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
@@ -42,6 +50,20 @@ export default function SatisScreen() {
   useFocusEffect(useCallback(() => {
     if (profile?.tenant_id) void catalog.ensureLoaded()
   }, [profile?.tenant_id, catalog]))
+
+  useEffect(() => {
+    void AsyncStorage.getItem(CART_KEY).then(raw => {
+      if (!raw) return
+      try {
+        const parsed = JSON.parse(raw) as typeof cart
+        if (Array.isArray(parsed) && parsed.length) setCart(parsed)
+      } catch { /* ignore */ }
+    })
+  }, [])
+
+  useEffect(() => {
+    void AsyncStorage.setItem(CART_KEY, JSON.stringify(cart))
+  }, [cart])
 
   useEffect(() => {
     if (catalog.error) setError(catalog.error)
@@ -95,6 +117,14 @@ export default function SatisScreen() {
     setBusy(true)
     setError('')
     try {
+      await catalog.refresh()
+      for (const c of cart) {
+        const p = catalog.parts.find(x => x.id === c.id)
+        if (!p || p.stock_qty < c.qty) {
+          setError(`${c.name}: stok yetersiz (max ${p?.stock_qty ?? 0})`)
+          return
+        }
+      }
       await apiFetch('/api/tenant/sales', {
         method: 'POST',
         body: JSON.stringify({
@@ -111,11 +141,38 @@ export default function SatisScreen() {
       })
       setCart([])
       setCustomer('')
+      void AsyncStorage.removeItem(CART_KEY)
       catalog.invalidate()
       await catalog.refresh()
       invalidateApiCache('/api/tenant/parts')
+      showToast('Satış tamamlandı', 'success')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Satış başarısız')
+      const message = e instanceof Error ? e.message : 'Satış başarısız'
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(message)) {
+        const body = {
+          items: cart.map(c => ({
+            stock_id: c.id,
+            name: c.name,
+            qty: c.qty,
+            unit_price: c.unit_price,
+          })),
+          customer_name: customer.trim() || 'Mobil POS',
+          payment_method: payMethod,
+          vat_rate: 20,
+        }
+        await enqueueJob({
+          path: '/api/tenant/sales',
+          method: 'POST',
+          body,
+          label: 'POS satış',
+        })
+        setCart([])
+        setCustomer('')
+        void AsyncStorage.removeItem(CART_KEY)
+        showToast('Satış kuyruğa alındı — bağlantı gelince gönderilir', 'info')
+      } else {
+        setError(message)
+      }
     } finally {
       setBusy(false)
     }
@@ -152,7 +209,7 @@ export default function SatisScreen() {
         data={filtered}
         keyExtractor={i => i.id}
         refreshControl={<RefreshControl refreshing={catalog.refreshing} onRefresh={() => void catalog.refresh()} tintColor={colors.primary} />}
-        contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 220, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: bottomPad + (cart.length ? 200 : 24), flexGrow: 1 }}
         ListEmptyComponent={
           <EmptyState
             icon="shopping-cart"
@@ -200,13 +257,12 @@ export default function SatisScreen() {
       />
 
       {cart.length > 0 && (
-        <View style={[styles.checkout, { backgroundColor: colors.primaryDark }]}>
-          <TextInput
-            style={styles.custInput}
+        <View style={[styles.checkout, { backgroundColor: colors.primaryDark, bottom: bottomPad }]}>
+          <TextField
             placeholder="Müşteri (ops.)"
-            placeholderTextColor="#94a3b8"
             value={customer}
             onChangeText={setCustomer}
+            style={styles.custInput}
           />
           <View style={styles.payRow}>
             {PAYMENTS.map(p => (

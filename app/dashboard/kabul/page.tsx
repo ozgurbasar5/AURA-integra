@@ -6,6 +6,7 @@ import { ClipboardCheck, Loader2, Printer, CheckCircle2, MessageCircle, External
 import { toast } from 'sonner'
 import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
 import { createServiceOrderRemote, updateServiceOrderRemote } from '@/lib/service-order-bridge'
+import { enqueueWebJob, isNetworkErrorMessage } from '@/lib/offline-queue-web'
 import { onStoreChange } from '@/lib/store'
 import { buildTrackingUrl as trackUrl, mapDbStatusToStore } from '@/lib/erp-features'
 import { getPortalSlug } from '@/lib/business-branding'
@@ -143,7 +144,25 @@ export default function KabulPage() {
       status: 'waiting_diagnosis',
     })
     if (!created) {
-      toast.error(error || 'Kayıt oluşturulamadı')
+      if (error && isNetworkErrorMessage(error)) {
+        enqueueWebJob({
+          path: '/api/service-orders',
+          method: 'POST',
+          body: {
+            customer_name: form.customer_name,
+            customer_phone: form.customer_phone,
+            device_brand: form.device_brand,
+            device_model: form.device_model || '—',
+            imei: form.imei || undefined,
+            fault_description: [form.description, ...form.pre_checks].filter(Boolean).join('; '),
+            status: 'waiting_diagnosis',
+          },
+          label: 'Servis kabul',
+        })
+        toast.info('Bağlantı yok — kabul kuyruğa alındı. Senkron panelinden gönderin.')
+      } else {
+        toast.error(error || 'Kayıt oluşturulamadı')
+      }
       setSaving(false)
       return
     }

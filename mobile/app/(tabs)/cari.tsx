@@ -11,6 +11,7 @@ import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { enqueueJob } from '@/lib/offline-queue'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { FormModal } from '@/components/ui/FormModal'
@@ -117,6 +118,7 @@ export default function CariScreen() {
   }
 
   return (
+    <ModuleGuard tab="cari">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
         <SearchBar
@@ -185,6 +187,7 @@ export default function CariScreen() {
         </View>
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import { useAppTheme } from '@/lib/ThemeContext'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { TextField } from '@/components/ui/TextField'
+import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 import { statusLabel } from '@/lib/status-labels'
 import { buildServiceReceiptText, buildWaMeUrl } from '@/lib/wa'
 import { QC_CHECKLIST, qcProgress } from '@/lib/qc'
@@ -107,13 +108,11 @@ export default function AtolyeDetailScreen() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
+  const hasOrder = useRef(false)
 
-  const load = useCallback(async () => {
-    if (!id) return
-    setLoading(prev => {
-      // keep showing content if we already have order
-      return true
-    })
+  const load = useCallback(async (): Promise<Order | null> => {
+    if (!id) return null
+    if (!hasOrder.current) setLoading(true)
     setError('')
     try {
       const [orderJson, catalogParts, techJson] = await Promise.all([
@@ -147,8 +146,11 @@ export default function AtolyeDetailScreen() {
       setFinalChecks(Array.isArray(o.metadata?.final_checks) ? o.metadata!.final_checks!.map(String) : [])
       setExpenses(Array.isArray(o.metadata?.expenses) ? o.metadata!.expenses! : [])
       setImages(Array.isArray(o.device_images) ? o.device_images : [])
+      hasOrder.current = true
+      return o
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Yüklenemedi')
+      return null
     } finally {
       setLoading(false)
     }
@@ -156,8 +158,8 @@ export default function AtolyeDetailScreen() {
 
   useFocusEffect(useCallback(() => { void load() }, [load]))
 
-  async function patchOrder(body: Record<string, unknown>) {
-    if (!id) return
+  async function patchOrder(body: Record<string, unknown>): Promise<Order | null> {
+    if (!id) return null
     setBusy(true)
     setError('')
     try {
@@ -167,19 +169,21 @@ export default function AtolyeDetailScreen() {
       }) as { data: Order }
       setOrder(json.data)
       setMsg('Kaydedildi')
+      return json.data
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Güncelleme başarısız'
-      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(message) && body.technician_notes != null) {
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(message)) {
         await enqueueJob({
           path: `/api/service-orders/${id}`,
           method: 'PATCH',
           body,
-          label: 'Teknisyen notu',
+          label: body.status ? 'Durum güncelle' : 'İş güncelle',
         })
-        setMsg('Not kuyruğa alındı (çevrimdışı)')
+        setMsg('Kuyruğa alındı (çevrimdışı)')
       } else {
         setError(message)
       }
+      return null
     } finally {
       setBusy(false)
     }
@@ -290,7 +294,24 @@ export default function AtolyeDetailScreen() {
       setMsg('Teslim edildi')
       router.back()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Teslim başarısız')
+      const message = e instanceof Error ? e.message : 'Teslim başarısız'
+      const deliverBody = {
+        service_fee: serviceFee,
+        payment_method: payment,
+        used_parts: usedParts,
+        final_checks: finalChecks,
+      }
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(message)) {
+        await enqueueJob({
+          path: `/api/service-orders/${id}/deliver`,
+          method: 'POST',
+          body: deliverBody,
+          label: 'Teslim',
+        })
+        setMsg('Teslim kuyruğa alındı — senkron sonrası tamamlanır')
+      } else {
+        setError(message)
+      }
     } finally {
       setBusy(false)
     }
@@ -310,22 +331,30 @@ export default function AtolyeDetailScreen() {
       Alert.alert('Telefon yok')
       return
     }
-    let token = order.approval_token
-    if (!token) {
-      try {
-        await setStatus('onay_bekleniyor')
-        await load()
-      } catch { /* */ }
+    let current = order
+    if (!current.approval_token) {
+      const updated = await patchOrder({
+        status: 'onay_bekleniyor',
+        technician_notes: notes,
+        private_note: privateNote,
+        final_checks: finalChecks,
+        technician_id: techId,
+      })
+      if (updated?.approval_token) {
+        current = updated
+      } else {
+        const reloaded = await load()
+        if (reloaded) current = reloaded
+      }
     }
-    const o = order
-    const link = o.approval_token ? approvalUrl(o.approval_token) : ''
-    const feeNum = Number(fee) || o.estimated_cost || 0
+    const link = current.approval_token ? approvalUrl(current.approval_token) : ''
+    const feeNum = Number(fee) || current.estimated_cost || 0
     if (!link) {
-      Alert.alert('Onay linki yok', 'Bu iş için henüz onay token’ı oluşmamış. Önce kaydı güncelleyin veya web’den onay linki oluşturun.')
+      Alert.alert('Onay linki yok', 'Bu iş için henüz onay token\'ı oluşmamış. Önce kaydı güncelleyin veya web\'den onay linki oluşturun.')
       return
     }
-    const msgText = `Merhaba ${o.customer_name}, ${o.device_brand} ${o.device_model} için tahmini ücret: ${feeNum} TL. Onay için: ${link}`
-    await Linking.openURL(buildWaMeUrl(o.customer_phone || '', msgText))
+    const msgText = `Merhaba ${current.customer_name}, ${current.device_brand} ${current.device_model} için tahmini ücret: ${feeNum} TL. Onay için: ${link}`
+    await Linking.openURL(buildWaMeUrl(current.customer_phone || '', msgText))
   }
 
   async function shareReceipt() {
@@ -375,6 +404,18 @@ export default function AtolyeDetailScreen() {
 
   async function deletePhoto(url: string) {
     if (!id) return
+    Alert.alert('Fotoğrafı sil', 'Bu fotoğraf kalıcı olarak silinsin mi?', [
+      { text: 'İptal', style: 'cancel' },
+      {
+        text: 'Sil',
+        style: 'destructive',
+        onPress: () => void confirmDeletePhoto(url),
+      },
+    ])
+  }
+
+  async function confirmDeletePhoto(url: string) {
+    if (!id) return
     setBusy(true)
     try {
       const json = await apiFetch(`/api/service-orders/${id}/photos`, {
@@ -382,6 +423,7 @@ export default function AtolyeDetailScreen() {
         body: JSON.stringify({ url }),
       }) as { images?: string[] }
       setImages(json.images ?? images.filter(u => u !== url))
+      setMsg('Fotoğraf silindi')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Silinemedi')
     } finally {
@@ -396,13 +438,17 @@ export default function AtolyeDetailScreen() {
   }
 
   if (loading) {
-    return <View style={[styles.center, { backgroundColor: colors.bg }]}><ActivityIndicator color={colors.primary} /></View>
+    return (
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <LoadingBlock label="İş detayı yükleniyor…" />
+      </View>
+    )
   }
 
   if (!order) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <Text style={{ color: colors.danger, fontWeight: '600' }}>{error || 'Kayıt yok'}</Text>
+      <View style={[styles.center, { backgroundColor: colors.bg, padding: 24 }]}>
+        <ErrorBanner message={error || 'Kayıt bulunamadı'} onRetry={() => void load()} />
       </View>
     )
   }
@@ -415,8 +461,22 @@ export default function AtolyeDetailScreen() {
     <>
       <Stack.Screen options={{ title: order.order_no || 'İş detayı' }} />
       <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 48 }}>
-        {error ? <Text style={{ color: colors.danger, fontWeight: '600' }}>{error}</Text> : null}
-        {msg ? <Text style={{ color: colors.success, fontWeight: '600' }}>{msg}</Text> : null}
+        {(error || msg) ? (
+          <View style={[styles.feedbackBar, {
+            backgroundColor: error ? colors.dangerSoft : colors.successSoft,
+            borderColor: error ? colors.danger : colors.success,
+            borderRadius: colors.radius,
+          }]}>
+            <Text style={{ color: error ? colors.danger : colors.success, fontWeight: '700', flex: 1 }}>
+              {error || msg}
+            </Text>
+            {error ? (
+              <Pressable onPress={() => void load()} hitSlop={8}>
+                <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>Tekrar</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radiusLg }]}>
           <Text style={{ fontWeight: '800', fontSize: 18, color: colors.text }}>{order.customer_name}</Text>
@@ -515,12 +575,21 @@ export default function AtolyeDetailScreen() {
             </View>
 
             <Text style={label}>QC ({qc.done}/{qc.total})</Text>
-            {QC_CHECKLIST.map(item => (
-              <Pressable key={item} style={styles.qcRow} onPress={() => toggleQc(item)}>
-                <Text style={{ fontSize: 16, color: colors.primary }}>{finalChecks.includes(item) ? '☑' : '☐'}</Text>
+            {QC_CHECKLIST.map(item => {
+              const checked = finalChecks.includes(item)
+              return (
+              <Pressable
+                key={item}
+                style={styles.qcRow}
+                onPress={() => toggleQc(item)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked }}
+                accessibilityLabel={item}
+              >
+                <Text style={{ fontSize: 16, color: colors.primary }}>{checked ? '☑' : '☐'}</Text>
                 <Text style={{ color: colors.text, fontSize: 13, flex: 1 }}>{item}</Text>
               </Pressable>
-            ))}
+            )})}
 
             <Text style={label}>Parça ({usedParts.length})</Text>
             {usedParts.map(p => (
@@ -616,6 +685,14 @@ export default function AtolyeDetailScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  feedbackBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
   card: {
     padding: 16,
     borderWidth: 1,

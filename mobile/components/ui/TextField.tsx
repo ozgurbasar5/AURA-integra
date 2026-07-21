@@ -14,6 +14,8 @@ export function TextField({ label, style, ...rest }: Props) {
       ) : null}
       <TextInput
         placeholderTextColor={colors.muted}
+        accessibilityLabel={label}
+        accessibilityHint={rest.placeholder}
         style={[
           styles.input,
           {

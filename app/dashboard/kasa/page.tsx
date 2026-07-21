@@ -14,6 +14,7 @@ import {
 import { buildShiftReport, suggestOpeningCash } from '@/lib/eod-report'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { formatCurrency } from '@/lib/validators'
+import { parseLocaleNumber } from '@/lib/parse-locale-number'
 import { useUserRole } from '@/lib/role-context'
 import { isOwnerRole } from '@/lib/role-access'
 
@@ -200,7 +201,8 @@ export default function KasaPage() {
               disabled={adjBusy}
               className="btn-secondary whitespace-nowrap"
               onClick={() => {
-                const delta = Number(adjDelta)
+                const delta = parseLocaleNumber(adjDelta)
+                if (!Number.isFinite(delta) || delta === 0) { toast.error('Geçerli tutar girin (örn. 50,5)'); return }
                 if (!delta || !adjReason.trim()) {
                   toast.error('Tutar ve gerekçe girin')
                   return

@@ -1,17 +1,19 @@
 import { useCallback, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { useAuth } from '@/lib/auth'
 import { useTenant } from '@/lib/TenantContext'
 import { apiFetch, checkApiHealth, invalidateApiCache } from '@/lib/api'
-import { listQueuedJobs, flushQueue } from '@/lib/offline-queue'
+import { listQueuedJobs, type QueuedJob } from '@/lib/offline-queue'
+import { flushQueueWithMeta, formatFlushResult } from '@/lib/offline-sync'
 import { getModulesForRole } from '@/lib/role-tabs'
-import { registerForPushNotifications } from '@/lib/push'
+import { getPushPermissionStatus, registerForPushNotifications } from '@/lib/push'
 import { useAppTheme } from '@/lib/ThemeContext'
 import { Screen } from '@/components/ui/Screen'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { ListRow } from '@/components/ui/ListRow'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { ErrorBanner, Skeleton, StatPill } from '@/components/ui/States'
 
@@ -29,6 +31,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true)
   const [netHint, setNetHint] = useState<string | null>(null)
   const [queueCount, setQueueCount] = useState(0)
+  const [queueJobs, setQueueJobs] = useState<QueuedJob[]>([])
   const [flushing, setFlushing] = useState(false)
   const hasStats = useRef(false)
 
@@ -59,6 +62,7 @@ export default function HomeScreen() {
         healthP,
       ])
       setQueueCount(queue.length)
+      setQueueJobs(queue)
 
       if (!health.ok && health.hint) setNetHint(health.hint)
 
@@ -85,7 +89,9 @@ export default function HomeScreen() {
         if (health.ok) setNetHint(null)
       }
     } catch {
-      setQueueCount((await listQueuedJobs()).length)
+      const jobs = await listQueuedJobs()
+      setQueueCount(jobs.length)
+      setQueueJobs(jobs)
       if (!hasStats.current) setNetHint('Sunucuya ulaşılamadı')
     } finally {
       setLoading(false)
@@ -100,16 +106,31 @@ export default function HomeScreen() {
   }, [loadStats]))
 
   useFocusEffect(useCallback(() => {
-    if (profile?.tenant_id) void registerForPushNotifications().catch(() => {})
+    if (!profile?.tenant_id) return
+    void (async () => {
+      const perm = await getPushPermissionStatus()
+      if (perm === 'granted') await registerForPushNotifications().catch(() => {})
+    })()
   }, [profile?.tenant_id]))
+
+  useFocusEffect(useCallback(() => {
+    void listQueuedJobs().then(jobs => {
+      setQueueCount(jobs.length)
+      setQueueJobs(jobs)
+    })
+  }, []))
 
   async function handleFlushQueue() {
     setFlushing(true)
     try {
-      await flushQueue()
-      setQueueCount((await listQueuedJobs()).length)
+      const result = await flushQueueWithMeta()
+      setQueueCount(result.remaining.length)
+      setQueueJobs(result.remaining)
       invalidateApiCache('/api/tenant/stats')
       await loadStats(true)
+      if (result.ok > 0 || result.fail > 0) {
+        Alert.alert('Çevrimdışı kuyruk', formatFlushResult(result))
+      }
     } finally {
       setFlushing(false)
     }
@@ -157,7 +178,7 @@ export default function HomeScreen() {
               Çevrimdışı kuyruk
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-              {queueCount} işlem bekliyor — bağlantı varken gönderin
+              {queueCount} işlem bekliyor — bağlantı gelince otomatik gönderilir
             </Text>
           </View>
           <Pressable
@@ -176,6 +197,19 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
         </Card>
+      ) : null}
+
+      {queueJobs.length > 0 ? (
+        <>
+          <SectionHeader title="Bekleyen işlemler" />
+          {queueJobs.slice(0, 8).map(job => (
+            <ListRow
+              key={job.id}
+              title={job.label || job.path}
+              meta={new Date(job.created_at).toLocaleString('tr-TR')}
+            />
+          ))}
+        </>
       ) : null}
 
       <SectionHeader title="Özet" />

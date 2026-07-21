@@ -6,6 +6,7 @@ import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { useApiQuery } from '@/lib/useApiQuery'
 import { usePartsCatalog } from '@/lib/PartsCatalog'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { FormModal } from '@/components/ui/FormModal'
@@ -91,6 +92,7 @@ export default function StokScreen() {
   }
 
   return (
+    <ModuleGuard tab="stok">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={{ padding: 16, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, backgroundColor: colors.card }}>
         <View style={styles.chips}>
@@ -184,6 +186,7 @@ export default function StokScreen() {
         />
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

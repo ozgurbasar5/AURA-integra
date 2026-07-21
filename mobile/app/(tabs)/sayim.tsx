@@ -5,18 +5,22 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/lib/auth'
 import { apiFetch } from '@/lib/api'
+import { enqueueJob } from '@/lib/offline-queue'
+import { showToast } from '@/lib/toast'
 import { usePartsCatalog } from '@/lib/PartsCatalog'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { useAppTheme } from '@/lib/ThemeContext'
 import { Button } from '@/components/ui/Button'
 import { SearchBar } from '@/components/ui/SearchBar'
+import { TextField } from '@/components/ui/TextField'
 import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
+import { ModuleGuard } from '@/components/ModuleGuard'
 
 type CountRow = {
   id: string
@@ -29,6 +33,8 @@ type CountRow = {
 export default function SayimScreen() {
   const { profile } = useAuth()
   const { colors } = useAppTheme()
+  const insets = useSafeAreaInsets()
+  const bottomPad = 72 + insets.bottom
   const catalog = usePartsCatalog()
   const [rows, setRows] = useState<CountRow[]>([])
   const [q, setQ] = useState('')
@@ -84,29 +90,51 @@ export default function SayimScreen() {
     setError('')
     setMsg('')
     try {
+      const payload = {
+        notes: 'Mobil stok sayım',
+        items: diffs.map(d => ({
+          part_id: d.id,
+          counted_qty: parseInt(d.counted, 10) || 0,
+          expected_qty: d.stock_qty,
+        })),
+      }
       await apiFetch('/api/tenant/stock/count', {
         method: 'POST',
-        body: JSON.stringify({
-          notes: 'Mobil stok sayım',
-          items: diffs.map(d => ({
-            part_id: d.id,
-            counted_qty: parseInt(d.counted, 10) || 0,
-            expected_qty: d.stock_qty,
-          })),
-        }),
+        body: JSON.stringify(payload),
       })
       setMsg(`${diffs.length} kalem sunucuda güncellendi`)
       catalog.invalidate()
       await catalog.refresh()
       syncRows()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kayıt başarısız')
+      const message = e instanceof Error ? e.message : 'Kayıt başarısız'
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(message)) {
+        const payload = {
+          notes: 'Mobil stok sayım',
+          items: diffs.map(d => ({
+            part_id: d.id,
+            counted_qty: parseInt(d.counted, 10) || 0,
+            expected_qty: d.stock_qty,
+          })),
+        }
+        await enqueueJob({
+          path: '/api/tenant/stock/count',
+          method: 'POST',
+          body: payload,
+          label: 'Stok sayım',
+        })
+        setMsg(`${diffs.length} kalem kuyruğa alındı`)
+        showToast('Sayım çevrimdışı kuyruğa alındı', 'info')
+      } else {
+        setError(message)
+      }
     } finally {
       setSaving(false)
     }
   }
 
   return (
+    <ModuleGuard tab="sayim">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flex: 1 }}>
@@ -139,7 +167,7 @@ export default function SayimScreen() {
           data={filtered}
           keyExtractor={i => i.id}
           refreshControl={<RefreshControl refreshing={catalog.refreshing} onRefresh={() => void catalog.refresh()} tintColor={colors.primary} />}
-          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 100, flexGrow: 1 }}
+          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: bottomPad + 64, flexGrow: 1 }}
           ListEmptyComponent={
             <EmptyState icon="check-square-o" title="Sayılacak stok yok" subtitle="Önce stok / alış girin" />
           }
@@ -154,11 +182,11 @@ export default function SayimScreen() {
                   <Pressable style={[styles.bump, { backgroundColor: colors.bgElevated }]} onPress={() => bump(item.id, -1)}>
                     <Text style={{ fontSize: 22, fontWeight: '700', color: colors.text }}>−</Text>
                   </Pressable>
-                  <TextInput
-                    style={[styles.count, { borderColor: colors.border, color: colors.text, backgroundColor: colors.bgElevated }]}
+                  <TextField
                     keyboardType="number-pad"
                     value={item.counted}
                     onChangeText={t => setRows(prev => prev.map(r => r.id === item.id ? { ...r, counted: t } : r))}
+                    style={[styles.count, { minHeight: 44 }]}
                   />
                   <Pressable style={[styles.bump, { backgroundColor: colors.primarySoft }]} onPress={() => bump(item.id, 1)}>
                     <Text style={{ fontSize: 22, fontWeight: '700', color: colors.primary }}>+</Text>
@@ -173,7 +201,7 @@ export default function SayimScreen() {
         />
       )}
 
-      <View style={styles.saveWrap}>
+      <View style={[styles.saveWrap, { bottom: bottomPad }]}>
         <Button
           title={saving ? '…' : `Sayımı Kaydet${diffCount ? ` · ${diffCount} fark` : ''}`}
           loading={saving}
@@ -181,6 +209,7 @@ export default function SayimScreen() {
         />
       </View>
     </View>
+    </ModuleGuard>
   )
 }
 

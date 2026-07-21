@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth'
 import { useTenant } from '@/lib/TenantContext'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Screen } from '@/components/ui/Screen'
@@ -40,6 +41,7 @@ export default function AyarlarScreen() {
   }
 
   return (
+    <ModuleGuard tab="ayarlar">
     <Screen scroll>
       <SectionHeader title="Hesap" />
       <Card>
@@ -64,5 +66,6 @@ export default function AyarlarScreen() {
       <Button title="Bildirimler" variant="secondary" onPress={() => router.push('/bildirimler' as never)} />
       <Button title="Çıkış yap" variant="danger" onPress={() => void signOut()} />
     </Screen>
+    </ModuleGuard>
   )
 }

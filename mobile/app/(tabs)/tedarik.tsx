@@ -3,6 +3,7 @@ import { Alert, FlatList, RefreshControl, StyleSheet, View } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { FormModal } from '@/components/ui/FormModal'
 import { ListRow } from '@/components/ui/ListRow'
@@ -118,6 +119,7 @@ export default function TedarikScreen() {
   }
 
   return (
+    <ModuleGuard tab="tedarik">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={{ padding: 16 }}>
         <Button title="Yeni sipariş" onPress={() => setShowForm(true)} />
@@ -155,6 +157,7 @@ export default function TedarikScreen() {
         <TextField label="Birim fiyat" keyboardType="decimal-pad" value={form.unit_price} onChangeText={t => setForm(f => ({ ...f, unit_price: t }))} />
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

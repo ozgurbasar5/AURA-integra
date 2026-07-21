@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { enqueueJob } from '@/lib/offline-queue'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { ModuleGuard } from '@/components/ModuleGuard'
 import { Button } from '@/components/ui/Button'
 import { FormModal } from '@/components/ui/FormModal'
 import { ListRow } from '@/components/ui/ListRow'
@@ -105,6 +106,7 @@ export default function RandevuScreen() {
   }
 
   return (
+    <ModuleGuard tab="randevu">
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={{ padding: 16 }}>
         <Button title="Yeni randevu" onPress={() => setShowForm(true)} />
@@ -140,6 +142,7 @@ export default function RandevuScreen() {
         <TextField label="Arıza" value={form.fault_description} onChangeText={t => setForm(f => ({ ...f, fault_description: t }))} />
       </FormModal>
     </View>
+    </ModuleGuard>
   )
 }
 

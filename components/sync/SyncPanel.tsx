@@ -2,14 +2,24 @@
 
 import { useEffect, useState } from 'react'
 import { Cloud, CloudOff, Loader2, RefreshCw, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { getSyncState, subscribeSyncState, type SyncState } from '@/lib/sync-status'
 import { flushPendingPush, hydrateFromSupabase } from '@/lib/store-hydrate'
+import { flushWebQueue, listWebQueuedJobs, type WebQueuedJob } from '@/lib/offline-queue-web'
 
 export default function SyncPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [state, setState] = useState<SyncState>(getSyncState())
   const [busy, setBusy] = useState(false)
+  const [queue, setQueue] = useState<WebQueuedJob[]>([])
 
   useEffect(() => subscribeSyncState(setState), [])
+
+  useEffect(() => {
+    const sync = () => setQueue(listWebQueuedJobs())
+    sync()
+    window.addEventListener('aura-web-queue-change', sync)
+    return () => window.removeEventListener('aura-web-queue-change', sync)
+  }, [])
 
   if (!open) return null
 
@@ -18,6 +28,22 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
     try {
       await hydrateFromSupabase()
       await flushPendingPush()
+      const q = await flushWebQueue()
+      if (q.ok > 0 || q.fail > 0) {
+        toast.success(`Kuyruk: ${q.ok} gönderildi${q.fail ? `, ${q.fail} bekliyor` : ''}`)
+      }
+      setQueue(listWebQueuedJobs())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function flushQueueOnly() {
+    setBusy(true)
+    try {
+      const q = await flushWebQueue()
+      setQueue(q.remaining)
+      toast.message(`Kuyruk: ${q.ok} ok, ${q.fail} hata`)
     } finally {
       setBusy(false)
     }
@@ -80,6 +106,27 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
             <div className="text-red-600 bg-red-500/5 rounded-lg px-3 py-2">{state.lastError}</div>
           )}
         </dl>
+
+        {queue.length > 0 && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+            <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+              Çevrimdışı kuyruk · {queue.length} işlem
+            </p>
+            <ul className="text-[11px] text-[var(--text-muted)] space-y-1 max-h-24 overflow-y-auto">
+              {queue.slice(0, 6).map(job => (
+                <li key={job.id}>{job.label || job.path}</li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void flushQueueOnly()}
+              className="btn-secondary w-full text-xs"
+            >
+              Kuyruğu gönder
+            </button>
+          </div>
+        )}
 
         <button
           type="button"

@@ -37,6 +37,9 @@ export function Button({ title, loading, variant = 'primary', disabled, style, .
         style as object,
       ]}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!(disabled || loading) }}
       {...rest}
     >
       {loading ? (
