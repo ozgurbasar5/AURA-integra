@@ -1,14 +1,18 @@
+import { useEffect } from 'react'
+import { StatusBar } from 'expo-status-bar'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native'
 import { useFonts } from 'expo-font'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
-import { useEffect } from 'react'
 import 'react-native-reanimated'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { useColorScheme } from '@/components/useColorScheme'
 import { AuthProvider, useAuth } from '@/lib/auth'
-import { AuraColors } from '@/constants/AuraColors'
+import { AppThemeProvider, useAppTheme } from '@/lib/ThemeContext'
+import { TenantProvider } from '@/lib/TenantContext'
+import { PartsCatalogProvider } from '@/lib/PartsCatalog'
 
 export { ErrorBoundary } from 'expo-router'
 
@@ -55,7 +59,6 @@ export default function RootLayout() {
     if (loaded) SplashScreen.hideAsync()
   }, [loaded])
 
-  // Font gecikse bile loading'de kalma
   useEffect(() => {
     const t = setTimeout(() => { SplashScreen.hideAsync() }, 4000)
     return () => clearTimeout(t)
@@ -64,35 +67,56 @@ export default function RootLayout() {
   if (!loaded && !error) return null
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AppThemeProvider>
+        <AuthProvider>
+          <TenantProvider>
+            <PartsCatalogProvider>
+              <RootLayoutNav />
+            </PartsCatalogProvider>
+          </TenantProvider>
+        </AuthProvider>
+      </AppThemeProvider>
+    </SafeAreaProvider>
   )
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme()
-  const theme = colorScheme === 'dark' ? DarkTheme : {
+  const { colors, isDark, appearance } = useAppTheme()
+  const forceDark = appearance.colorMode === 'dark' || (appearance.colorMode === 'system' && colorScheme === 'dark')
+  const theme = forceDark || isDark ? {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: colors.primary,
+      background: colors.bg,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
+    },
+  } : {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      primary: AuraColors.primary,
-      background: AuraColors.bg,
-      card: AuraColors.card,
-      text: AuraColors.text,
-      border: AuraColors.border,
+      primary: colors.primary,
+      background: colors.bg,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
     },
   }
 
   return (
     <ThemeProvider value={theme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <AuthGate>
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="atolye/[id]" options={{ title: 'İş detayı' }} />
           <Stack.Screen name="yenilikler" options={{ title: 'Yenilikler' }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Bilgi' }} />
+          <Stack.Screen name="gorunum" options={{ title: 'Görünüm', presentation: 'modal' }} />
         </Stack>
       </AuthGate>
     </ThemeProvider>

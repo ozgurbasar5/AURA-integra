@@ -6,10 +6,8 @@ import {
   Modal,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -19,7 +17,12 @@ import { supabase } from '@/lib/supabase'
 import { apiFetch, apiUpload } from '@/lib/api'
 import { enqueueJob, flushQueue, listQueuedJobs } from '@/lib/offline-queue'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
-import { AuraColors } from '@/constants/AuraColors'
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Button } from '@/components/ui/Button'
+import { FormModal } from '@/components/ui/FormModal'
+import { ListRow } from '@/components/ui/ListRow'
+import { TextField } from '@/components/ui/TextField'
+import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 import { printLabel } from '@/lib/label-print'
 
 type Order = {
@@ -43,10 +46,13 @@ const empty = {
 
 export default function KabulScreen() {
   const { profile } = useAuth()
+  const { colors } = useAppTheme()
   const router = useRouter()
   const [items, setItems] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(empty)
   const [saving, setSaving] = useState(false)
@@ -57,6 +63,7 @@ export default function KabulScreen() {
   const [photoBusy, setPhotoBusy] = useState(false)
   const [queued, setQueued] = useState(0)
   const [imeiScanOpen, setImeiScanOpen] = useState(false)
+  const hasItems = useRef(false)
 
   useEffect(() => {
     if (!showForm) return
@@ -88,43 +95,55 @@ export default function KabulScreen() {
     }
   }, [form.customer_phone, showForm])
 
-  const load = useCallback(async () => {
-    if (!profile?.tenant_id) return
+  const load = useCallback(async (isRefresh = false) => {
+    if (!profile?.tenant_id) {
+      setLoading(false)
+      setError(profile ? 'Bayi hesabı bağlı değil' : 'Profil bekleniyor — yenileyin')
+      return
+    }
     setError('')
-    setLoading(true)
+    if (!hasItems.current && !isRefresh) setLoading(true)
+    if (isRefresh) setRefreshing(true)
     try {
       const flushed = await flushQueue()
       if (flushed.ok > 0) setError('')
       setQueued((await listQueuedJobs()).length)
-      const { data, error: qErr } = await supabase
-        .from('service_orders')
-        .select('id, order_no, customer_name, device_brand, device_model, status, created_at')
-        .eq('tenant_id', profile.tenant_id)
-        .order('created_at', { ascending: false })
-        .limit(40)
-      if (qErr) throw qErr
-      setItems((data as Order[]) ?? [])
+      try {
+        const json = await apiFetch('/api/service-orders?limit=40') as { data?: Order[] }
+        setItems(json.data ?? [])
+      } catch {
+        const { data, error: qErr } = await supabase
+          .from('service_orders')
+          .select('id, order_no, customer_name, device_brand, device_model, status, created_at')
+          .eq('tenant_id', profile.tenant_id)
+          .order('created_at', { ascending: false })
+          .limit(40)
+        if (qErr) throw qErr
+        setItems((data as Order[]) ?? [])
+      }
+      hasItems.current = true
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Yüklenemedi')
       setQueued((await listQueuedJobs()).length)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }, [profile?.tenant_id])
+  }, [profile, profile?.tenant_id])
 
   useFocusEffect(useCallback(() => { void load() }, [load]))
 
   async function createOrder() {
     if (!form.customer_name.trim() || !form.customer_phone.trim()) {
-      setError('Müşteri adı ve telefon zorunlu')
+      setFormError('Müşteri adı ve telefon zorunlu')
       return
     }
     if (!form.device_brand.trim() || !form.device_model.trim()) {
-      setError('Cihaz marka/model zorunlu')
+      setFormError('Cihaz marka/model zorunlu')
       return
     }
     setSaving(true)
-    setError('')
+    setFormError('')
     const payload = {
       customer_name: form.customer_name.trim(),
       customer_phone: form.customer_phone.trim(),
@@ -152,7 +171,7 @@ export default function KabulScreen() {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Kayıt başarısız'
-      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu/i.test(msg)) {
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu|zaman aşımı/i.test(msg)) {
         await enqueueJob({
           path: '/api/service-orders',
           method: 'POST',
@@ -164,7 +183,7 @@ export default function KabulScreen() {
         setShowForm(false)
         Alert.alert('Çevrimdışı kuyruk', 'Bağlantı yok — kabul kuyruğa alındı. İnternet gelince otomatik gönderilir.')
       } else {
-        setError(msg)
+        setFormError(msg)
       }
     } finally {
       setSaving(false)
@@ -215,48 +234,68 @@ export default function KabulScreen() {
   }
 
   if (loading && items.length === 0) {
-    return <View style={styles.center}><ActivityIndicator color={AuraColors.primary} /></View>
+    return <View style={[styles.center, { backgroundColor: colors.bg }]}><LoadingBlock label="Kabul listesi…" /></View>
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={styles.top}>
-        <Text style={styles.hint}>Son servis kayıtları{queued > 0 ? ` · kuyruk: ${queued}` : ''}</Text>
-        <Pressable style={styles.newBtn} onPress={() => setShowForm(true)}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          Son {items.length} kayıt{queued > 0 ? ` · kuyruk: ${queued}` : ''}
+        </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.newBtn,
+            { backgroundColor: colors.primary, borderRadius: colors.radius, opacity: pressed ? 0.85 : 1 },
+          ]}
+          onPress={() => { setFormError(''); setShowForm(true) }}
+        >
           <Text style={styles.newBtnText}>+ Yeni Kabul</Text>
         </Pressable>
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <ErrorBanner message={error} onRetry={() => void load(true)} /> : null}
       <FlatList
         data={items}
         keyExtractor={i => i.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-        contentContainerStyle={{ padding: 16, gap: 10 }}
-        ListEmptyComponent={<Text style={styles.empty}>Kayıt yok</Text>}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.primary} />}
+        contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+        ListEmptyComponent={
+          <EmptyState
+            icon="clipboard"
+            title="Henüz kabul yok"
+            subtitle="Yeni servis kaydı oluşturun"
+            actionLabel="+ Yeni Kabul"
+            onAction={() => { setFormError(''); setShowForm(true) }}
+          />
+        }
         renderItem={({ item }) => (
-          <Pressable style={styles.card} onPress={() => router.push(`/atolye/${item.id}`)}>
-            <Text style={styles.title}>{item.order_no || item.id.slice(0, 8)}</Text>
-            <Text style={styles.sub}>{item.customer_name || 'Müşteri'}</Text>
-            <Text style={styles.meta}>
-              {[item.device_brand, item.device_model].filter(Boolean).join(' ') || 'Cihaz'} · {item.status || '—'}
-            </Text>
-          </Pressable>
+          <ListRow
+            title={item.order_no || item.id.slice(0, 8)}
+            subtitle={item.customer_name || 'Müşteri'}
+            meta={`${[item.device_brand, item.device_model].filter(Boolean).join(' ') || 'Cihaz'} · ${item.status || '—'}`}
+            chevron
+            onPress={() => router.push(`/atolye/${item.id}`)}
+          />
         )}
       />
 
       <Modal visible={!!success} animationType="fade" transparent>
         <View style={styles.successOverlay}>
-          <View style={styles.successCard}>
-            <Text style={styles.successTitle}>Kabul alındı</Text>
-            <Text style={styles.successNo}>{success?.order_no}</Text>
+          <View style={[styles.successCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radiusLg }]}>
+            <Text style={{ fontWeight: '800', color: colors.text, fontSize: 16 }}>Kabul alındı</Text>
+            <Text style={{ fontWeight: '900', fontSize: 24, color: colors.primary }}>{success?.order_no}</Text>
             {success?.tracking ? (
-              <Text style={styles.successTrack}>Takip: {success.tracking}</Text>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Takip: {success.tracking}</Text>
             ) : null}
-            <Pressable style={styles.successPhoto} disabled={photoBusy} onPress={() => void addSuccessPhoto()}>
-              {photoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.successPrimaryText}>Fotoğraf ekle</Text>}
-            </Pressable>
-            <Pressable
-              style={styles.successPhoto}
+            <Button
+              title="Fotoğraf ekle"
+              variant="secondary"
+              loading={photoBusy}
+              onPress={() => void addSuccessPhoto()}
+            />
+            <Button
+              title="Etiket yazdır"
+              variant="secondary"
               onPress={() => {
                 if (!success) return
                 void printLabel({
@@ -265,93 +304,93 @@ export default function KabulScreen() {
                   subtitle: 'Servis kabul',
                 })
               }}
-            >
-              <Text style={styles.successPrimaryText}>Etiket yazdır</Text>
-            </Pressable>
-            <Pressable
-              style={styles.successPrimary}
+            />
+            <Button
+              title="Atölyeye git"
               onPress={() => {
                 const id = success?.id
                 setSuccess(null)
                 if (id) router.push(`/atolye/${id}`)
               }}
-            >
-              <Text style={styles.successPrimaryText}>Atölyeye git</Text>
-            </Pressable>
-            <Pressable style={styles.successSecondary} onPress={() => setSuccess(null)}>
-              <Text style={styles.successSecondaryText}>Kapat</Text>
-            </Pressable>
+            />
+            <Button title="Kapat" variant="ghost" onPress={() => setSuccess(null)} />
           </View>
         </View>
       </Modal>
 
-      <Modal visible={showForm} animationType="slide" presentationStyle="pageSheet">
-        <ScrollView contentContainerStyle={styles.form}>
-          <Text style={styles.formTitle}>Yeni Servis Kabul</Text>
-          {(['customer_name', 'customer_phone', 'device_brand', 'device_model', 'imei', 'fault_description'] as const).map(key => (
-            <View key={key}>
-              <Text style={styles.label}>
-                {{
-                  customer_name: 'Müşteri adı',
-                  customer_phone: 'Telefon',
-                  device_brand: 'Marka',
-                  device_model: 'Model',
-                  imei: 'IMEI',
-                  fault_description: 'Arıza / not',
-                }[key]}
-              </Text>
-              {key === 'imei' ? (
-                <View style={styles.imeiRow}>
-                  <TextInput
-                    style={[styles.input, styles.imeiInput]}
-                    value={form.imei}
-                    onChangeText={t => setForm(f => ({ ...f, imei: t }))}
-                    placeholderTextColor={AuraColors.muted}
-                    keyboardType="phone-pad"
-                  />
-                  <Pressable style={styles.scanBtn} onPress={() => setImeiScanOpen(true)}>
-                    <Text style={styles.scanBtnText}>Tara</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <TextInput
-                  style={styles.input}
-                  value={form[key]}
-                  onChangeText={t => setForm(f => ({ ...f, [key]: t }))}
-                  placeholderTextColor={AuraColors.muted}
-                  keyboardType={key === 'customer_phone' ? 'phone-pad' : 'default'}
-                />
-              )}
-              {key === 'customer_phone' && (historyLoading || history.length > 0) ? (
-                <View style={styles.historyBox}>
-                  <Text style={styles.historyTitle}>
-                    {historyLoading ? 'Geçmiş aranıyor…' : `Bu müşteri · ${history.length} iş`}
-                  </Text>
-                  {history.map(h => (
-                    <Pressable
-                      key={h.id}
-                      onPress={() => {
-                        setShowForm(false)
-                        router.push(`/atolye/${h.id}`)
-                      }}
-                    >
-                      <Text style={styles.historyLine}>
-                        {h.order_no || h.id.slice(0, 8)} · {[h.device_brand, h.device_model].filter(Boolean).join(' ')} · {h.status}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ))}
-          <Pressable style={styles.save} onPress={() => void createOrder()} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Kaydet</Text>}
+      <FormModal
+        visible={showForm}
+        title="Yeni Servis Kabul"
+        onClose={() => setShowForm(false)}
+        footer={<Button title="Kaydet" loading={saving} onPress={() => void createOrder()} />}
+      >
+        {formError ? (
+          <Text style={{ color: colors.danger, fontWeight: '700' }}>{formError}</Text>
+        ) : null}
+        <TextField
+          label="Müşteri adı"
+          value={form.customer_name}
+          onChangeText={t => setForm(f => ({ ...f, customer_name: t }))}
+        />
+        <TextField
+          label="Telefon"
+          keyboardType="phone-pad"
+          value={form.customer_phone}
+          onChangeText={t => setForm(f => ({ ...f, customer_phone: t }))}
+        />
+        {historyLoading || history.length > 0 ? (
+          <View style={[styles.historyBox, { backgroundColor: colors.primarySoft, borderRadius: colors.radius }]}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+              {historyLoading ? 'Geçmiş aranıyor…' : `Bu müşteri · ${history.length} iş`}
+            </Text>
+            {history.map(h => (
+              <Pressable
+                key={h.id}
+                onPress={() => {
+                  setShowForm(false)
+                  router.push(`/atolye/${h.id}`)
+                }}
+              >
+                <Text style={{ fontSize: 12, color: colors.text }}>
+                  {h.order_no || h.id.slice(0, 8)} · {[h.device_brand, h.device_model].filter(Boolean).join(' ')} · {h.status}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <TextField
+          label="Marka"
+          value={form.device_brand}
+          onChangeText={t => setForm(f => ({ ...f, device_brand: t }))}
+        />
+        <TextField
+          label="Model"
+          value={form.device_model}
+          onChangeText={t => setForm(f => ({ ...f, device_model: t }))}
+        />
+        <View style={styles.imeiRow}>
+          <View style={{ flex: 1 }}>
+            <TextField
+              label="IMEI"
+              keyboardType="phone-pad"
+              value={form.imei}
+              onChangeText={t => setForm(f => ({ ...f, imei: t }))}
+            />
+          </View>
+          <Pressable
+            style={[styles.scanBtn, { backgroundColor: colors.primaryDark, borderRadius: colors.radius }]}
+            onPress={() => setImeiScanOpen(true)}
+          >
+            <Text style={styles.scanBtnText}>Tara</Text>
           </Pressable>
-          <Pressable style={styles.cancel} onPress={() => setShowForm(false)}>
-            <Text style={styles.cancelText}>Vazgeç</Text>
-          </Pressable>
-        </ScrollView>
-      </Modal>
+        </View>
+        <TextField
+          label="Arıza / not"
+          value={form.fault_description}
+          onChangeText={t => setForm(f => ({ ...f, fault_description: t }))}
+          multiline
+        />
+      </FormModal>
 
       <BarcodeScannerModal
         visible={imeiScanOpen}
@@ -363,24 +402,11 @@ export default function KabulScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
+  root: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
-  hint: { color: AuraColors.muted, fontSize: 12 },
-  newBtn: { backgroundColor: AuraColors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  newBtn: { paddingHorizontal: 12, paddingVertical: 8 },
   newBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  error: { color: AuraColors.danger, paddingHorizontal: 16 },
-  empty: { textAlign: 'center', color: AuraColors.muted, marginTop: 40 },
-  card: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-  },
-  title: { fontWeight: '800', color: AuraColors.text },
-  sub: { color: AuraColors.text, marginTop: 2 },
-  meta: { color: AuraColors.muted, fontSize: 12, marginTop: 4 },
   successOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -390,74 +416,18 @@ const styles = StyleSheet.create({
   },
   successCard: {
     width: '100%',
-    backgroundColor: AuraColors.card,
-    borderRadius: 18,
     padding: 20,
     gap: 8,
     borderWidth: 1,
-    borderColor: AuraColors.border,
   },
-  successTitle: { fontWeight: '800', color: AuraColors.text, fontSize: 16 },
-  successNo: { fontWeight: '900', fontSize: 24, color: AuraColors.primary },
-  successTrack: { color: AuraColors.muted, fontSize: 13 },
-  successPhoto: {
-    marginTop: 4,
-    backgroundColor: AuraColors.primaryDark,
-    borderRadius: 12,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  successPrimary: {
-    backgroundColor: AuraColors.primary,
-    borderRadius: 12,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  successPrimaryText: { color: '#fff', fontWeight: '800' },
-  successSecondary: { alignItems: 'center', paddingVertical: 10 },
-  successSecondaryText: { color: AuraColors.muted, fontWeight: '700' },
-  form: { padding: 20, gap: 10, backgroundColor: AuraColors.bg },
-  formTitle: { fontSize: 20, fontWeight: '900', color: AuraColors.text, marginBottom: 8 },
-  label: { fontSize: 11, fontWeight: '700', color: AuraColors.muted, textTransform: 'uppercase' },
-  input: {
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: AuraColors.card,
-    color: AuraColors.text,
-    marginBottom: 4,
-  },
-  imeiRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 4 },
-  imeiInput: { flex: 1, marginBottom: 0 },
+  imeiRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   scanBtn: {
-    backgroundColor: AuraColors.primaryDark,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 13,
   },
   scanBtnText: { color: '#fff', fontWeight: '800' },
-  save: {
-    marginTop: 12,
-    backgroundColor: AuraColors.primary,
-    borderRadius: 14,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveText: { color: '#fff', fontWeight: '800' },
-  cancel: { alignItems: 'center', padding: 12 },
-  cancelText: { color: AuraColors.muted, fontWeight: '600' },
   historyBox: {
-    backgroundColor: '#e0f2fe',
-    borderRadius: 10,
     padding: 10,
-    marginBottom: 8,
     gap: 4,
   },
-  historyTitle: { fontSize: 11, fontWeight: '800', color: AuraColors.primary },
-  historyLine: { fontSize: 12, color: AuraColors.text },
 })

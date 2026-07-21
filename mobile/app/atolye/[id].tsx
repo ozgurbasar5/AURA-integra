@@ -9,7 +9,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -17,7 +16,11 @@ import { useFocusEffect } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import Constants from 'expo-constants'
 import { apiFetch, apiUpload } from '@/lib/api'
-import { AuraColors } from '@/constants/AuraColors'
+import { usePartsCatalog } from '@/lib/PartsCatalog'
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Button } from '@/components/ui/Button'
+import { Chip } from '@/components/ui/Chip'
+import { TextField } from '@/components/ui/TextField'
 import { statusLabel } from '@/lib/status-labels'
 import { buildServiceReceiptText, buildWaMeUrl } from '@/lib/wa'
 import { QC_CHECKLIST, qcProgress } from '@/lib/qc'
@@ -84,6 +87,8 @@ function approvalUrl(token: string): string {
 export default function AtolyeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const { colors } = useAppTheme()
+  const catalog = usePartsCatalog()
   const [order, setOrder] = useState<Order | null>(null)
   const [notes, setNotes] = useState('')
   const [privateNote, setPrivateNote] = useState('')
@@ -105,12 +110,15 @@ export default function AtolyeDetailScreen() {
 
   const load = useCallback(async () => {
     if (!id) return
-    setLoading(true)
+    setLoading(prev => {
+      // keep showing content if we already have order
+      return true
+    })
     setError('')
     try {
-      const [orderJson, partsJson, techJson] = await Promise.all([
+      const [orderJson, catalogParts, techJson] = await Promise.all([
         apiFetch(`/api/service-orders/${id}`) as Promise<{ data: Order }>,
-        apiFetch('/api/tenant/parts') as Promise<{ items?: Part[] }>,
+        catalog.ensureLoaded(),
         apiFetch('/api/tenant/technicians').catch(() => ({ items: [] })) as Promise<{ items?: Tech[] }>,
       ])
       const o = orderJson.data
@@ -120,7 +128,13 @@ export default function AtolyeDetailScreen() {
       setTechId(o.technician_id || null)
       const cost = o.actual_cost ?? o.estimated_cost ?? 0
       setFee(cost ? String(cost) : '')
-      setParts((partsJson.items ?? []).filter(p => Number(p.stock_qty) > 0).slice(0, 80))
+      setParts(catalogParts.filter(p => Number(p.stock_qty) > 0).slice(0, 80).map(p => ({
+        id: p.id,
+        name: p.name,
+        stock_qty: p.stock_qty,
+        purchase_price: p.buy_price,
+        sale_price: p.sale_price ?? p.sell_price,
+      })))
       setTechs(techJson.items ?? [])
       const metaParts = o.metadata?.used_parts ?? []
       setUsedParts(metaParts.map(p => ({
@@ -138,7 +152,7 @@ export default function AtolyeDetailScreen() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, catalog])
 
   useFocusEffect(useCallback(() => { void load() }, [load]))
 
@@ -306,8 +320,12 @@ export default function AtolyeDetailScreen() {
     const o = order
     const link = o.approval_token ? approvalUrl(o.approval_token) : ''
     const feeNum = Number(fee) || o.estimated_cost || 0
-    const msgText = `Merhaba ${o.customer_name}, ${o.device_brand} ${o.device_model} için tahmini ücret: ${feeNum} TL. Onay için: ${link || '(link yakında)'}`
-    await Linking.openURL(buildWaMeUrl(o.customer_phone, msgText))
+    if (!link) {
+      Alert.alert('Onay linki yok', 'Bu iş için henüz onay token’ı oluşmamış. Önce kaydı güncelleyin veya web’den onay linki oluşturun.')
+      return
+    }
+    const msgText = `Merhaba ${o.customer_name}, ${o.device_brand} ${o.device_model} için tahmini ücret: ${feeNum} TL. Onay için: ${link}`
+    await Linking.openURL(buildWaMeUrl(o.customer_phone || '', msgText))
   }
 
   async function shareReceipt() {
@@ -378,50 +396,51 @@ export default function AtolyeDetailScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color={AuraColors.primary} /></View>
+    return <View style={[styles.center, { backgroundColor: colors.bg }]}><ActivityIndicator color={colors.primary} /></View>
   }
 
   if (!order) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.error}>{error || 'Kayıt yok'}</Text>
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <Text style={{ color: colors.danger, fontWeight: '600' }}>{error || 'Kayıt yok'}</Text>
       </View>
     )
   }
 
   const done = order.status === 'teslim' || order.status === 'delivered'
   const qc = qcProgress(finalChecks)
+  const label = { fontSize: 11, fontWeight: '700' as const, color: colors.muted, textTransform: 'uppercase' as const, marginTop: 4 }
 
   return (
     <>
       <Stack.Screen options={{ title: order.order_no || 'İş detayı' }} />
-      <ScrollView style={styles.root} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 48 }}>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {msg ? <Text style={styles.ok}>{msg}</Text> : null}
+      <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 48 }}>
+        {error ? <Text style={{ color: colors.danger, fontWeight: '600' }}>{error}</Text> : null}
+        {msg ? <Text style={{ color: colors.success, fontWeight: '600' }}>{msg}</Text> : null}
 
-        <View style={styles.card}>
-          <Text style={styles.title}>{order.customer_name}</Text>
-          <Text style={styles.meta}>{order.customer_phone || '—'}</Text>
-          <Text style={styles.meta}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radiusLg }]}>
+          <Text style={{ fontWeight: '800', fontSize: 18, color: colors.text }}>{order.customer_name}</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>{order.customer_phone || '—'}</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
             {[order.device_brand, order.device_model].filter(Boolean).join(' ')}
             {order.imei ? ` · ${order.imei}` : ''}
           </Text>
-          <Text style={styles.badge}>{statusLabel(order.status)}</Text>
-          {order.fault_description ? <Text style={styles.fault}>{order.fault_description}</Text> : null}
+          <Text style={[styles.badge, { backgroundColor: colors.primarySoft, color: colors.primary }]}>{statusLabel(order.status)}</Text>
+          {order.fault_description ? <Text style={{ marginTop: 8, color: colors.text }}>{order.fault_description}</Text> : null}
         </View>
 
         <View style={styles.actionRow}>
-          <Pressable style={[styles.actionBtn, styles.waBtn]} onPress={() => void openWhatsApp()}>
+          <Pressable style={[styles.actionBtn, { backgroundColor: '#16a34a', borderRadius: colors.radius }]} onPress={() => void openWhatsApp()}>
             <Text style={styles.actionBtnText}>WhatsApp</Text>
           </Pressable>
-          <Pressable style={[styles.actionBtn, styles.shareBtn]} onPress={() => void shareReceipt()}>
+          <Pressable style={[styles.actionBtn, { backgroundColor: colors.primaryDark, borderRadius: colors.radius }]} onPress={() => void shareReceipt()}>
             <Text style={styles.actionBtnText}>Fiş</Text>
           </Pressable>
-          <Pressable style={[styles.actionBtn, styles.photoBtn]} onPress={() => void sendApprovalWa()}>
+          <Pressable style={[styles.actionBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]} onPress={() => void sendApprovalWa()}>
             <Text style={styles.actionBtnText}>Onay linki</Text>
           </Pressable>
           {!done && (
-            <Pressable style={[styles.actionBtn, styles.photoBtn]} disabled={busy} onPress={() => void pickPhoto()}>
+            <Pressable style={[styles.actionBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]} disabled={busy} onPress={() => void pickPhoto()}>
               <Text style={styles.actionBtnText}>Foto</Text>
             </Pressable>
           )}
@@ -432,53 +451,48 @@ export default function AtolyeDetailScreen() {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {images.map(uri => (
                 <Pressable key={uri} onLongPress={() => !done && void deletePhoto(uri)}>
-                  <Image source={{ uri }} style={styles.thumb} />
+                  <Image source={{ uri }} style={[styles.thumb, { backgroundColor: colors.border }]} />
                 </Pressable>
               ))}
             </View>
           </ScrollView>
         )}
         {images.length > 0 && !done ? (
-          <Text style={styles.hint}>Uzun basarak fotoğraf sil</Text>
+          <Text style={{ fontSize: 11, color: colors.muted }}>Uzun basarak fotoğraf sil</Text>
         ) : null}
 
-        <Text style={styles.label}>Teknisyen notu</Text>
-        <TextInput
-          style={styles.input}
+        <TextField
+          label="Teknisyen notu"
           multiline
           value={notes}
           onChangeText={setNotes}
           placeholder="Not…"
-          placeholderTextColor={AuraColors.muted}
           editable={!done}
+          style={styles.multiline}
         />
 
-        <Text style={styles.label}>Özel not (müşteri görmez)</Text>
-        <TextInput
-          style={styles.input}
+        <TextField
+          label="Özel not (müşteri görmez)"
           multiline
           value={privateNote}
           onChangeText={setPrivateNote}
           placeholder="İç not…"
-          placeholderTextColor={AuraColors.muted}
           editable={!done}
+          style={styles.multiline}
         />
 
         {!done && techs.length > 0 && (
           <>
-            <Text style={styles.label}>Teknisyen</Text>
+            <Text style={label}>Teknisyen</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {techs.map(t => (
-                  <Pressable
+                  <Chip
                     key={t.id}
-                    style={[styles.statusBtn, techId === t.id && styles.statusActive]}
+                    label={t.full_name}
+                    active={techId === t.id}
                     onPress={() => setTechId(t.id)}
-                  >
-                    <Text style={[styles.statusText, techId === t.id && styles.statusTextActive]}>
-                      {t.full_name}
-                    </Text>
-                  </Pressable>
+                  />
                 ))}
               </View>
             </ScrollView>
@@ -487,110 +501,112 @@ export default function AtolyeDetailScreen() {
 
         {!done && (
           <>
-            <Text style={styles.label}>Durum</Text>
+            <Text style={label}>Durum</Text>
             <View style={styles.statusGrid}>
               {STATUSES.map(s => (
-                <Pressable
+                <Chip
                   key={s.id}
-                  style={[styles.statusBtn, order.status === s.id && styles.statusActive]}
+                  label={s.label}
+                  active={order.status === s.id}
                   disabled={busy}
                   onPress={() => void setStatus(s.id)}
-                >
-                  <Text style={[styles.statusText, order.status === s.id && styles.statusTextActive]}>
-                    {s.label}
-                  </Text>
-                </Pressable>
+                />
               ))}
             </View>
 
-            <Text style={styles.label}>QC ({qc.done}/{qc.total})</Text>
+            <Text style={label}>QC ({qc.done}/{qc.total})</Text>
             {QC_CHECKLIST.map(item => (
               <Pressable key={item} style={styles.qcRow} onPress={() => toggleQc(item)}>
-                <Text style={styles.qcCheck}>{finalChecks.includes(item) ? '☑' : '☐'}</Text>
-                <Text style={styles.qcText}>{item}</Text>
+                <Text style={{ fontSize: 16, color: colors.primary }}>{finalChecks.includes(item) ? '☑' : '☐'}</Text>
+                <Text style={{ color: colors.text, fontSize: 13, flex: 1 }}>{item}</Text>
               </Pressable>
             ))}
 
-            <Text style={styles.label}>Parça ({usedParts.length})</Text>
+            <Text style={label}>Parça ({usedParts.length})</Text>
             {usedParts.map(p => (
               <View key={p.stock_id} style={styles.partRow}>
-                <Text style={styles.usedLine}>{p.name} × {p.qty}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{p.name} × {p.qty}</Text>
                 <Pressable onPress={() => void restorePart(p.stock_id)} disabled={busy}>
-                  <Text style={styles.restore}>Geri al</Text>
+                  <Text style={{ color: colors.danger, fontWeight: '700', fontSize: 12 }}>Geri al</Text>
                 </Pressable>
               </View>
             ))}
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {parts.slice(0, 20).map(p => (
-                  <Pressable key={p.id} style={styles.partChip} disabled={busy} onPress={() => void addPart(p)}>
-                    <Text style={styles.partChipText}>{p.name}</Text>
+                  <Pressable
+                    key={p.id}
+                    style={[styles.partChip, { backgroundColor: colors.primarySoft }]}
+                    disabled={busy}
+                    onPress={() => void addPart(p)}
+                  >
+                    <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>{p.name}</Text>
                   </Pressable>
                 ))}
               </View>
             </ScrollView>
 
-            <Text style={styles.label}>Ek gider</Text>
+            <Text style={label}>Ek gider</Text>
             {expenses.map((e, i) => (
-              <Text key={`${e.description}-${i}`} style={styles.usedLine}>
+              <Text key={`${e.description}-${i}`} style={{ color: colors.text, fontSize: 13 }}>
                 {e.description}: {e.amount} ₺
               </Text>
             ))}
             <View style={styles.expRow}>
-              <TextInput
-                style={[styles.inputSingle, { flex: 1 }]}
-                placeholder="Açıklama"
-                value={expDesc}
-                onChangeText={setExpDesc}
-                placeholderTextColor={AuraColors.muted}
-              />
-              <TextInput
-                style={[styles.inputSingle, { width: 90 }]}
-                placeholder="₺"
-                keyboardType="decimal-pad"
-                value={expAmt}
-                onChangeText={setExpAmt}
-                placeholderTextColor={AuraColors.muted}
-              />
-              <Pressable style={styles.addExp} onPress={() => void addExpense()}>
+              <View style={{ flex: 1 }}>
+                <TextField
+                  placeholder="Açıklama"
+                  value={expDesc}
+                  onChangeText={setExpDesc}
+                />
+              </View>
+              <View style={{ width: 90 }}>
+                <TextField
+                  placeholder="₺"
+                  keyboardType="decimal-pad"
+                  value={expAmt}
+                  onChangeText={setExpAmt}
+                />
+              </View>
+              <Pressable
+                style={[styles.addExp, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
+                onPress={() => void addExpense()}
+              >
                 <Text style={styles.actionBtnText}>+</Text>
               </Pressable>
             </View>
 
-            <Pressable style={styles.saveBtn} disabled={busy} onPress={() => void saveAll()}>
-              <Text style={styles.deliverText}>Kaydet</Text>
-            </Pressable>
+            <Button
+              title="Kaydet"
+              disabled={busy}
+              onPress={() => void saveAll()}
+              style={{ backgroundColor: colors.primaryDark }}
+            />
 
-            <Text style={styles.label}>Teslim ücreti (₺)</Text>
-            <TextInput
-              style={styles.inputSingle}
+            <TextField
+              label="Teslim ücreti (₺)"
               keyboardType="decimal-pad"
               value={fee}
               onChangeText={setFee}
               placeholder="0"
-              placeholderTextColor={AuraColors.muted}
             />
-            <Text style={styles.label}>Ödeme</Text>
+            <Text style={label}>Ödeme</Text>
             <View style={styles.statusGrid}>
               {PAYMENTS.map(p => (
-                <Pressable
+                <Chip
                   key={p.id}
-                  style={[styles.statusBtn, payment === p.id && styles.statusActive]}
+                  label={p.label}
+                  active={payment === p.id}
                   onPress={() => setPayment(p.id)}
-                >
-                  <Text style={[styles.statusText, payment === p.id && styles.statusTextActive]}>
-                    {p.label}
-                  </Text>
-                </Pressable>
+                />
               ))}
             </View>
-            <Pressable style={styles.deliverBtn} disabled={busy} onPress={() => void deliver()}>
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.deliverText}>Teslim Et</Text>
-              )}
-            </Pressable>
+            <Button
+              title="Teslim Et"
+              loading={busy}
+              onPress={() => void deliver()}
+              style={{ backgroundColor: colors.success }}
+            />
           </>
         )}
       </ScrollView>
@@ -599,26 +615,15 @@ export default function AtolyeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  error: { color: AuraColors.danger, fontWeight: '600' },
-  ok: { color: AuraColors.success, fontWeight: '600' },
-  hint: { fontSize: 11, color: AuraColors.muted },
   card: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: AuraColors.border,
     gap: 4,
   },
-  title: { fontWeight: '800', fontSize: 18, color: AuraColors.text },
-  meta: { color: AuraColors.muted, fontSize: 13 },
   badge: {
     alignSelf: 'flex-start',
     marginTop: 8,
-    backgroundColor: AuraColors.primarySoft,
-    color: AuraColors.primary,
     fontWeight: '700',
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -626,87 +631,29 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     fontSize: 12,
   },
-  fault: { marginTop: 8, color: AuraColors.text },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   actionBtn: {
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
     minHeight: 40,
     justifyContent: 'center',
   },
-  waBtn: { backgroundColor: '#16a34a' },
-  shareBtn: { backgroundColor: AuraColors.primaryDark },
-  photoBtn: { backgroundColor: AuraColors.primary },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  thumb: { width: 88, height: 88, borderRadius: 12, backgroundColor: AuraColors.border },
-  label: { fontSize: 11, fontWeight: '700', color: AuraColors.muted, textTransform: 'uppercase', marginTop: 4 },
-  input: {
-    minHeight: 72,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: AuraColors.card,
-    textAlignVertical: 'top',
-    color: AuraColors.text,
-  },
-  inputSingle: {
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: AuraColors.card,
-    color: AuraColors.text,
-    fontWeight: '700',
-  },
+  thumb: { width: 88, height: 88, borderRadius: 12 },
+  multiline: { minHeight: 72, textAlignVertical: 'top' },
   statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: AuraColors.card,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-  },
-  statusActive: { backgroundColor: AuraColors.primary, borderColor: AuraColors.primary },
-  statusText: { fontWeight: '700', color: AuraColors.text, fontSize: 13 },
-  statusTextActive: { color: '#fff' },
   qcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  qcCheck: { fontSize: 16, color: AuraColors.primary },
-  qcText: { color: AuraColors.text, fontSize: 13, flex: 1 },
-  usedLine: { color: AuraColors.text, fontSize: 13 },
   partRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  restore: { color: AuraColors.danger, fontWeight: '700', fontSize: 12 },
   partChip: {
-    backgroundColor: AuraColors.primarySoft,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
   },
-  partChipText: { color: AuraColors.primary, fontWeight: '700', fontSize: 12 },
-  expRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  expRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   addExp: {
-    backgroundColor: AuraColors.primary,
     width: 44,
     height: 44,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveBtn: {
-    backgroundColor: AuraColors.primaryDark,
-    borderRadius: 14,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deliverBtn: {
-    backgroundColor: AuraColors.success,
-    borderRadius: 14,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deliverText: { color: '#fff', fontWeight: '800' },
 })

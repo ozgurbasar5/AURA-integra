@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -12,18 +12,13 @@ import {
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { useAuth } from '@/lib/auth'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, invalidateApiCache } from '@/lib/api'
+import { usePartsCatalog } from '@/lib/PartsCatalog'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
-import { AuraColors } from '@/constants/AuraColors'
-
-type Part = {
-  id: string
-  name: string
-  barcode: string | null
-  stock_qty: number
-  sale_price?: number
-  sell_price?: number
-}
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Chip } from '@/components/ui/Chip'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 
 const PAYMENTS = [
   { id: 'nakit', label: 'Nakit' },
@@ -33,9 +28,9 @@ const PAYMENTS = [
 
 export default function SatisScreen() {
   const { profile } = useAuth()
-  const [parts, setParts] = useState<Part[]>([])
+  const { colors } = useAppTheme()
+  const catalog = usePartsCatalog()
   const [q, setQ] = useState('')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cart, setCart] = useState<{ id: string; name: string; qty: number; unit_price: number }[]>([])
   const [busy, setBusy] = useState(false)
@@ -44,36 +39,24 @@ export default function SatisScreen() {
   const [customer, setCustomer] = useState('')
   const [stockWarning, setStockWarning] = useState('')
 
-  const load = useCallback(async () => {
-    if (!profile?.tenant_id) return
-    setLoading(true)
-    setError('')
-    try {
-      const json = await apiFetch('/api/tenant/parts') as { items?: Part[] }
-      setParts(json.items ?? [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Stok yüklenemedi')
-    } finally {
-      setLoading(false)
-    }
-  }, [profile?.tenant_id])
+  useFocusEffect(useCallback(() => {
+    if (profile?.tenant_id) void catalog.ensureLoaded()
+  }, [profile?.tenant_id, catalog]))
 
-  useFocusEffect(useCallback(() => { void load() }, [load]))
+  useEffect(() => {
+    if (catalog.error) setError(catalog.error)
+  }, [catalog.error])
 
-  const priceOf = (p: Part) => Number(p.sale_price ?? p.sell_price) || 0
+  const priceOf = (p: { sale_price?: number; sell_price?: number }) =>
+    Number(p.sale_price ?? p.sell_price) || 0
 
-  const filtered = parts.filter(p => {
-    if (p.stock_qty <= 0) return false
-    if (!q.trim()) return true
-    const s = q.toLowerCase()
-    return p.name.toLowerCase().includes(s) || (p.barcode || '').includes(q.trim())
-  }).slice(0, 40)
+  const filtered = catalog.filter(q, { inStockOnly: true, limit: 40 })
 
   function cartQtyFor(id: string) {
     return cart.find(i => i.id === id)?.qty ?? 0
   }
 
-  function warnStock(part: Part, nextQty: number) {
+  function warnStock(part: { name: string; stock_qty: number }, nextQty: number) {
     if (nextQty <= part.stock_qty) {
       setStockWarning('')
       return false
@@ -84,7 +67,7 @@ export default function SatisScreen() {
     return true
   }
 
-  function addToCart(p: Part) {
+  function addToCart(p: { id: string; name: string; stock_qty: number; sale_price?: number; sell_price?: number }) {
     const nextQty = cartQtyFor(p.id) + 1
     if (warnStock(p, nextQty)) return
     setCart(prev => {
@@ -95,7 +78,7 @@ export default function SatisScreen() {
   }
 
   function bumpCart(id: string, delta: number) {
-    const part = parts.find(p => p.id === id)
+    const part = catalog.parts.find(p => p.id === id)
     if (!part) return
     const nextQty = cartQtyFor(id) + delta
     if (delta > 0 && warnStock(part, nextQty)) return
@@ -128,7 +111,9 @@ export default function SatisScreen() {
       })
       setCart([])
       setCustomer('')
-      await load()
+      catalog.invalidate()
+      await catalog.refresh()
+      invalidateApiCache('/api/tenant/parts')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Satış başarısız')
     } finally {
@@ -138,17 +123,17 @@ export default function SatisScreen() {
 
   const total = cart.reduce((s, i) => s + i.qty * i.unit_price, 0)
 
+  if (catalog.loading && catalog.parts.length === 0) {
+    return <View style={[styles.root, { backgroundColor: colors.bg }]}><LoadingBlock label="Stok yükleniyor…" /></View>
+  }
+
   return (
-    <View style={styles.root}>
-      <View style={styles.searchWrap}>
-        <TextInput
-          style={[styles.search, { flex: 1 }]}
-          placeholder="Ürün / barkod ara"
-          placeholderTextColor={AuraColors.muted}
-          value={q}
-          onChangeText={setQ}
-        />
-        <Pressable style={styles.scanBtn} onPress={() => setScanOpen(true)}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <View style={[styles.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={{ flex: 1 }}>
+          <SearchBar placeholder="Ürün / barkod ara" value={q} onChangeText={setQ} />
+        </View>
+        <Pressable style={[styles.scanBtn, { backgroundColor: colors.primaryDark }]} onPress={() => setScanOpen(true)}>
           <Text style={styles.scanBtnText}>Tara</Text>
         </Pressable>
       </View>
@@ -157,51 +142,65 @@ export default function SatisScreen() {
         onClose={() => setScanOpen(false)}
         onScan={(data) => {
           setQ(data)
-          const hit = parts.find(p => (p.barcode || '') === data)
+          const hit = catalog.findByBarcode(data)
           if (hit) addToCart(hit)
         }}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {stockWarning ? <Text style={styles.stockWarn}>{stockWarning}</Text> : null}
-      {loading && parts.length === 0 ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={AuraColors.primary} />
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={i => i.id}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 220 }}
-          ListHeaderComponent={cart.length > 0 ? (
-            <View style={styles.cartBox}>
-              <Text style={styles.cartTitle}>Sepet</Text>
-              {cart.map(c => (
-                <View key={c.id} style={styles.cartRow}>
-                  <Text style={styles.cartName} numberOfLines={1}>{c.name}</Text>
-                  <Pressable style={styles.cartBump} onPress={() => bumpCart(c.id, -1)}>
-                    <Text style={styles.cartBumpText}>−</Text>
-                  </Pressable>
-                  <Text style={styles.cartQty}>{c.qty}</Text>
-                  <Pressable style={styles.cartBump} onPress={() => bumpCart(c.id, 1)}>
-                    <Text style={styles.cartBumpText}>+</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => addToCart(item)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{item.name}</Text>
-                <Text style={styles.meta}>Stok: {item.stock_qty} · {item.barcode || '—'}</Text>
+      {error ? <ErrorBanner message={error} onRetry={() => void catalog.refresh()} /> : null}
+      {stockWarning ? <Text style={{ color: colors.warning, paddingHorizontal: 16, marginTop: 4, fontWeight: '700', fontSize: 12 }}>{stockWarning}</Text> : null}
+      <FlatList
+        data={filtered}
+        keyExtractor={i => i.id}
+        refreshControl={<RefreshControl refreshing={catalog.refreshing} onRefresh={() => void catalog.refresh()} tintColor={colors.primary} />}
+        contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 220, flexGrow: 1 }}
+        ListEmptyComponent={
+          <EmptyState
+            icon="shopping-cart"
+            title={q ? 'Sonuç yok' : 'Satılabilir stok yok'}
+            subtitle={q ? 'Başka barkod / isim deneyin' : 'Stok girişi veya alış yapın'}
+          />
+        }
+        ListHeaderComponent={cart.length > 0 ? (
+          <View style={[styles.cartBox, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}>
+            <Text style={[styles.cartTitle, { color: colors.text }]}>Sepet · {cart.reduce((s, c) => s + c.qty, 0)} kalem</Text>
+            {cart.map(c => (
+              <View key={c.id} style={styles.cartRow}>
+                <Text style={{ flex: 1, color: colors.text, fontWeight: '600' }} numberOfLines={1}>{c.name}</Text>
+                <Pressable style={[styles.cartBump, { backgroundColor: colors.border }]} onPress={() => bumpCart(c.id, -1)}>
+                  <Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>−</Text>
+                </Pressable>
+                <Text style={{ fontWeight: '800', minWidth: 20, textAlign: 'center', color: colors.text }}>{c.qty}</Text>
+                <Pressable style={[styles.cartBump, { backgroundColor: colors.primarySoft }]} onPress={() => bumpCart(c.id, 1)}>
+                  <Text style={{ fontWeight: '800', fontSize: 16, color: colors.primary }}>+</Text>
+                </Pressable>
               </View>
-              <Text style={styles.price}>{priceOf(item).toFixed(0)} ₺</Text>
-            </Pressable>
-          )}
-        />
-      )}
+            ))}
+          </View>
+        ) : null}
+        renderItem={({ item }) => (
+          <Pressable
+            style={({ pressed }) => [
+              styles.card,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radiusLg,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
+            onPress={() => addToCart(item)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: '700', color: colors.text }}>{item.name}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>Stok: {item.stock_qty} · {item.barcode || '—'}</Text>
+            </View>
+            <Text style={{ fontWeight: '800', color: colors.primary }}>{priceOf(item).toFixed(0)} ₺</Text>
+          </Pressable>
+        )}
+      />
 
       {cart.length > 0 && (
-        <View style={styles.checkout}>
+        <View style={[styles.checkout, { backgroundColor: colors.primaryDark }]}>
           <TextInput
             style={styles.custInput}
             placeholder="Müşteri (ops.)"
@@ -211,37 +210,20 @@ export default function SatisScreen() {
           />
           <View style={styles.payRow}>
             {PAYMENTS.map(p => (
-              <Pressable
+              <Chip
                 key={p.id}
-                style={[styles.payChip, payment === p.id && styles.payActive]}
+                label={p.label}
+                active={payment === p.id}
                 onPress={() => setPayment(p.id)}
-              >
-                <Text style={[styles.payText, payment === p.id && styles.payTextActive]}>{p.label}</Text>
-              </Pressable>
+              />
             ))}
-          </View>
-          <View style={styles.quickPayRow}>
-            <Pressable
-              style={[styles.quickPayBtn, busy && styles.quickPayDisabled]}
-              onPress={() => void completeSale('nakit')}
-              disabled={busy}
-            >
-              <Text style={styles.quickPayText}>Nakit · {total.toFixed(0)} ₺</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.quickPayBtn, busy && styles.quickPayDisabled]}
-              onPress={() => void completeSale('kredi_karti')}
-              disabled={busy}
-            >
-              <Text style={styles.quickPayText}>Kart · {total.toFixed(0)} ₺</Text>
-            </Pressable>
           </View>
           <View style={styles.checkoutRow}>
             <View>
               <Text style={styles.checkoutMeta}>{cart.reduce((s, i) => s + i.qty, 0)} ürün · {payment}</Text>
               <Text style={styles.checkoutTotal}>{total.toFixed(2)} ₺</Text>
             </View>
-            <Pressable style={styles.checkoutBtn} onPress={() => void completeSale()} disabled={busy}>
+            <Pressable style={[styles.checkoutBtn, { backgroundColor: colors.primary }]} onPress={() => void completeSale()} disabled={busy}>
               {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.checkoutBtnText}>Tamamla</Text>}
             </Pressable>
           </View>
@@ -252,103 +234,21 @@ export default function SatisScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
-  searchWrap: { padding: 16, paddingBottom: 0, flexDirection: 'row', gap: 8, alignItems: 'center' },
-  search: {
-    backgroundColor: AuraColors.card,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  scanBtn: {
-    backgroundColor: AuraColors.primaryDark,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
+  root: { flex: 1 },
+  searchWrap: { padding: 16, paddingBottom: 12, flexDirection: 'row', gap: 8, alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  scanBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12 },
   scanBtnText: { color: '#fff', fontWeight: '800' },
-  error: { color: AuraColors.danger, paddingHorizontal: 16, marginTop: 8 },
-  stockWarn: { color: AuraColors.warning, paddingHorizontal: 16, marginTop: 4, fontWeight: '700', fontSize: 12 },
-  cartBox: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    marginBottom: 8,
-    gap: 6,
-  },
-  cartTitle: { fontWeight: '800', color: AuraColors.text, marginBottom: 4 },
+  cartBox: { borderRadius: 14, padding: 12, borderWidth: 1, marginBottom: 8, gap: 6 },
+  cartTitle: { fontWeight: '800', marginBottom: 4 },
   cartRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cartName: { flex: 1, color: AuraColors.text, fontWeight: '600' },
-  cartBump: {
-    width: 32, height: 32, borderRadius: 8, backgroundColor: '#e2e8f0',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cartBumpText: { fontWeight: '800', fontSize: 16 },
-  cartQty: { fontWeight: '800', minWidth: 20, textAlign: 'center' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: AuraColors.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    gap: 10,
-  },
-  title: { fontWeight: '700', color: AuraColors.text },
-  meta: { color: AuraColors.muted, fontSize: 12, marginTop: 2 },
-  price: { fontWeight: '800', color: AuraColors.primary },
-  checkout: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    backgroundColor: AuraColors.primaryDark,
-    borderRadius: 16,
-    padding: 12,
-    gap: 8,
-  },
-  custInput: {
-    backgroundColor: '#1e293b',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#fff',
-  },
-  payRow: { flexDirection: 'row', gap: 6 },
-  payChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#334155',
-  },
-  payActive: { backgroundColor: AuraColors.primary },
-  payText: { color: '#cbd5e1', fontWeight: '700', fontSize: 12 },
-  payTextActive: { color: '#fff' },
-  quickPayRow: { flexDirection: 'row', gap: 6 },
-  quickPayBtn: {
-    flex: 1,
-    backgroundColor: '#0f766e',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  quickPayDisabled: { opacity: 0.6 },
-  quickPayText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  cartBump: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  card: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: StyleSheet.hairlineWidth, gap: 10 },
+  checkout: { position: 'absolute', left: 12, right: 12, bottom: 12, borderRadius: 16, padding: 12, gap: 8 },
+  custInput: { backgroundColor: '#1e293b', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, color: '#fff' },
+  payRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   checkoutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   checkoutMeta: { color: '#94a3b8', fontSize: 11 },
   checkoutTotal: { color: '#fff', fontWeight: '900', fontSize: 18 },
-  checkoutBtn: {
-    backgroundColor: AuraColors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
+  checkoutBtn: { borderRadius: 12, paddingHorizontal: 18, minHeight: 44, justifyContent: 'center' },
   checkoutBtnText: { color: '#fff', fontWeight: '800' },
 })

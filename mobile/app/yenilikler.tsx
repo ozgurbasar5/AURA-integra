@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native'
 import { supabase } from '@/lib/supabase'
-import { AuraColors } from '@/constants/AuraColors'
 import { useAuth } from '@/lib/auth'
+import { useAppTheme } from '@/lib/ThemeContext'
 
 type Yenilik = {
   id: string
@@ -41,6 +41,7 @@ function formatDate(iso: string) {
 
 export default function YeniliklerScreen() {
   const { session } = useAuth()
+  const { colors } = useAppTheme()
   const [items, setItems] = useState<Yenilik[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -54,7 +55,7 @@ export default function YeniliklerScreen() {
         .select('id, title, summary, content, category, published_at')
         .eq('published', true)
         .order('published_at', { ascending: false })
-
+        .limit(40)
       setItems((data as Yenilik[]) ?? [])
 
       const uid = session?.user?.id
@@ -95,17 +96,20 @@ export default function YeniliklerScreen() {
   const unread = items.filter(i => !readIds.has(i.id)).length
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>Yenilikler</Text>
-      <Text style={styles.muted}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 32 }}
+    >
+      <Text style={{ fontSize: 22, fontWeight: '900', color: colors.text }}>Yenilikler</Text>
+      <Text style={{ color: colors.muted, marginBottom: 8 }}>
         {unread > 0 ? `${unread} okunmamış yenilik` : 'Platform güncellemeleri'}
       </Text>
 
       {loading ? (
-        <ActivityIndicator color={AuraColors.primary} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
       ) : items.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.row}>Henüz yayınlanmış yenilik yok.</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radiusLg }]}>
+          <Text style={{ color: colors.muted }}>Henüz yayınlanmış yenilik yok.</Text>
         </View>
       ) : (
         items.map(item => {
@@ -115,19 +119,26 @@ export default function YeniliklerScreen() {
             <Pressable
               key={item.id}
               onPress={() => void openItem(item)}
-              style={[styles.card, unreadItem && styles.cardUnread]}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: unreadItem ? colors.primary : colors.border,
+                  borderRadius: colors.radiusLg,
+                },
+              ]}
             >
               <View style={styles.metaRow}>
-                <Text style={styles.badge}>
+                <Text style={[styles.badge, { color: colors.primary, backgroundColor: colors.primarySoft }]}>
                   {CATEGORY_LABEL[item.category] ?? item.category}
                 </Text>
-                {unreadItem && <View style={styles.dot} />}
-                <Text style={styles.date}>{formatDate(item.published_at)}</Text>
+                {unreadItem && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
+                <Text style={{ marginLeft: 'auto', fontSize: 11, color: colors.muted }}>{formatDate(item.published_at)}</Text>
               </View>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              {!!item.summary && <Text style={styles.row}>{item.summary}</Text>}
+              <Text style={{ fontWeight: '800', color: colors.text, fontSize: 16 }}>{item.title}</Text>
+              {!!item.summary && <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{item.summary}</Text>}
               {open && !!item.content && (
-                <Text style={[styles.row, { marginTop: 8 }]}>
+                <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 8 }}>
                   {item.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
                 </Text>
               )}
@@ -140,27 +151,15 @@ export default function YeniliklerScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
-  content: { padding: 16, gap: 10, paddingBottom: 32 },
-  h1: { fontSize: 22, fontWeight: '900', color: AuraColors.text },
-  muted: { color: AuraColors.muted, marginBottom: 8 },
   card: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: AuraColors.border,
     gap: 6,
-  },
-  cardUnread: {
-    borderColor: AuraColors.primary,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   badge: {
     fontSize: 11,
     fontWeight: '800',
-    color: AuraColors.primary,
-    backgroundColor: '#e0f2fe',
     overflow: 'hidden',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -170,9 +169,5 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: AuraColors.primary,
   },
-  date: { marginLeft: 'auto', fontSize: 11, color: AuraColors.muted },
-  cardTitle: { fontWeight: '800', color: AuraColors.text, fontSize: 16 },
-  row: { color: AuraColors.muted, fontSize: 14, lineHeight: 20 },
 })

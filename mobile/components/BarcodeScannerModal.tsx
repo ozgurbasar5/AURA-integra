@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
-import { AuraColors } from '@/constants/AuraColors'
+import { useAppTheme } from '@/lib/ThemeContext'
 
 type Props = {
   visible: boolean
@@ -10,6 +10,7 @@ type Props = {
 }
 
 export function BarcodeScannerModal({ visible, onClose, onScan }: Props) {
+  const { colors } = useAppTheme()
   const [permission, requestPermission] = useCameraPermissions()
   const [locked, setLocked] = useState(false)
 
@@ -21,7 +22,10 @@ export function BarcodeScannerModal({ visible, onClose, onScan }: Props) {
         {!permission?.granted ? (
           <View style={styles.center}>
             <Text style={styles.msg}>Barkod için kamera izni gerekli</Text>
-            <Pressable style={styles.btn} onPress={() => void requestPermission()}>
+            <Pressable
+              style={[styles.btn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
+              onPress={() => void requestPermission()}
+            >
               <Text style={styles.btnText}>İzin Ver</Text>
             </Pressable>
             <Pressable onPress={onClose}><Text style={styles.cancel}>Kapat</Text></Pressable>
@@ -57,7 +61,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   msg: { color: '#fff', textAlign: 'center' },
-  btn: { backgroundColor: AuraColors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  btn: { paddingHorizontal: 20, paddingVertical: 12 },
   btnText: { color: '#fff', fontWeight: '800' },
   cancel: { color: '#94a3b8', marginTop: 8 },
   overlay: {

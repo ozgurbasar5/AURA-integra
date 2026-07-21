@@ -1,18 +1,21 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { apiFetch } from '@/lib/api'
-import { AuraColors } from '@/constants/AuraColors'
+import { apiFetch, invalidateApiCache } from '@/lib/api'
 import { printLabel } from '@/lib/label-print'
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Button } from '@/components/ui/Button'
+import { FormModal } from '@/components/ui/FormModal'
+import { ListRow } from '@/components/ui/ListRow'
+import { TextField } from '@/components/ui/TextField'
+import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 
 type Device = {
   id: string
@@ -22,42 +25,89 @@ type Device = {
   barcode?: string
   sell_price?: number
   sale_price?: number
+  buy_price?: number
   status?: string
+  condition?: string
 }
 
 export default function VitrinScreen() {
+  const { colors } = useAppTheme()
   const [items, setItems] = useState<Device[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const hasData = useRef(false)
+  const [form, setForm] = useState({
+    brand: '',
+    model: '',
+    imei: '',
+    sell_price: '',
+    buy_price: '',
+    condition: 'iyi',
+  })
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const load = useCallback(async (fresh = false, isRefresh = false) => {
+    if (!hasData.current && !isRefresh) setLoading(true)
+    if (isRefresh) setRefreshing(true)
     try {
-      const json = await apiFetch('/api/tenant/showcase') as { items?: Device[] }
+      const json = await apiFetch('/api/tenant/showcase', { fresh }) as { items?: Device[] }
       setItems((json.items ?? []).filter(d => d.status !== 'sold' && d.status !== 'satildi'))
+      hasData.current = true
+      setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Vitrin yüklenemedi')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [])
 
-  useFocusEffect(useCallback(() => { void load() }, [load]))
+  useFocusEffect(useCallback(() => {
+    void (async () => {
+      if (!hasData.current) await load(false)
+      else await load(true)
+    })()
+  }, [load]))
+
+  async function createDevice() {
+    if (!form.brand.trim() || !form.model.trim()) {
+      setError('Marka ve model gerekli')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await apiFetch('/api/tenant/showcase', {
+        method: 'POST',
+        body: JSON.stringify({
+          brand: form.brand.trim(),
+          model: form.model.trim(),
+          imei: form.imei.trim() || undefined,
+          sell_price: Number(form.sell_price) || 0,
+          buy_price: Number(form.buy_price) || 0,
+          condition: form.condition,
+        }),
+      })
+      invalidateApiCache('/api/tenant/showcase')
+      setShowForm(false)
+      setForm({ brand: '', model: '', imei: '', sell_price: '', buy_price: '', condition: 'iyi' })
+      await load(true, true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Kayıt başarısız')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function sell(d: Device) {
     const price = Number(d.sell_price ?? d.sale_price) || 0
     Alert.alert('Satış', `${d.brand} ${d.model} — ${price} ₺`, [
       { text: 'İptal', style: 'cancel' },
-      {
-        text: 'Nakit sat',
-        onPress: () => void doSell(d, 'nakit'),
-      },
-      {
-        text: 'Kart sat',
-        onPress: () => void doSell(d, 'kredi_karti'),
-      },
+      { text: 'Nakit sat', onPress: () => void doSell(d, 'nakit') },
+      { text: 'Kart sat', onPress: () => void doSell(d, 'kredi_karti') },
     ])
   }
 
@@ -73,7 +123,8 @@ export default function VitrinScreen() {
           sell_price: Number(d.sell_price ?? d.sale_price) || undefined,
         }),
       })
-      await load()
+      invalidateApiCache('/api/tenant/showcase')
+      await load(true, true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Satış başarısız')
     } finally {
@@ -92,71 +143,72 @@ export default function VitrinScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <View style={styles.toolbar}>
+        <Button title="Cihaz ekle" onPress={() => setShowForm(true)} />
+      </View>
+      {error ? <ErrorBanner message={error} onRetry={() => void load(true, true)} /> : null}
       {loading && !items.length ? (
-        <ActivityIndicator color={AuraColors.primary} style={{ marginTop: 40 }} />
+        <LoadingBlock label="Vitrin yükleniyor…" />
       ) : (
         <FlatList
           data={items}
           keyExtractor={i => i.id}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-          contentContainerStyle={{ padding: 16, gap: 8 }}
-          ListEmptyComponent={<Text style={styles.empty}>Vitrinde cihaz yok</Text>}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true, true)} />}
+          contentContainerStyle={{ padding: 16, paddingTop: 8, flexGrow: 1 }}
+          ListEmptyComponent={
+            <EmptyState
+              icon="mobile"
+              title="Vitrinde cihaz yok"
+              subtitle="2. el cihaz ekleyin"
+              actionLabel="Cihaz ekle"
+              onAction={() => setShowForm(true)}
+            />
+          }
           renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.name}>{item.brand} {item.model}</Text>
-              <Text style={styles.price}>
-                {(Number(item.sell_price ?? item.sale_price) || 0).toLocaleString('tr-TR')} ₺
-              </Text>
-              {item.imei ? <Text style={styles.meta}>IMEI {item.imei}</Text> : null}
+            <View style={{ marginBottom: 4 }}>
+              <ListRow
+                title={`${item.brand || ''} ${item.model || ''}`.trim()}
+                subtitle={item.imei ? `IMEI ${item.imei}` : item.condition || undefined}
+                right={
+                  <Text style={{ color: colors.primary, fontWeight: '800' }}>
+                    {(Number(item.sell_price ?? item.sale_price) || 0).toLocaleString('tr-TR')} ₺
+                  </Text>
+                }
+              />
               <View style={styles.row}>
-                <Pressable style={styles.sellBtn} disabled={busy === item.id} onPress={() => void sell(item)}>
-                  <Text style={styles.btnText}>{busy === item.id ? '…' : 'Sat'}</Text>
-                </Pressable>
-                <Pressable style={styles.labelBtn} onPress={() => void label(item)}>
-                  <Text style={styles.btnText}>Etiket</Text>
-                </Pressable>
+                <Button
+                  title={busy === item.id ? '…' : 'Sat'}
+                  onPress={() => void sell(item)}
+                  disabled={busy === item.id}
+                  style={{ flex: 1 }}
+                />
+                <Button title="Etiket" variant="secondary" onPress={() => void label(item)} style={{ flex: 1 }} />
               </View>
             </View>
           )}
         />
       )}
+
+      <FormModal
+        visible={showForm}
+        title="Vitrine ekle"
+        onClose={() => setShowForm(false)}
+        footer={<Button title="Kaydet" loading={saving} onPress={() => void createDevice()} />}
+      >
+        <TextField label="Marka" value={form.brand} onChangeText={t => setForm(f => ({ ...f, brand: t }))} />
+        <TextField label="Model" value={form.model} onChangeText={t => setForm(f => ({ ...f, model: t }))} />
+        <TextField label="IMEI" value={form.imei} onChangeText={t => setForm(f => ({ ...f, imei: t }))} />
+        <TextField label="Alış fiyatı" keyboardType="decimal-pad" value={form.buy_price} onChangeText={t => setForm(f => ({ ...f, buy_price: t }))} />
+        <TextField label="Satış fiyatı" keyboardType="decimal-pad" value={form.sell_price} onChangeText={t => setForm(f => ({ ...f, sell_price: t }))} />
+        <TextField label="Durum" value={form.condition} onChangeText={t => setForm(f => ({ ...f, condition: t }))} placeholder="iyi / orta / kötü" />
+      </FormModal>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
-  error: { color: AuraColors.danger, padding: 12, fontWeight: '600' },
-  empty: { textAlign: 'center', color: AuraColors.muted, marginTop: 40 },
-  card: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    gap: 4,
-  },
-  name: { fontWeight: '800', color: AuraColors.text, fontSize: 15 },
-  price: { fontWeight: '800', fontSize: 17, color: AuraColors.primary },
-  meta: { fontSize: 12, color: AuraColors.muted },
-  row: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  sellBtn: {
-    flex: 1,
-    backgroundColor: AuraColors.success,
-    borderRadius: 12,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  labelBtn: {
-    flex: 1,
-    backgroundColor: AuraColors.primaryDark,
-    borderRadius: 12,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnText: { color: '#fff', fontWeight: '800' },
+  root: { flex: 1 },
+  toolbar: { paddingHorizontal: 16, paddingTop: 12 },
+  row: { flexDirection: 'row', gap: 8, paddingHorizontal: 4, marginBottom: 10 },
 })

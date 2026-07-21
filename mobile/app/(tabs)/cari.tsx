@@ -1,43 +1,73 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
+  Alert,
   FlatList,
-  Modal,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { apiFetch } from '@/lib/api'
-import { AuraColors } from '@/constants/AuraColors'
+import { apiFetch, invalidateApiCache } from '@/lib/api'
+import { enqueueJob } from '@/lib/offline-queue'
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Button } from '@/components/ui/Button'
+import { Chip } from '@/components/ui/Chip'
+import { FormModal } from '@/components/ui/FormModal'
+import { ListRow } from '@/components/ui/ListRow'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { TextField } from '@/components/ui/TextField'
+import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 
 type Balance = { customer_name: string; borc: number; tahsilat: number; bakiye: number }
 
+const PAYMENTS = [
+  { id: 'nakit', label: 'Nakit' },
+  { id: 'kredi_karti', label: 'Kart' },
+  { id: 'havale', label: 'Havale' },
+]
+
 export default function CariScreen() {
+  const { colors } = useAppTheme()
   const [balances, setBalances] = useState<Balance[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [q, setQ] = useState('')
   const [modal, setModal] = useState<Balance | null>(null)
   const [amount, setAmount] = useState('')
+  const [payment, setPayment] = useState('nakit')
   const [busy, setBusy] = useState(false)
+  const hasData = useRef(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const load = useCallback(async (fresh = false, isRefresh = false) => {
+    if (!hasData.current && !isRefresh) setLoading(true)
+    if (isRefresh) setRefreshing(true)
     try {
-      const json = await apiFetch('/api/tenant/cari') as { balances?: Balance[] }
-      setBalances(json.balances ?? [])
+      const json = await apiFetch('/api/tenant/cari', { fresh }) as { balances?: Balance[]; items?: Balance[] }
+      setBalances(json.balances ?? json.items ?? [])
+      hasData.current = true
+      setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cari yüklenemedi')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [])
 
-  useFocusEffect(useCallback(() => { void load() }, [load]))
+  useFocusEffect(useCallback(() => {
+    void (async () => {
+      if (!hasData.current) await load(false)
+      else await load(true)
+    })()
+  }, [load]))
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (!s) return balances
+    return balances.filter(b => b.customer_name.toLowerCase().includes(s))
+  }, [balances, q])
 
   async function collect() {
     if (!modal) return
@@ -48,117 +78,118 @@ export default function CariScreen() {
     }
     setBusy(true)
     setError('')
+    const payload = {
+      action: 'tahsilat',
+      customer_name: modal.customer_name,
+      amount: amt,
+      payment_method: payment,
+    }
+    const resetForm = () => {
+      setModal(null)
+      setAmount('')
+      setPayment('nakit')
+    }
     try {
       await apiFetch('/api/tenant/cari', {
         method: 'POST',
-        body: JSON.stringify({
-          action: 'tahsilat',
-          customer_name: modal.customer_name,
-          amount: amt,
-          payment_method: 'nakit',
-        }),
+        body: JSON.stringify(payload),
       })
-      setModal(null)
-      setAmount('')
-      await load()
+      invalidateApiCache('/api/tenant/cari')
+      resetForm()
+      await load(true, true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Tahsilat başarısız')
+      const msg = e instanceof Error ? e.message : 'Tahsilat başarısız'
+      if (/ulaşılamıyor|Network|Failed to fetch|Sunucu|zaman aşımı/i.test(msg)) {
+        await enqueueJob({
+          path: '/api/tenant/cari',
+          method: 'POST',
+          body: payload,
+          label: `Tahsilat ${payload.customer_name}`,
+        })
+        resetForm()
+        Alert.alert('Çevrimdışı kaydedildi', 'Bağlantı yok — tahsilat kuyruğa alındı. Ana ekrandan gönderebilirsiniz.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <View style={styles.root}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <SearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Müşteri ara…"
+        />
+      </View>
+      {error ? <ErrorBanner message={error} onRetry={() => void load(true, true)} /> : null}
       {loading && !balances.length ? (
-        <ActivityIndicator color={AuraColors.primary} style={{ marginTop: 40 }} />
+        <LoadingBlock label="Cari yükleniyor…" />
       ) : (
         <FlatList
-          data={balances}
+          data={filtered}
           keyExtractor={i => i.customer_name}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-          contentContainerStyle={{ padding: 16, gap: 8 }}
-          ListEmptyComponent={<Text style={styles.empty}>Cari kayıt yok</Text>}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true, true)} tintColor={colors.primary} />}
+          contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+          ListEmptyComponent={
+            <EmptyState icon="users" title="Cari bakiye yok" subtitle="Tahsilat veya satış sonrası burada görünür" />
+          }
           renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => { setModal(item); setAmount('') }}>
-              <Text style={styles.name}>{item.customer_name}</Text>
-              <Text style={[styles.bal, item.bakiye > 0 ? styles.debt : styles.ok]}>
-                {item.bakiye.toLocaleString('tr-TR')} ₺
-              </Text>
-              <Text style={styles.meta}>Borç {item.borc} · Tahsilat {item.tahsilat}</Text>
-            </Pressable>
+            <ListRow
+              title={item.customer_name}
+              subtitle={`Borç ${item.borc.toLocaleString('tr-TR')} · Tahsilat ${item.tahsilat.toLocaleString('tr-TR')}`}
+              right={
+                <Text style={{
+                  fontWeight: '800',
+                  fontSize: 16,
+                  color: item.bakiye > 0 ? colors.danger : colors.success,
+                }}>
+                  {item.bakiye.toLocaleString('tr-TR')} ₺
+                </Text>
+              }
+              onPress={() => { setModal(item); setAmount(''); setPayment('nakit') }}
+            />
           )}
         />
       )}
 
-      <Modal visible={!!modal} transparent animationType="slide">
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>{modal?.customer_name}</Text>
-            <Text style={styles.meta}>Bakiye: {modal?.bakiye.toLocaleString('tr-TR')} ₺</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="decimal-pad"
-              placeholder="Tahsilat tutarı"
-              value={amount}
-              onChangeText={setAmount}
-              placeholderTextColor={AuraColors.muted}
+      <FormModal
+        visible={!!modal}
+        title={modal?.customer_name || 'Tahsilat'}
+        onClose={() => setModal(null)}
+        footer={<Button title="Tahsilat al" loading={busy} onPress={() => void collect()} />}
+      >
+        <Text style={{ color: colors.muted }}>
+          Bakiye: {modal?.bakiye.toLocaleString('tr-TR')} ₺
+        </Text>
+        <TextField
+          label="Tutar"
+          keyboardType="decimal-pad"
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="0.00"
+        />
+        <Text style={[styles.label, { color: colors.muted }]}>Ödeme tipi</Text>
+        <View style={styles.chips}>
+          {PAYMENTS.map(p => (
+            <Chip
+              key={p.id}
+              label={p.label}
+              active={payment === p.id}
+              onPress={() => setPayment(p.id)}
             />
-            <Pressable style={styles.btn} disabled={busy} onPress={() => void collect()}>
-              <Text style={styles.btnText}>{busy ? '…' : 'Tahsilat al'}</Text>
-            </Pressable>
-            <Pressable onPress={() => setModal(null)}>
-              <Text style={styles.cancel}>Kapat</Text>
-            </Pressable>
-          </View>
+          ))}
         </View>
-      </Modal>
+      </FormModal>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
-  error: { color: AuraColors.danger, padding: 12, fontWeight: '600' },
-  empty: { textAlign: 'center', color: AuraColors.muted, marginTop: 40 },
-  card: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    gap: 4,
-  },
-  name: { fontWeight: '800', color: AuraColors.text, fontSize: 15 },
-  bal: { fontWeight: '800', fontSize: 18 },
-  debt: { color: AuraColors.danger },
-  ok: { color: AuraColors.success },
-  meta: { fontSize: 12, color: AuraColors.muted },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: AuraColors.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    gap: 12,
-  },
-  sheetTitle: { fontWeight: '800', fontSize: 18, color: AuraColors.text },
-  input: {
-    borderWidth: 1,
-    borderColor: AuraColors.border,
-    borderRadius: 12,
-    padding: 12,
-    fontWeight: '700',
-    color: AuraColors.text,
-  },
-  btn: {
-    backgroundColor: AuraColors.success,
-    borderRadius: 12,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnText: { color: '#fff', fontWeight: '800' },
-  cancel: { textAlign: 'center', color: AuraColors.muted, fontWeight: '700', padding: 8 },
+  root: { flex: 1 },
+  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 })

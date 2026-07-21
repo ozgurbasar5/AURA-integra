@@ -1,84 +1,103 @@
-import { useCallback, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useRef, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
+import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { useAuth } from '@/lib/auth'
-import { apiFetch, checkApiHealth } from '@/lib/api'
+import { useTenant } from '@/lib/TenantContext'
+import { apiFetch, checkApiHealth, invalidateApiCache } from '@/lib/api'
 import { listQueuedJobs, flushQueue } from '@/lib/offline-queue'
-import { isMobileTabAllowed } from '@/lib/role-tabs'
-import { AuraColors } from '@/constants/AuraColors'
+import { getModulesForRole } from '@/lib/role-tabs'
 import { registerForPushNotifications } from '@/lib/push'
-import { API_BASE_URL } from '@/lib/supabase'
-
-type Quick = {
-  href: string
-  label: string
-  sub: string
-  tab: 'kabul' | 'atolye' | 'satis' | 'kasa' | 'sayim' | 'cari' | 'vitrin' | 'alis'
-  accent: string
-}
-
-const QUICK: Quick[] = [
-  { href: '/kabul', label: 'Hızlı Kabul', sub: 'Yeni servis', tab: 'kabul', accent: '#0284c7' },
-  { href: '/atolye', label: 'Atölye', sub: 'Açık işler', tab: 'atolye', accent: '#0e5568' },
-  { href: '/satis', label: 'Satış', sub: 'POS', tab: 'satis', accent: '#059669' },
-  { href: '/kasa', label: 'Kasa', sub: 'Vardiya', tab: 'kasa', accent: '#d97706' },
-  { href: '/sayim', label: 'Sayım', sub: 'Stok sayım', tab: 'sayim', accent: '#7c3aed' },
-  { href: '/cari', label: 'Cari', sub: 'Tahsilat', tab: 'cari', accent: '#0369a1' },
-  { href: '/vitrin', label: 'Vitrin', sub: '2. el', tab: 'vitrin', accent: '#0d9488' },
-  { href: '/alis', label: 'Alış', sub: 'Son kayıtlar', tab: 'alis', accent: '#b45309' },
-]
+import { useAppTheme } from '@/lib/ThemeContext'
+import { Screen } from '@/components/ui/Screen'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { SectionHeader } from '@/components/ui/SectionHeader'
+import { ErrorBanner, Skeleton, StatPill } from '@/components/ui/States'
 
 export default function HomeScreen() {
   const { profile, user, signOut } = useAuth()
+  const { me } = useTenant()
+  const { colors, appearance } = useAppTheme()
   const router = useRouter()
   const role = profile?.role
   const [openCount, setOpenCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [deliveredToday, setDeliveredToday] = useState<number | null>(null)
+  const [todaySales, setTodaySales] = useState<number | null>(null)
+  const [lowStock, setLowStock] = useState<number | null>(null)
+  const [openShift, setOpenShift] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(true)
   const [netHint, setNetHint] = useState<string | null>(null)
   const [queueCount, setQueueCount] = useState(0)
   const [flushing, setFlushing] = useState(false)
+  const hasStats = useRef(false)
 
-  const loadStats = useCallback(async () => {
-    if (!profile?.tenant_id) return
-    setLoading(true)
-    setNetHint(null)
+  const loadStats = useCallback(async (fresh = false) => {
+    if (!profile?.tenant_id) {
+      setLoading(false)
+      if (!profile) setNetHint('Profil yükleniyor veya eksik — bekleyin / tekrar giriş')
+      return
+    }
+    if (!hasStats.current) setLoading(true)
     try {
-      setQueueCount((await listQueuedJobs()).length)
-      const health = await checkApiHealth()
-      if (!health.ok) {
-        setNetHint(health.hint || 'API sağlık kontrolü başarısız')
-      }
-      try {
-        const json = await apiFetch('/api/service-orders?limit=50') as { data?: Array<{ status?: string }> }
-        const rows = json.data ?? []
-        const open = rows.filter(r => {
-          const s = String(r.status || '').toLowerCase()
-          return !['teslim', 'iptal', 'delivered', 'cancelled'].includes(s)
-        }).length
-        setOpenCount(open)
-      } catch (e) {
-        setOpenCount(null)
-        const msg = e instanceof Error ? e.message : 'Veri yüklenemedi'
-        // 404 = eski deploy; bağlantı değil
-        if (/404/.test(msg)) {
-          setNetHint('Sunucu güncel değil (API 404). Web deploy’unu kontrol edin.')
-        } else if (/401|403/.test(msg)) {
-          setNetHint('Oturum geçersiz — tekrar giriş yapın.')
-        } else if (!health.ok) {
-          setNetHint(msg)
-        } else {
-          setNetHint(msg)
+      const queued = listQueuedJobs()
+      const statsP = apiFetch('/api/tenant/stats', { fresh }) as Promise<{
+        stats?: {
+          active_orders?: number
+          ready_orders?: number
+          today_sales?: number
+          low_stock?: number
+          open_shift?: boolean
         }
+      }>
+      // Health yalnızca hata / ilk yüklemede force değil — 60s cache
+      const healthP = checkApiHealth(false)
+
+      const [queue, statsRes, health] = await Promise.all([
+        queued,
+        statsP.catch((e: unknown) => ({ __err: e })),
+        healthP,
+      ])
+      setQueueCount(queue.length)
+
+      if (!health.ok && health.hint) setNetHint(health.hint)
+
+      if ('__err' in (statsRes as object)) {
+        const e = (statsRes as { __err: unknown }).__err
+        const msg = e instanceof Error ? e.message : 'Veri yüklenemedi'
+        if (!hasStats.current) {
+          setOpenCount(null)
+          setDeliveredToday(null)
+          setTodaySales(null)
+          setLowStock(null)
+        }
+        if (/404/.test(msg)) setNetHint('Sunucu güncel değil (API 404).')
+        else if (/401|403/.test(msg)) setNetHint('Oturum geçersiz — tekrar giriş yapın.')
+        else setNetHint(msg)
+      } else {
+        const s = (statsRes as { stats?: Record<string, unknown> }).stats ?? {}
+        setOpenCount(Number(s.active_orders) || 0)
+        setDeliveredToday(Number(s.ready_orders) || 0)
+        setTodaySales(Number(s.today_sales) || 0)
+        setLowStock(Number(s.low_stock) || 0)
+        setOpenShift(!!s.open_shift)
+        hasStats.current = true
+        if (health.ok) setNetHint(null)
       }
     } catch {
       setQueueCount((await listQueuedJobs()).length)
-      setNetHint('Sunucuya ulaşılamadı')
+      if (!hasStats.current) setNetHint('Sunucuya ulaşılamadı')
     } finally {
       setLoading(false)
     }
-  }, [profile?.tenant_id])
+  }, [profile, profile?.tenant_id])
 
-  useFocusEffect(useCallback(() => { void loadStats() }, [loadStats]))
+  useFocusEffect(useCallback(() => {
+    void (async () => {
+      if (!hasStats.current) await loadStats(false)
+      else await loadStats(true)
+    })()
+  }, [loadStats]))
 
   useFocusEffect(useCallback(() => {
     if (profile?.tenant_id) void registerForPushNotifications().catch(() => {})
@@ -89,89 +108,150 @@ export default function HomeScreen() {
     try {
       await flushQueue()
       setQueueCount((await listQueuedJobs()).length)
+      invalidateApiCache('/api/tenant/stats')
+      await loadStats(true)
     } finally {
       setFlushing(false)
     }
   }
 
-  const actions = QUICK.filter(q => isMobileTabAllowed(q.tab, role))
-  const firstName = profile?.full_name?.split(' ')[0]
+  const modules = getModulesForRole(role)
+  const firstName = (me?.full_name || profile?.full_name || '').split(' ')[0]
+  const shop = me?.shop_name || me?.company_name
+  const cols = appearance.homeColumns
+  const cardWidth = cols === 3 ? '31%' : '48%' as const
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <View style={styles.hero}>
-        <Text style={styles.brand}>AURA Integra</Text>
+    <Screen scroll>
+      <View style={[styles.hero, { backgroundColor: colors.primaryDark, borderRadius: colors.radiusLg }]}>
+        <Text style={styles.brand}>AURA İntegra</Text>
         <Text style={styles.h1}>Merhaba{firstName ? `, ${firstName}` : ''}</Text>
-        <Text style={styles.muted}>{user?.email}</Text>
-      </View>
-
-      {netHint ? (
-        <View style={styles.netBanner}>
-          <Text style={styles.netTitle}>Uyarı</Text>
-          <Text style={styles.netBody}>{netHint}</Text>
-          <Text style={styles.netMeta} numberOfLines={1}>{API_BASE_URL}</Text>
-          <Pressable onPress={() => void loadStats()}>
-            <Text style={styles.netRetry}>Tekrar dene</Text>
+        <Text style={styles.muted}>
+          {[shop, user?.email].filter(Boolean).join(' · ')}
+        </Text>
+        <View style={styles.heroActions}>
+          <Pressable
+            style={styles.heroChip}
+            onPress={() => { invalidateApiCache(); void loadStats(true) }}
+          >
+            <FontAwesome name="refresh" size={12} color="#fff" />
+            <Text style={styles.heroChipText}>Yenile</Text>
+          </Pressable>
+          <Pressable style={styles.heroChip} onPress={() => router.push('/yenilikler' as never)}>
+            <FontAwesome name="magic" size={12} color="#fff" />
+            <Text style={styles.heroChipText}>Yenilikler</Text>
+          </Pressable>
+          <Pressable style={styles.heroChip} onPress={() => router.push('/gorunum' as never)}>
+            <FontAwesome name="sliders" size={12} color="#fff" />
+            <Text style={styles.heroChipText}>Görünüm</Text>
           </Pressable>
         </View>
-      ) : null}
+      </View>
+
+      {netHint ? <ErrorBanner message={netHint} onRetry={() => void loadStats(true)} /> : null}
 
       {queueCount > 0 ? (
-        <View style={styles.queueBanner}>
-          <Text style={styles.queueTitle}>Çevrimdışı kuyruk · {queueCount}</Text>
-          <Pressable style={styles.queueBtn} onPress={() => void handleFlushQueue()} disabled={flushing}>
-            {flushing ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.queueBtnText}>Şimdi gönder</Text>
-            )}
+        <Card style={styles.queueRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '800', color: colors.text, fontSize: 14 }}>
+              Çevrimdışı kuyruk
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+              {queueCount} işlem bekliyor — bağlantı varken gönderin
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => void handleFlushQueue()}
+            disabled={flushing}
+            style={{
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              opacity: flushing ? 0.7 : 1,
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>
+              {flushing ? '…' : 'Gönder'}
+            </Text>
           </Pressable>
-        </View>
+        </Card>
       ) : null}
 
-      <View style={styles.statCard}>
-        <Text style={styles.statLabel}>Açık atölye işleri</Text>
-        {loading && openCount == null ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.statValue}>{openCount ?? '—'}</Text>
-        )}
-        <Pressable onPress={() => router.push('/atolye')}>
-          <Text style={styles.statLink}>Atölyeye git →</Text>
-        </Pressable>
-      </View>
+      <SectionHeader title="Özet" />
+      {loading && !hasStats.current ? (
+        <View style={styles.pillRow}>
+          <Skeleton height={64} style={{ flex: 1, marginRight: 8 }} />
+          <Skeleton height={64} style={{ flex: 1 }} />
+        </View>
+      ) : (
+        <>
+          <View style={styles.pillRow}>
+            <StatPill label="Açık iş" value={openCount ?? '—'} />
+            <StatPill label="Hazır" value={deliveredToday ?? '—'} tone="success" />
+            <StatPill label="Kuyruk" value={queueCount} tone={queueCount ? 'warning' : 'default'} />
+          </View>
+          <View style={[styles.pillRow, { marginTop: 8 }]}>
+            <StatPill
+              label="Bugün satış"
+              value={todaySales == null ? '—' : `${Math.round(todaySales).toLocaleString('tr-TR')}₺`}
+              tone="success"
+            />
+            <StatPill label="Düşük stok" value={lowStock ?? '—'} tone={lowStock ? 'warning' : 'default'} />
+            <StatPill
+              label="Kasa"
+              value={openShift == null ? '—' : openShift ? 'Açık' : 'Kapalı'}
+              tone={openShift ? 'success' : 'warning'}
+            />
+          </View>
+        </>
+      )}
 
-      <Text style={styles.section}>İşlemler</Text>
+      <SectionHeader title="Tüm modüller" />
       <View style={styles.grid}>
-        {actions.map(a => (
-          <Pressable
-            key={a.href}
-            style={styles.action}
-            onPress={() => router.push(a.href as never)}
-          >
-            <View style={[styles.dot, { backgroundColor: a.accent }]} />
-            <Text style={styles.actionTitle}>{a.label}</Text>
-            <Text style={styles.actionSub}>{a.sub}</Text>
-          </Pressable>
+        {modules.map(a => (
+          <View key={a.href} style={{ width: cardWidth }}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.action,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radiusLg,
+                  minHeight: appearance.density === 'compact' ? 88 : 104,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+              onPress={() => router.push(a.href as never)}
+            >
+              <View style={[styles.iconBox, { backgroundColor: `${a.accent}18` }]}>
+                <FontAwesome name={a.icon} size={18} color={a.accent} />
+              </View>
+              <Text style={[styles.actionTitle, { color: colors.text }]}>{a.label}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>{a.sub}</Text>
+            </Pressable>
+          </View>
         ))}
       </View>
 
-      <Pressable style={styles.logout} onPress={() => void signOut()}>
-        <Text style={styles.logoutText}>Çıkış Yap</Text>
-      </Pressable>
-    </ScrollView>
+      <SectionHeader title="Hesap" />
+      <Card>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Rol</Text>
+        <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15, marginBottom: 8 }}>
+          {me?.role || profile?.role || '—'}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>E-posta</Text>
+        <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{user?.email}</Text>
+      </Card>
+
+      <Button title="Görünüm ayarları" variant="secondary" onPress={() => router.push('/gorunum' as never)} />
+      <Button title="Çıkış Yap" variant="ghost" onPress={() => void signOut()} />
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: AuraColors.bg },
-  content: { padding: 16, gap: 12, paddingBottom: 40 },
-  hero: {
-    borderRadius: 20,
-    padding: 20,
-    backgroundColor: AuraColors.primaryDark,
-    gap: 4,
-  },
+  hero: { padding: 20, gap: 4 },
   brand: {
     color: 'rgba(255,255,255,0.65)',
     fontSize: 11,
@@ -180,79 +260,33 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   h1: { fontSize: 26, fontWeight: '900', color: '#fff' },
-  muted: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
-  netBanner: {
-    backgroundColor: '#fff7ed',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#fed7aa',
-    gap: 4,
-  },
-  netTitle: { fontWeight: '800', color: '#c2410c', fontSize: 13 },
-  netBody: { color: '#9a3412', fontSize: 13, lineHeight: 18 },
-  netMeta: { color: '#fb923c', fontSize: 10, marginTop: 2 },
-  netRetry: { color: AuraColors.primary, fontWeight: '800', marginTop: 6, fontSize: 13 },
-  queueBanner: {
-    backgroundColor: AuraColors.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
+  muted: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginBottom: 8 },
+  heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
-  queueTitle: { fontWeight: '700', color: AuraColors.text, fontSize: 13, flex: 1 },
-  queueBtn: {
-    backgroundColor: AuraColors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  queueBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  section: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: AuraColors.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: 4,
-  },
-  statCard: {
-    backgroundColor: AuraColors.primary,
-    borderRadius: 18,
-    padding: 18,
-    gap: 4,
-  },
-  statLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600' },
-  statValue: { color: '#fff', fontSize: 40, fontWeight: '900' },
-  statLink: { color: 'rgba(255,255,255,0.95)', fontWeight: '700', marginTop: 6 },
+  heroChipText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  queueRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pillRow: { flexDirection: 'row', gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   action: {
-    width: '47%',
-    backgroundColor: AuraColors.card,
-    borderRadius: 16,
     padding: 14,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: 4,
-    minHeight: 88,
   },
-  dot: { width: 8, height: 8, borderRadius: 4, marginBottom: 2 },
-  actionTitle: { fontWeight: '800', color: AuraColors.text, fontSize: 15 },
-  actionSub: { color: AuraColors.muted, fontSize: 12 },
-  logout: {
-    marginTop: 12,
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: AuraColors.card,
-    borderWidth: 1,
-    borderColor: AuraColors.border,
+    justifyContent: 'center',
+    marginBottom: 4,
   },
-  logoutText: { color: AuraColors.danger, fontWeight: '800' },
+  actionTitle: { fontWeight: '800', fontSize: 15 },
 })

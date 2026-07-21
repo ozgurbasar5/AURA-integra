@@ -1,21 +1,23 @@
-import { Link, Stack } from 'expo-router';
-import { StyleSheet } from 'react-native';
-
-import { Text, View } from '@/components/Themed';
+import { Link, Stack } from 'expo-router'
+import { StyleSheet, Text, View } from 'react-native'
+import { useAppTheme } from '@/lib/ThemeContext'
 
 export default function NotFoundScreen() {
+  const { colors } = useAppTheme()
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn't exist.</Text>
-
+      <Stack.Screen options={{ title: 'Sayfa bulunamadı' }} />
+      <View style={[styles.container, { backgroundColor: colors.bg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Bu sayfa bulunamadı</Text>
+        <Text style={[styles.sub, { color: colors.muted }]}>
+          Aradığınız ekran taşınmış veya kaldırılmış olabilir.
+        </Text>
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
+          <Text style={[styles.linkText, { color: colors.primary }]}>Ana ekrana dön</Text>
         </Link>
       </View>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -24,17 +26,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    gap: 8,
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '800',
+  },
+  sub: {
+    fontSize: 13,
+    textAlign: 'center',
   },
   link: {
     marginTop: 15,
     paddingVertical: 15,
   },
   linkText: {
-    fontSize: 14,
-    color: '#2e78b7',
+    fontSize: 15,
+    fontWeight: '700',
   },
-});
+})
