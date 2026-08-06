@@ -7,7 +7,7 @@ import { warrantyToDb, warrantyToStore } from '@/lib/db-mappers'
 import { recordImeiEvent } from '@/lib/imei-tracker'
 import type { WarrantyRecord } from '@/lib/store'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
