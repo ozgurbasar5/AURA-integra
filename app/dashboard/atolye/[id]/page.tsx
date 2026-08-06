@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { buildWaMeUrl } from '@/lib/portal-messaging'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
+import { getBusinessBranding } from '@/lib/business-branding'
 import ServicePrintSheet from '@/components/atolye/ServicePrintSheet'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
 import PrinterSetupModal from '@/components/printer/PrinterSetupModal'
