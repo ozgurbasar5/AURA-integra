@@ -115,12 +115,13 @@ export async function printToNetworkPrinter(ip: string, port: number, data: Uint
  * Web Bluetooth API ile Bluetooth yazıcıya bağlanır (Mobil/Chrome destekler)
  */
 export async function printBluetooth(data: Uint8Array): Promise<void> {
-  if (!navigator.bluetooth) {
+  const nav = navigator as any
+  if (!nav.bluetooth) {
     throw new Error('Tarayıcınız Bluetooth API desteklemiyor (Chrome/Edge kullanın).')
   }
 
   try {
-    const device = await navigator.bluetooth.requestDevice({
+    const device = await nav.bluetooth.requestDevice({
       filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }], // Tipik ESC/POS printer service UUID
       optionalServices: ['0000e7810-0000-1000-8000-00805f9b34fb']
     })
