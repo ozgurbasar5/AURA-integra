@@ -1,3 +1,4 @@
+type Row = Record<string, any>
 
 // ─── Field Orders (Saha Servis) ───────────────────────────────────────────────
 
