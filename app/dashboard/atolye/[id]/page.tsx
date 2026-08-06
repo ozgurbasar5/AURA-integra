@@ -59,6 +59,7 @@ export default function AtolyeDetailPage() {
   const [saving, setSaving] = useState(false)
   const [order, setOrder] = useState<StoreServiceOrder | undefined>(undefined)
   const [parts, setParts] = useState<Part[]>([])
+  const [compatible, setCompatible] = useState<any[]>([])
   const [notes, setNotes] = useState('')
   const [privateNote, setPrivateNote] = useState('')
   const [price, setPrice] = useState(0)
