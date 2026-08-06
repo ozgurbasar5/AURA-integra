@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/efatura-queue",
-      "schedule": "0 12 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }

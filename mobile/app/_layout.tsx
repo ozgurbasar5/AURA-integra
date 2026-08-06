@@ -8,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen'
 import * as Notifications from 'expo-notifications'
 import 'react-native-reanimated'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'
 
 import { useColorScheme } from '@/components/useColorScheme'
 import { ProfileGate } from '@/components/ProfileGate'
@@ -118,17 +120,21 @@ export default function RootLayout() {
   if (!loaded && !error) return null
 
   return (
-    <SafeAreaProvider>
-      <AppThemeProvider>
-        <AuthProvider>
-          <TenantProvider>
-            <PartsCatalogProvider>
-              <RootLayoutNav />
-            </PartsCatalogProvider>
-          </TenantProvider>
-        </AuthProvider>
-      </AppThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <BottomSheetModalProvider>
+          <AppThemeProvider>
+            <AuthProvider>
+              <TenantProvider>
+                <PartsCatalogProvider>
+                  <RootLayoutNav />
+                </PartsCatalogProvider>
+              </TenantProvider>
+            </AuthProvider>
+          </AppThemeProvider>
+        </BottomSheetModalProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
 

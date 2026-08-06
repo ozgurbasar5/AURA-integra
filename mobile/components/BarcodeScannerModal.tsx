@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Pressable, StyleSheet, Text, View, Dimensions } from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
+import * as Haptics from 'expo-haptics'
 import { useAppTheme } from '@/lib/ThemeContext'
 
 type Props = {
@@ -8,6 +9,9 @@ type Props = {
   onClose: () => void
   onScan: (data: string) => void
 }
+
+const { width } = Dimensions.get('window')
+const FRAME_SIZE = width * 0.7
 
 export function BarcodeScannerModal({ visible, onClose, onScan }: Props) {
   const { colors } = useAppTheme()
@@ -39,15 +43,19 @@ export function BarcodeScannerModal({ visible, onClose, onScan }: Props) {
               onBarcodeScanned={({ data }) => {
                 if (locked) return
                 setLocked(true)
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
                 onScan(data)
                 onClose()
                 setTimeout(() => setLocked(false), 800)
               }}
             />
+            <View style={styles.overlayFrame}>
+              <View style={[styles.frame, { borderColor: colors.primary }]} />
+            </View>
             <View style={styles.overlay}>
               <Text style={styles.hint}>Barkodu çerçeveye hizalayın</Text>
               <Pressable style={styles.close} onPress={onClose}>
-                <Text style={styles.btnText}>Kapat</Text>
+                <Text style={styles.btnText}>İptal</Text>
               </Pressable>
             </View>
           </>
@@ -64,6 +72,18 @@ const styles = StyleSheet.create({
   btn: { paddingHorizontal: 20, paddingVertical: 12 },
   btnText: { color: '#fff', fontWeight: '800' },
   cancel: { color: '#94a3b8', marginTop: 8 },
+  overlayFrame: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frame: {
+    width: FRAME_SIZE,
+    height: FRAME_SIZE,
+    borderWidth: 2,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
   overlay: {
     position: 'absolute',
     bottom: 40,
@@ -72,6 +92,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  hint: { color: '#fff', fontWeight: '700' },
-  close: { backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  hint: { color: '#fff', fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  close: { backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
 })

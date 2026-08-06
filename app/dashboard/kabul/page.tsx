@@ -12,6 +12,8 @@ import { buildTrackingUrl as trackUrl, mapDbStatusToStore } from '@/lib/erp-feat
 import { getPortalSlug } from '@/lib/business-branding'
 import ServicePrintSheet, { type ServicePrintData } from '@/components/atolye/ServicePrintSheet'
 import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
+import ImeiHistoryPanel from '@/components/imei/ImeiHistoryPanel'
+import type { ChecklistTemplate } from '@/lib/store'
 import { getBusinessBranding } from '@/lib/business-branding'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
@@ -67,10 +69,15 @@ export default function KabulPage() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const historyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const PRE_CHECKS = ['Ekran kırık', 'Su teması', 'Şifre var', 'Aksesuar teslim edildi', 'Yedek alındı']
-
+  const [checklists, setChecklists] = useState<ChecklistTemplate[]>([])
+  
   useEffect(() => {
     setMounted(true)
+    fetch('/api/tenant/checklists')
+      .then(res => res.json())
+      .then(json => { if (json.ok) setChecklists(json.items || []) })
+      .catch(() => {})
+      
     return onStoreChange(() => {})
   }, [])
 
@@ -280,21 +287,38 @@ export default function KabulPage() {
               <input className="input" placeholder="Model" value={form.device_model} onChange={e => setForm(f => ({ ...f, device_model: e.target.value }))} />
             </div>
             <input className="input font-mono" placeholder="IMEI" value={form.imei} onChange={e => setForm(f => ({ ...f, imei: e.target.value }))} />
+            
+            {form.imei && form.imei.length >= 5 && (
+              <div className="mt-2">
+                <ImeiHistoryPanel imei={form.imei} />
+              </div>
+            )}
+
             <textarea className="input resize-none" rows={3} placeholder="Arıza / not" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             <div data-tour="kabul-on-kontrol">
-              <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Ön kontrol</p>
-              <div className="flex flex-wrap gap-2">
-                {PRE_CHECKS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => toggleCheck(c)}
-                    className={`filter-chip ${form.pre_checks.includes(c) ? 'filter-chip-active' : ''}`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
+              <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Ön Kontrol / Checklist</p>
+              {(() => {
+                // İlgili kategoriye veya markaya uygun checklist'i bul
+                const template = checklists.find(c => 
+                  c.is_active && 
+                  (c.brand_filter === null || c.brand_filter?.includes(form.device_brand))
+                ) || { items: [{ id: '1', label: 'Ekran kırık', required: false }, { id: '2', label: 'Su teması', required: false }, { id: '3', label: 'Şifre var', required: false }] }
+                
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {template.items.map((item: any) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleCheck(item.label)}
+                        className={`filter-chip ${form.pre_checks.includes(item.label) ? 'filter-chip-active' : ''}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
             <div data-tour="kabul-foto">
               <DevicePhotoGallery

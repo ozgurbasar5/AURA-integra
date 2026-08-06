@@ -2,6 +2,10 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { tenantQuery } from '@/lib/supabase/query-helpers'
+import { withApiHandler } from '@/lib/api-handler'
+import { safeClientMessage } from '@/lib/api-error'
+import { canWriteTenantData, roleGuardResponse } from '@/lib/api-role-guard'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
 import type { ServiceOrderStatus, PaymentMethod } from '@/types/database'
 
@@ -45,23 +49,22 @@ function normalizeStatus(raw?: string): ServiceOrderStatus {
 }
 
 // ─── GET /api/service-orders ───────────────────────────────────────────────────
-export async function GET(req: NextRequest) {
-  try {
-    const auth = await requireTenantAuth()
-    if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
-    const { supabase, tenantId } = auth
+export const GET = withApiHandler(async function GET(req: NextRequest) {
+  const auth = await requireTenantAuth()
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+  const { supabase, tenantId } = auth
 
-    const searchParams = req.nextUrl.searchParams
-    const statusParam = searchParams.get('status')
-    const status = statusParam ? normalizeStatus(statusParam) : null
-    const search = searchParams.get('search')
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10)
-    const offset = parseInt(searchParams.get('offset') ?? '0', 10)
+  const searchParams = req.nextUrl.searchParams
+  const statusParam = searchParams.get('status')
+  const status = statusParam ? normalizeStatus(statusParam) : null
+  const search = searchParams.get('search')
+  const limit = Math.min(parseInt(searchParams.get('limit') ?? '50', 10), 200)
+  const offset = parseInt(searchParams.get('offset') ?? '0', 10)
+  const cursor = searchParams.get('cursor')
 
-    let query = supabase
-      .from('service_orders')
-      .select(
-        `
+  let query = tenantQuery(
+    supabase.from('service_orders').select(
+      `
         *,
         customers (
           id,
@@ -74,32 +77,38 @@ export async function GET(req: NextRequest) {
           full_name
         )
       `,
-      )
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+      { count: 'exact' },
+    ),
+    tenantId,
+  )
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
-    if (status) query = query.eq('status', status)
-    if (search) {
-      query = query.or(
-        `order_no.ilike.%${search}%,customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,imei.ilike.%${search}%`,
-      )
-    }
-
-    const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ data: data ?? [] })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
+  if (cursor) query = query.lt('created_at', cursor)
+  if (status) query = query.eq('status', status)
+  if (search) {
+    query = query.or(
+      `order_no.ilike.%${search}%,customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,imei.ilike.%${search}%`,
+    )
   }
-}
+
+  const { data, error, count } = await query
+  if (error) return NextResponse.json({ error: safeClientMessage(error, 'Sorgu hatası') }, { status: 500 })
+  const total = count ?? 0
+  return NextResponse.json({
+    data: data ?? [],
+    pagination: { limit, offset, total, hasMore: offset + (data?.length ?? 0) < total },
+  })
+}, 'service-orders')
 
 // ─── POST /api/service-orders ──────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
-  try {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
     const auth = await requireTenantAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+    if (!canWriteTenantData(auth.role)) {
+      const denied = roleGuardResponse()
+      return NextResponse.json({ error: denied.message }, { status: denied.status })
+    }
     const { supabase, tenantId, userId } = auth
 
     const body = await req.json() as {
@@ -168,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     if (orderNoErr) {
       return NextResponse.json(
-        { error: `Sipariş numarası üretilemedi: ${orderNoErr.message}` },
+        { error: safeClientMessage(orderNoErr, 'Sipariş numarası üretilemedi') },
         { status: 500 },
       )
     }
@@ -210,19 +219,16 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (insertErr) {
-      return NextResponse.json({ error: insertErr.message }, { status: 500 })
+      return NextResponse.json({ error: safeClientMessage(insertErr, 'Kayıt oluşturulamadı') }, { status: 500 })
     }
 
     await supabase.from('service_status_history').insert({
       order_id: newOrder.id,
+      tenant_id: tenantId,
       status: newOrder.status,
       note: 'Servis kaydı oluşturuldu.',
       created_by: userId,
     })
 
     return NextResponse.json({ data: newOrder }, { status: 201 })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+}, 'service-orders')

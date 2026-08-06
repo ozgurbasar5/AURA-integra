@@ -1,300 +1,250 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { HelpCircle, MessageCircle, FileText, ExternalLink, ChevronDown, ChevronUp, Send, Activity, Phone, Mail, Clock, CheckCircle, AlertCircle, Book, Video, Code, Tag, Inbox } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Search, Loader2, Inbox, AlertCircle, Clock, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { getSupportTickets, addSupportTicket, onStoreChange } from '@/lib/store'
+import { PageShell, PageHeader, PageCard, LoadingCenter } from '@/components/ui/PageShell'
+import type { SupportTicket } from '@/lib/store'
 
-const PRIORITY_STYLE: Record<string, string> = {
-  'Düşük':  'bg-slate-100 text-slate-600',
-  'Normal': 'bg-blue-50 text-blue-700',
-  'Yüksek': 'bg-amber-50 text-amber-700',
-  'Acil':   'bg-red-50 text-red-700',
-}
-const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
-  open:        { label: 'Açık',        cls: 'bg-amber-50 text-amber-700' },
-  in_progress: { label: 'İşlemde',     cls: 'bg-blue-50 text-blue-700' },
-  resolved:    { label: 'Çözüldü',     cls: 'bg-emerald-50 text-emerald-700' },
-  closed:      { label: 'Kapatıldı',   cls: 'bg-slate-100 text-slate-500' },
+const STATUS_INFO: Record<string, { label: string; bg: string; text: string }> = {
+  open: { label: 'Açık', bg: 'bg-amber-100', text: 'text-amber-700' },
+  in_progress: { label: 'İşlemde', bg: 'bg-blue-100', text: 'text-blue-700' },
+  waiting_customer: { label: 'Müşteri Yanıtı', bg: 'bg-purple-100', text: 'text-purple-700' },
+  resolved: { label: 'Çözüldü', bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  closed: { label: 'Kapatıldı', bg: 'bg-slate-100', text: 'text-slate-500' },
 }
 
-const FAQS = [
-  { q: 'Servis kaydı nasıl oluştururum?', a: 'Atölye menüsüne gidin → "Yeni Servis Kaydı" butonuna tıklayın → Müşteri ve cihaz bilgilerini doldurun → Kaydet.' },
-  { q: 'Müşteri portal linkini nasıl paylaşırım?', a: 'Atölye\'de ilgili servise tıklayın → Detay sayfasında "Portal Linki" bölümünden kopyalayın. Müşterileriniz bu link ile servislerini takip edebilir.' },
-  { q: 'Stoktan parça nasıl eklerim?', a: 'Servis detay sayfasında "Kullanılan Parçalar" bölümüne gidin → Parça adını arayın → Miktarı belirleyin → Ekle butonuna tıklayın.' },
-  { q: 'WhatsApp mesajı otomatik gönderilir mi?', a: 'Evet! Servis durumu değiştiğinde müşteriye otomatik WhatsApp bildirimi gönderilir. Ayarlar → Bildirimler\'den bu özelliği yapılandırabilirsiniz.' },
-  { q: 'Fatura/PDF nasıl oluştururum?', a: 'Servis detay sayfasında "PDF Oluştur" butonuna tıklayın. Intake raporu, garanti belgesi ve makbuz formatlarını seçebilirsiniz.' },
-  { q: 'Birden fazla şube yönetebilir miyim?', a: 'Kurumsal planda çok şube desteği mevcuttur. Admin panelinden şube ekleyebilir ve şubeler arası stok transferi yapabilirsiniz.' },
-  { q: 'Verilerimi dışa aktarabilir miyim?', a: 'Raporlar menüsünden Excel ve PDF formatlarında dışa aktarım yapabilirsiniz. API erişimi için Ayarlar → Entegrasyonlar bölümünü inceleyin.' },
-  { q: 'Şifre sıfırlama nasıl yapılır?', a: 'Ayarlar → Güvenlik → Şifre Değiştir bölümünden mevcut şifrenizle yeni şifre belirleyebilirsiniz. Şifrenizi unuttuysanız giriş sayfasındaki "Şifremi Unuttum" linkini kullanın.' },
-]
-
-const DOCS = [
-  { icon: <Book size={20}/>, title: 'Başlangıç Rehberi', desc: 'İlk servis kaydından raporlamaya kapsamlı başlangıç kılavuzu', color: 'bg-blue-50 text-blue-600' },
-  { icon: <Video size={20}/>, title: 'Video Eğitimler', desc: '15+ modül eğitim videosu, adım adım anlatım', color: 'bg-purple-50 text-purple-600' },
-  { icon: <Code size={20}/>, title: 'API Dokümantasyon', desc: 'REST API referansı, webhook\'lar ve entegrasyon örnekleri', color: 'bg-slate-50 text-slate-700' },
-  { icon: <Tag size={20}/>, title: 'Sürüm Notları', desc: 'En son güncellemeler ve özellik değişiklikleri', color: 'bg-green-50 text-green-700' },
-]
+const PRIORITY_INFO: Record<string, string> = {
+  Düşük: 'bg-slate-100 text-slate-600',
+  Normal: 'bg-sky-100 text-sky-700',
+  Yüksek: 'bg-orange-100 text-orange-700',
+  Acil: 'bg-red-100 text-red-700',
+}
 
 export default function DestekPage() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const [form, setForm] = useState({ konu: '', oncelik: 'Normal', aciklama: '' })
-  const [submitting, setSubmitting] = useState(false)
-  const [tickets, setTickets] = useState<ReturnType<typeof getSupportTickets>>([])
+  const router = useRouter()
+  const [tickets, setTickets] = useState<SupportTicket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState<string>('')
+  
+  const [showModal, setShowModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ subject: '', priority: 'Normal', description: '', category: 'Genel' })
 
-  const refresh = useCallback(() => setTickets(getSupportTickets()), [])
-  useEffect(() => { refresh(); return onStoreChange(refresh) }, [refresh])
+  const fetchTickets = useCallback(async () => {
+    setLoading(true)
+    try {
+      const url = new URL('/api/tenant/support', window.location.origin)
+      if (filterStatus) url.searchParams.set('status', filterStatus)
 
-  async function handleSubmit() {
-    if (!form.konu || !form.aciklama) {
-      toast.error('Konu ve açıklama alanları zorunludur')
-      return
+      const res = await fetch(url.toString())
+      const json = await res.json()
+      if (json.ok) {
+        setTickets(json.items || [])
+      }
+    } catch {
+      toast.error('Biletler yüklenemedi')
+    } finally {
+      setLoading(false)
     }
-    setSubmitting(true)
+  }, [filterStatus])
+
+  useEffect(() => {
+    fetchTickets()
+  }, [fetchTickets])
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.subject || !form.description) return
+
+    setSaving(true)
     try {
       const res = await fetch('/api/tenant/support', {
         method: 'POST',
-        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: form.konu,
-          description: form.aciklama,
-          priority: form.oncelik,
-        }),
+        body: JSON.stringify(form)
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Gönderilemedi')
-      addSupportTicket({
-        subject: form.konu,
-        priority: form.oncelik as 'Düşük' | 'Normal' | 'Yüksek' | 'Acil',
-        description: form.aciklama,
-      })
-      toast.success('Destek talebiniz alındı! En kısa sürede dönüş yapacağız.')
-      setForm({ konu: '', oncelik: 'Normal', aciklama: '' })
-      refresh()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gönderilemedi')
+      if (json.ok) {
+        toast.success('Bilet oluşturuldu')
+        setShowModal(false)
+        setForm({ subject: '', priority: 'Normal', description: '', category: 'Genel' })
+        fetchTickets()
+      } else {
+        toast.error(json.error || 'Oluşturulamadı')
+      }
+    } catch {
+      toast.error('Bağlantı hatası')
     } finally {
-      setSubmitting(false)
+      setSaving(false)
     }
   }
 
+  const filtered = tickets.filter(t => 
+    t.subject.toLowerCase().includes(search.toLowerCase()) || 
+    t.ticket_no.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Destek Merkezi</h1>
-          <p className="text-slate-500 text-sm mt-0.5">SSS, yardım dokümantasyonu ve destek talebi</p>
+    <PageShell className="max-w-6xl mx-auto">
+      <PageHeader
+        title="Destek Talepleri"
+        description="Müşteri destek, SLA takibi ve bilet yönetimi (CRM)"
+        icon={Inbox}
+        actions={
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            <Plus size={16} /> Yeni Bilet
+          </button>
+        }
+      />
+
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            className="input pl-10"
+            placeholder="Bilet No veya Konu ara..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-        {/* Status indicator */}
-        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
-          <Activity size={14} className="text-green-600"/>
-          <span className="text-sm font-semibold text-green-700">Tüm Sistemler Aktif</span>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
-        </div>
-      </div>
-
-      {/* Quick contact cards */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <a href="tel:08501234567"
-          className="card p-4 flex items-center gap-3 hover:border-slate-300 hover:shadow-md transition-all">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent-light)' }}>
-            <Phone size={18} style={{ color: 'var(--accent)' }}/>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900">0850 123 45 67</p>
-            <p className="text-xs text-slate-400">Hafta içi 09-18</p>
-          </div>
-        </a>
-
-        <a href="mailto:destek@aurabilisim.net"
-          className="card p-4 flex items-center gap-3 hover:border-slate-300 hover:shadow-md transition-all">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent-light)' }}>
-            <Mail size={18} style={{ color: 'var(--accent)' }}/>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900">destek@aurabilisim.net</p>
-            <p className="text-xs text-slate-400">1 iş günü içinde yanıt</p>
-          </div>
-        </a>
-
-        <a href="https://wa.me/905321234567?text=Merhaba, AURA İntegra desteğe ihtiyacım var."
-          target="_blank" rel="noreferrer"
-          className="card p-4 flex items-center gap-3 hover:border-green-300 hover:shadow-md transition-all">
-          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-            <MessageCircle size={18} className="text-green-600"/>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900">WhatsApp Destek</p>
-            <p className="text-xs text-slate-400">Canlı sohbet başlat</p>
-          </div>
-        </a>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-
-        {/* FAQ */}
-        <div className="card p-5">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <HelpCircle size={16} style={{ color: 'var(--accent)' }}/>
-            Sık Sorulan Sorular
-          </h3>
-          <div className="space-y-1">
-            {FAQS.map((faq, i) => (
-              <div key={i} className="border border-slate-100 rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors">
-                  <span className="text-sm font-medium text-slate-900 pr-3">{faq.q}</span>
-                  {openFaq === i
-                    ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0"/>
-                    : <ChevronDown size={14} className="text-slate-400 flex-shrink-0"/>
-                  }
-                </button>
-                {openFaq === i && (
-                  <div className="px-4 pb-4 text-sm text-slate-600 leading-relaxed border-t border-slate-50 pt-3 bg-slate-50">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Support ticket form */}
-        <div className="card p-5">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Send size={16} style={{ color: 'var(--accent)' }}/>
-            Destek Talebi Oluştur
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="label">Konu</label>
-              <input className="input" placeholder="Sorununuzu kısaca özetleyin"
-                value={form.konu} onChange={e => setForm(f => ({...f, konu: e.target.value}))}/>
-            </div>
-            <div>
-              <label className="label">Öncelik</label>
-              <select className="input" value={form.oncelik} onChange={e => setForm(f => ({...f, oncelik: e.target.value}))}>
-                <option>Düşük</option>
-                <option>Normal</option>
-                <option>Yüksek</option>
-                <option>Acil</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Açıklama</label>
-              <textarea className="input resize-none" rows={5}
-                placeholder="Sorununuzu detaylı açıklayın. Hata mesajı varsa ekleyin."
-                value={form.aciklama} onChange={e => setForm(f => ({...f, aciklama: e.target.value}))}/>
-            </div>
-            <button onClick={handleSubmit} disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-60"
-              style={{ backgroundColor: 'var(--accent)' }}>
-              {submitting ? 'Gönderiliyor...' : <><Send size={14}/> Talebi Gönder</>}
+        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0">
+          <button 
+            onClick={() => setFilterStatus('')}
+            className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap ${!filterStatus ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            Tümü
+          </button>
+          {Object.entries(STATUS_INFO).map(([key, info]) => (
+            <button
+              key={key}
+              onClick={() => setFilterStatus(key)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap ${filterStatus === key ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+            >
+              {info.label}
             </button>
-
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Clock size={12}/>
-              <span>Ortalama yanıt süresi: Profesyonel plan 4 saat, Kurumsal plan 1 saat</span>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Taleplerim */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-slate-900 flex items-center gap-2">
-            <Inbox size={16} style={{ color: 'var(--accent)' }}/>
-            Taleplerim
-          </h3>
-          <span className="text-xs text-slate-400">{tickets.length} talep</span>
-        </div>
-        {tickets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Inbox size={28} className="text-slate-300 mb-2" />
-            <p className="text-sm text-slate-500">Henüz destek talebiniz yok</p>
-            <p className="text-xs text-slate-400">Yukarıdan yeni bir talep oluşturabilirsiniz</p>
+      <PageCard>
+        {loading ? (
+          <LoadingCenter />
+        ) : filtered.length === 0 ? (
+          <div className="py-12 text-center text-slate-500">
+            <Inbox size={48} className="mx-auto mb-4 opacity-20" />
+            <p>Bilet bulunamadı.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {tickets.map((t: any) => {
-              const st = STATUS_STYLE[t.status] || STATUS_STYLE.open
-              const prio = PRIORITY_STYLE[t.priority] || PRIORITY_STYLE['Normal']
-              return (
-                <div key={t.id} className="flex items-start gap-3 p-3.5 rounded-xl border border-slate-100 hover:border-slate-200 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-slate-900">{t.subject}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${prio}`}>{t.priority}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.description}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      {new Date(t.created_at).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase text-[10px] font-bold">
+                <tr>
+                  <th className="px-4 py-3">Bilet No</th>
+                  <th className="px-4 py-3">Konu</th>
+                  <th className="px-4 py-3">Öncelik</th>
+                  <th className="px-4 py-3">Durum</th>
+                  <th className="px-4 py-3">SLA Bitiş</th>
+                  <th className="px-4 py-3 text-right">Tarih</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map(t => {
+                  const status = STATUS_INFO[t.status] || STATUS_INFO.open
+                  const priorityClass = PRIORITY_INFO[t.priority] || PRIORITY_INFO.Normal
+                  const isSlaBreached = t.sla_deadline && new Date() > new Date(t.sla_deadline) && t.status !== 'resolved' && t.status !== 'closed'
+
+                  return (
+                    <tr 
+                      key={t.id} 
+                      onClick={() => router.push(`/dashboard/destek/${t.id}`)}
+                      className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-4 font-mono font-bold text-slate-700">{t.ticket_no}</td>
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-slate-900 line-clamp-1">{t.subject}</div>
+                        <div className="text-xs text-slate-500">{t.category}</div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${priorityClass}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${status.bg} ${status.text}`}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        {t.sla_deadline ? (
+                          <div className={`flex items-center gap-1.5 text-xs font-medium ${isSlaBreached ? 'text-red-600' : 'text-slate-600'}`}>
+                            {isSlaBreached ? <AlertCircle size={14} /> : <Clock size={14} />}
+                            {new Date(t.sla_deadline).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(t.created_at).toLocaleDateString('tr-TR')}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </PageCard>
 
-      {/* Documentation grid */}
-      <div className="card p-5">
-        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <FileText size={16} style={{ color: 'var(--accent)' }}/>
-          Dokümantasyon
-        </h3>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {DOCS.map(doc => (
-            <button key={doc.title} onClick={() => toast.info('Dokümantasyon hazırlanıyor...')}
-              className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all text-left">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${doc.color} flex-shrink-0`}>
-                {doc.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{doc.title}</p>
-                <p className="text-xs text-slate-400 truncate">{doc.desc}</p>
-              </div>
-              <ExternalLink size={14} className="text-slate-300 flex-shrink-0"/>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Service hours */}
-      <div className="card p-5">
-        <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <Clock size={16} style={{ color: 'var(--accent)' }}/>
-          Çalışma Saatleri
-        </h3>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {[
-            { day: 'Pazartesi - Cuma', hours: '09:00 - 18:00', available: true },
-            { day: 'Cumartesi', hours: '10:00 - 14:00', available: true },
-            { day: 'Pazar', hours: 'Kapalı', available: false },
-            { day: 'Resmi Tatiller', hours: 'Kapalı', available: false },
-          ].map(h => (
-            <div key={h.day} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-              <span className="text-sm text-slate-700">{h.day}</span>
-              <div className="flex items-center gap-2">
-                {h.available
-                  ? <CheckCircle size={13} className="text-green-500"/>
-                  : <AlertCircle size={13} className="text-slate-300"/>
-                }
-                <span className={`text-sm font-medium ${h.available ? 'text-slate-900' : 'text-slate-400'}`}>{h.hours}</span>
-              </div>
+      {/* YENİ BİLET MODALI */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-box max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="font-bold text-lg">Yeni Bilet Oluştur</h3>
             </div>
-          ))}
+            <form onSubmit={handleCreate} className="modal-body space-y-4">
+              <div>
+                <label className="label">Konu *</label>
+                <input required className="input" value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Kategori</label>
+                  <select className="input" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                    <option>Genel</option>
+                    <option>Teknik</option>
+                    <option>Fatura / Muhasebe</option>
+                    <option>Şikayet</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Öncelik</label>
+                  <select className="input" value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
+                    <option>Düşük</option>
+                    <option>Normal</option>
+                    <option>Yüksek</option>
+                    <option>Acil</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Açıklama *</label>
+                <textarea required rows={4} className="input resize-none" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">İptal</button>
+                <button type="submit" disabled={saving} className="btn-primary flex-1">
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : 'Oluştur'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl">
-          <p className="text-xs text-amber-700 font-medium">⚡ Kurumsal plan müşterileri 7/24 acil destek hattına erişebilir.</p>
-        </div>
-      </div>
-    </div>
+      )}
+    </PageShell>
   )
 }

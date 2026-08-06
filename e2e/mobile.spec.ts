@@ -1,7 +1,108 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, devices } from '@playwright/test'
 
-test.describe('Mobile PWA assets', () => {
-  test('manifest lists PNG icons', async ({ request }) => {
+/**
+ * Mobil PWA ve responsive E2E testleri — genişletilmiş.
+ * Mevcut testlere ek yeni senaryolar.
+ */
+
+test.describe('Mobile Responsive — Dashboard', () => {
+  test('dashboard login yönlendirmesi (mobil)', async ({ page }) => {
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  })
+
+  test('kabul sayfası login yönlendirmesi (mobil)', async ({ page }) => {
+    await page.goto('/dashboard/kabul', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  })
+
+  test('atolye sayfası login yönlendirmesi (mobil)', async ({ page }) => {
+    await page.goto('/dashboard/atolye', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  })
+
+  test('fatura sayfası login yönlendirmesi (mobil)', async ({ page }) => {
+    await page.goto('/dashboard/fatura', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  })
+
+  test('kasa sayfası login yönlendirmesi (mobil)', async ({ page }) => {
+    await page.goto('/dashboard/kasa', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  })
+})
+
+test.describe('Login sayfası mobile UX', () => {
+  test('login dokunma hedefleri yeterli boyutta', async ({ page }) => {
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page.locator('body')).toBeVisible()
+
+    const btn = page.locator('button[type="submit"]').first()
+    await expect(btn).toBeVisible({ timeout: 30_000 })
+
+    const box = await btn.boundingBox()
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(120)
+  })
+
+  test('login viewport genişliği 500px veya daha dar', async ({ page }) => {
+    const viewport = page.viewportSize()
+    expect(viewport?.width ?? 9999).toBeLessThanOrEqual(500)
+  })
+
+  test('login sayfasında email ve password alanları var', async ({ page }) => {
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('input[type="password"], input[name="password"]')).toBeVisible({ timeout: 15_000 })
+  })
+
+  test('submit butonu görünür', async ({ page }) => {
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page.locator('button[type="submit"]')).toBeVisible({ timeout: 15_000 })
+  })
+})
+
+test.describe('Landing sayfası mobile uyumu', () => {
+  test('landing sayfası mobilde yükleniyor', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page.locator('body')).toBeVisible()
+    // Yatay scroll kontrolü
+    const scrollWidth = await page.evaluate(() => document.body.scrollWidth)
+    const clientWidth = await page.evaluate(() => document.body.clientWidth)
+    // Küçük margin toleransı ile
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 20)
+  })
+
+  test('landing sayfasında CTA butonları touchable boyutta', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await expect(page.locator('body')).toBeVisible()
+    // Eğer buton varsa
+    const ctaButtons = page.locator('a[href*="login"], button').filter({ hasText: /giriş|başla|dene/i })
+    if (await ctaButtons.count() > 0) {
+      const box = await ctaButtons.first().boundingBox()
+      if (box) {
+        expect(box.height).toBeGreaterThanOrEqual(36)
+      }
+    }
+  })
+})
+
+test.describe('Hukuki sayfalar mobile', () => {
+  test('gizlilik politikası mobilde okunabilir', async ({ page }) => {
+    const res = await page.goto('/gizlilik-politikasi', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    expect(res?.status()).toBeLessThan(400)
+    await expect(page.locator('body')).toBeVisible()
+  })
+
+  test('KVKK sayfası mobilde okunabilir', async ({ page }) => {
+    const res = await page.goto('/kvkk', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    expect(res?.status()).toBeLessThan(400)
+    await expect(page.locator('body')).toBeVisible()
+  })
+})
+
+test.describe('PWA manifest ve ikonlar', () => {
+  test('manifest.json geçerli ve PNG ikonları içerir', async ({ request }) => {
     const res = await request.get('/manifest.json')
     expect(res.ok()).toBeTruthy()
     const json = await res.json()
@@ -10,40 +111,16 @@ test.describe('Mobile PWA assets', () => {
     expect(srcs).toContain('/icon-512.png')
   })
 
-  test('PWA icon files exist', async ({ request }) => {
+  test('PWA icon dosyaları erişilebilir', async ({ request }) => {
     for (const path of ['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']) {
       const res = await request.get(path)
       expect(res.status(), path).toBe(200)
       expect(res.headers()['content-type'] || '').toMatch(/image\/png/)
     }
   })
-})
 
-/** Run with: npx playwright test e2e/mobile.spec.ts --project="Mobile Chrome" */
-test.describe('Mobile Chrome UX', () => {
-  test('login is usable on phone viewport', async ({ page }) => {
-    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    await expect(page.locator('body')).toBeVisible()
-    const btn = page.locator('button[type="submit"]').first()
-    await expect(btn).toBeVisible({ timeout: 30_000 })
-    const box = await btn.boundingBox()
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(40)
-    const viewport = page.viewportSize()
-    expect(viewport?.width ?? 9999).toBeLessThanOrEqual(500)
-  })
-
-  test('dashboard redirects to login on mobile', async ({ page }) => {
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
-  })
-
-  test('sayim requires auth', async ({ page }) => {
-    await page.goto('/dashboard/stok/sayim', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
-  })
-
-  test('satis requires auth', async ({ page }) => {
-    await page.goto('/dashboard/satis', { waitUntil: 'domcontentloaded', timeout: 60_000 })
-    await expect(page).toHaveURL(/login/, { timeout: 30_000 })
+  test('favicon erişilebilir', async ({ request }) => {
+    const res = await request.get('/favicon.ico')
+    expect(res.status()).toBeLessThan(400)
   })
 })

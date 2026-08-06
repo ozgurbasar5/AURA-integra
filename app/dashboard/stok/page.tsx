@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import {
   Package, Plus, Search, AlertTriangle, X,
-  Download, BarChart3, TrendingDown, ArrowDownCircle, Printer, ArrowRightLeft
+  Download, BarChart3, TrendingDown, ArrowDownCircle, Printer, ArrowRightLeft, Loader2,
 } from 'lucide-react'
+import StockRow from '@/components/stok/StockRow'
+import { ErrorBanner, LoadingCenter } from '@/components/ui/PageShell'
 import { PART_CATEGORIES } from '@/lib/constants'
 import { formatCurrency } from '@/lib/validators'
 import {
@@ -43,23 +45,71 @@ export default function StokPage() {
   // Add part form
   const [newPart, setNewPart] = useState({ name: '', barcode: generateStockBarcode(), category: PART_CATEGORIES[0], buy_price: '', sell_price: '', min_stock: '5', supplier: '' })
 
-  const refresh = useCallback(() => {
-    setStockData(getStock())
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const stockOffsetRef = useRef(0)
+
+  const refresh = useCallback(async (append = false) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
+    const offset = append ? stockOffsetRef.current : 0
+    const result = await loadStockFromApi({
+      limit: 50,
+      offset,
+      search: search.trim() || undefined,
+    })
+    if (!result.ok && result.fromCache) {
+      setLoadError(result.error ?? 'Stok yüklenemedi')
+    } else {
+      setLoadError(null)
+    }
+    stockOffsetRef.current = append ? offset + result.items.length : result.items.length
+    setStockData(append ? prev => {
+      const byId = new Map(prev.map(p => [p.id, p]))
+      for (const item of result.items) byId.set(item.id, item)
+      return Array.from(byId.values())
+    } : result.items)
+    setHasMore(result.hasMore)
     setSummary(getFinanceSummary())
-  }, [])
+    setLoading(false)
+    if (append) setLoadingMore(false)
+  }, [search])
 
   useEffect(() => {
     setMounted(true)
-    void loadStockFromApi().then(() => refresh())
+    void refresh(false)
     void fetch('/api/tenant/stock/transfer', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(j => { if (j.items) setTransfers(j.items) })
       .catch(() => {})
     const unsub = onStoreChange((mod) => {
-      if (mod === 'stock' || mod === 'finance') refresh()
+      if (mod === 'stock' || mod === 'finance') {
+        setStockData(getStock())
+        setSummary(getFinanceSummary())
+      }
     })
     return unsub
   }, [refresh])
+
+  useEffect(() => {
+    if (!mounted) return
+    const t = setTimeout(() => {
+      stockOffsetRef.current = 0
+      void refresh(false)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [search, mounted, refresh])
+
+  const handleReceiveClick = useCallback((item: StockItem) => {
+    setSelectedItem(item)
+    setShowReceiveModal(true)
+  }, [])
+
+  const handlePrintLabels = useCallback((labels: ReturnType<typeof stockLabelFromItem>[]) => {
+    setPrintLabels(labels)
+  }, [])
 
   if (!mounted) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full" /></div>
 
@@ -151,7 +201,9 @@ export default function StokPage() {
   return (
     <>
     <div className="space-y-6 pb-8 no-print">
-      {/* Header */}
+      {loadError && (
+        <ErrorBanner message={loadError} onRetry={() => void refresh(false)} />
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-tour="stok-baslik">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -222,6 +274,10 @@ export default function StokPage() {
 
       {/* Table */}
       <div className="card overflow-hidden" data-tour="stok-tablo">
+        {loading && stock.length === 0 ? (
+          <LoadingCenter />
+        ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -238,56 +294,31 @@ export default function StokPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filtered.map(p => {
-                const isCritical = p.stock_qty <= p.min_stock
-                const profitMargin = p.sell_price > 0 ? ((p.sell_price - p.buy_price) / p.sell_price * 100).toFixed(0) : '0'
-                return (
-                  <tr key={p.id} className={`hover:bg-slate-50/80 transition-colors ${isCritical ? 'bg-red-50/40' : ''}`}>
-                    <td className="py-3 px-4">
-                      <p className="text-xs font-semibold text-slate-900">{p.name}</p>
-                      <p className="text-[9px] font-mono text-slate-400">{p.barcode}</p>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-600">{p.category}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`text-sm font-black tabular-nums ${isCritical ? 'text-red-600' : 'text-slate-900'}`}>
-                        {p.stock_qty}
-                      </span>
-                      {isCritical && <AlertTriangle size={10} className="inline ml-1 text-red-400" />}
-                    </td>
-                    <td className="py-3 px-4 text-center text-xs text-slate-400">{p.min_stock}</td>
-                    <td className="py-3 px-4 text-right text-xs text-slate-500 tabular-nums">{formatCurrency(p.buy_price)}</td>
-                    <td className="py-3 px-4 text-right text-xs font-semibold text-slate-900 tabular-nums">{formatCurrency(p.sell_price)}</td>
-                    <td className="py-3 px-4 text-right">
-                      <span className={`text-xs font-bold ${parseInt(profitMargin) >= 30 ? 'text-emerald-600' : parseInt(profitMargin) >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
-                        %{profitMargin}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-[10px] text-slate-500">{p.supplier}</td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPrintLabels([stockLabelFromItem(p)])
-                            setTimeout(() => window.print(), 100)
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-sky-600 hover:bg-sky-50 rounded-lg"
-                          title="Barkod / QR etiket"
-                        >
-                          <Printer size={14} />
-                        </button>
-                        <button onClick={() => { setSelectedItem(p); setShowReceiveModal(true) }} data-tour="stok-giris-btn"
-                          className="px-2 py-1 text-[10px] font-bold bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors">
-                          + Giriş
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+              {filtered.map(p => (
+                <StockRow
+                  key={p.id}
+                  item={p}
+                  onReceive={handleReceiveClick}
+                  onPrint={handlePrintLabels}
+                />
+              ))}
             </tbody>
           </table>
         </div>
+        {hasMore && !categoryFilter && !stockFilter && (
+          <div className="flex justify-center py-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => void refresh(true)}
+              disabled={loadingMore}
+              className="btn-secondary btn-sm flex items-center gap-2"
+            >
+              {loadingMore ? <Loader2 size={14} className="animate-spin" /> : 'Daha fazla yükle'}
+            </button>
+          </div>
+        )}
+        </>
+        )}
       </div>
 
       {transfers.length > 0 && (

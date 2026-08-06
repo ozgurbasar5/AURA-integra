@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { tenantQuery, sinceQuery } from '@/lib/supabase/query-helpers'
+import { withApiHandler } from '@/lib/api-handler'
 import {
   partToStock,
   customerToStore,
@@ -34,7 +36,7 @@ import {
 import type { StoreData } from '@/lib/store'
 import type { ServiceDelivery } from '@/lib/store'
 
-export async function GET() {
+export const GET = withApiHandler(async function GET(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -42,8 +44,36 @@ export async function GET() {
 
   const { supabase, tenantId } = auth
   const tid = tenantId
+  const since = req.nextUrl.searchParams.get('since')
+  const incremental = Boolean(since)
 
-  try {
+  const partsQ = sinceQuery(
+      tenantQuery(supabase.from('parts').select('*'), tid).order('name'),
+      since,
+    )
+    const customersQ = sinceQuery(
+      tenantQuery(supabase.from('customers').select('*'), tid).order('full_name'),
+      since,
+    )
+    const txQ = tenantQuery(
+      supabase.from('financial_transactions').select('*'), tid,
+    ).order('transaction_date', { ascending: false })
+    const txFiltered = since
+      ? txQ.or(`updated_at.gte.${since},created_at.gte.${since}`)
+      : txQ.limit(500)
+    const salesQ = sinceQuery(
+      tenantQuery(supabase.from('sales').select('*'), tid)
+        .order('created_at', { ascending: false }),
+      since,
+    )
+    const ordersQ = sinceQuery(
+      tenantQuery(
+        supabase.from('service_orders').select('*, technician:user_profiles!technician_id(full_name)'),
+        tid,
+      ).order('created_at', { ascending: false }),
+      since,
+    )
+
     const [
       partsRes,
       customersRes,
@@ -64,24 +94,44 @@ export async function GET() {
       settingsRes,
       accountsRes,
     ] = await Promise.all([
-      supabase.from('parts').select('*').eq('tenant_id', tid).order('name'),
-      supabase.from('customers').select('*').eq('tenant_id', tid).order('full_name'),
-      supabase.from('financial_transactions').select('*').eq('tenant_id', tid).order('transaction_date', { ascending: false }).limit(500),
-      supabase.from('sales').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(200),
-      supabase.from('service_orders').select('*, technician:user_profiles!technician_id(full_name)').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(300),
-      supabase.from('purchases').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(200),
-      supabase.from('todos').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('stolen_imeis').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('customer_orders').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('store_products').select('*').eq('tenant_id', tid).order('name'),
-      supabase.from('assets').select('*').eq('tenant_id', tid).order('name'),
-      supabase.from('campaigns').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('deals').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('showcase_devices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('branches').select('*').eq('tenant_id', tid).order('name'),
+      partsQ,
+      customersQ,
+      txFiltered,
+      salesQ.limit(200),
+      ordersQ.limit(300),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('purchases').select('*'), tid).order('created_at', { ascending: false }).limit(200),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('todos').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('stolen_imeis').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('customer_orders').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('store_products').select('*'), tid).order('name'),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('assets').select('*'), tid).order('name'),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('campaigns').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('deals').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('showcase_devices').select('*'), tid).order('created_at', { ascending: false }),
+      incremental
+        ? Promise.resolve({ data: [], error: null })
+        : tenantQuery(supabase.from('branches').select('*'), tid).order('name'),
       supabase.from('tenants').select('company_name, phone, address, shop_name, shop_logo, portal_slug').eq('id', tid).single(),
-      supabase.from('tenant_settings').select('settings, updated_at').eq('tenant_id', tid).maybeSingle(),
-      supabase.from('accounts').select('balance').eq('tenant_id', tid).eq('type', 'kasa').limit(1),
+      tenantQuery(supabase.from('tenant_settings').select('settings, updated_at'), tid).maybeSingle(),
+      tenantQuery(supabase.from('accounts').select('balance'), tid).eq('type', 'kasa').limit(1),
     ])
 
     const queryErrors: { table: string; err: string }[] = [
@@ -102,16 +152,28 @@ export async function GET() {
       supplierRes,
       personnelRes,
       foreignDevicesRes,
-    ] = await Promise.all([
-      supabase.from('appointments').select('*').eq('tenant_id', tid).order('appointment_date', { ascending: false }),
-      supabase.from('warranties').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('invoices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('notification_logs').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }).limit(200),
-      supabase.from('support_tickets').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('cash_shifts').select('*').eq('tenant_id', tid).order('opened_at', { ascending: false }),
-      supabase.from('supplier_orders').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
-      supabase.from('personnel_profiles').select('*').eq('tenant_id', tid).order('full_name'),
-      supabase.from('foreign_devices').select('*').eq('tenant_id', tid).order('created_at', { ascending: false }),
+    ] = incremental
+      ? [
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+        ]
+      : await Promise.all([
+      tenantQuery(supabase.from('appointments').select('*'), tid).order('appointment_date', { ascending: false }),
+      tenantQuery(supabase.from('warranties').select('*'), tid).order('created_at', { ascending: false }),
+      tenantQuery(supabase.from('invoices').select('*'), tid).order('created_at', { ascending: false }),
+      tenantQuery(supabase.from('notification_logs').select('*'), tid).order('created_at', { ascending: false }).limit(200),
+      tenantQuery(supabase.from('support_tickets').select('*'), tid).order('created_at', { ascending: false }),
+      tenantQuery(supabase.from('cash_shifts').select('*'), tid).order('opened_at', { ascending: false }),
+      tenantQuery(supabase.from('supplier_orders').select('*'), tid).order('created_at', { ascending: false }),
+      tenantQuery(supabase.from('personnel_profiles').select('*'), tid).order('full_name'),
+      tenantQuery(supabase.from('foreign_devices').select('*'), tid).order('created_at', { ascending: false }),
     ])
 
     const tenant = tenantRes.data as Record<string, unknown> | null
@@ -124,7 +186,7 @@ export async function GET() {
       data: [],
       error: null,
     }
-    if (orderIds.length > 0) {
+    if (orderIds.length > 0 && !incremental) {
       const byTenant = await supabase
         .from('service_expenses')
         .select('*')
@@ -148,7 +210,7 @@ export async function GET() {
     }
 
     let statusHistoryRows: Record<string, unknown>[] = []
-    if (orderIds.length > 0) {
+    if (orderIds.length > 0 && !incremental) {
       const statusHistoryRes = await supabase
         .from('service_status_history')
         .select('*')
@@ -236,11 +298,8 @@ export async function GET() {
       data: payload,
       synced_at: new Date().toISOString(),
       sync_token: settingsRes.data?.updated_at ?? new Date().toISOString(),
+      incremental,
       partial: queryErrors.length > 0,
       queryErrors: queryErrors.length ? queryErrors : undefined,
     })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Sync hatası'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
+}, 'tenant/sync')

@@ -7,6 +7,7 @@ import { getServiceClient } from '@/lib/supabase/service'
 import { saleToDb, saleToStore } from '@/lib/db-mappers'
 import { normalizePaymentMethod } from '@/lib/payment-method'
 import type { CartItem } from '@/lib/store'
+import { withApiHandler } from '@/lib/api-handler'
 
 type SaleBody = {
   items: CartItem[]
@@ -183,7 +184,7 @@ async function completeSaleLegacy(
   }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -310,4 +311,4 @@ export async function POST(req: NextRequest) {
       rpc_fallback: rpcErr?.message ?? null,
     }, { status: 500 })
   }
-}
+}, 'tenant/sales')

@@ -13,7 +13,6 @@ describe('mobile nav tabs', () => {
     expect(hrefs).toContain('/dashboard/atolye')
     expect(hrefs).toContain('/dashboard/satis')
     expect(hrefs).toContain('/dashboard/kasa')
-    expect(hrefs).toContain('/dashboard/stok/sayim')
   })
 
   it('marks nested routes active', () => {

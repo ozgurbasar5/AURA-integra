@@ -148,12 +148,14 @@ export function StatPill({
   label,
   value,
   tone = 'default',
+  icon,
 }: {
   label: string
   value: string | number
   tone?: 'default' | 'success' | 'warning' | 'danger'
+  icon?: React.ComponentProps<typeof FontAwesome>['name']
 }) {
-  const { colors } = useAppTheme()
+  const { colors, isDark } = useAppTheme()
   const bg =
     tone === 'success' ? colors.successSoft
       : tone === 'warning' ? colors.warningSoft
@@ -164,10 +166,29 @@ export function StatPill({
       : tone === 'warning' ? colors.warning
         : tone === 'danger' ? colors.danger
           : colors.primary
+
   return (
-    <View style={[styles.pill, { backgroundColor: bg, borderRadius: colors.radiusSm }]}>
-      <Text style={[styles.pillValue, { color: fg }]}>{value}</Text>
-      <Text style={[styles.pillLabel, { color: colors.muted }]}>{label}</Text>
+    <View
+      style={[
+        styles.pill,
+        {
+          backgroundColor: isDark ? colors.card : colors.card,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: colors.radiusLg || 16,
+          shadowColor: isDark ? '#000000' : fg,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isDark ? 0.2 : 0.08,
+          shadowRadius: 6,
+          elevation: 2,
+        },
+      ]}
+    >
+      <View style={[styles.pillHeader, { backgroundColor: bg }]}>
+        {icon ? <FontAwesome name={icon} size={12} color={fg} /> : null}
+        <Text style={[styles.pillValue, { color: fg }]}>{value}</Text>
+      </View>
+      <Text style={[styles.pillLabel, { color: colors.text }]} numberOfLines={1}>{label}</Text>
     </View>
   )
 }
@@ -198,7 +219,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   errorTitle: { fontWeight: '800', fontSize: 13, marginBottom: 2 },
-  pill: { flex: 1, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', gap: 2 },
-  pillValue: { fontSize: 20, fontWeight: '900' },
-  pillLabel: { fontSize: 11, fontWeight: '600' },
+  pill: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'flex-start', gap: 4 },
+  pillHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  pillValue: { fontSize: 18, fontWeight: '900' },
+  pillLabel: { fontSize: 12, fontWeight: '700', marginTop: 2 },
 })

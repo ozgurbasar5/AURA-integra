@@ -40,7 +40,7 @@ import ColorModeToggle from '@/components/ColorModeToggle'
 import { toast } from 'sonner'
 import IntegrationHealthBanner from '@/components/settings/IntegrationHealthBanner'
 
-type Tab = 'genel' | 'tema' | 'bildirim' | 'guvenlik' | 'entegrasyon' | 'abonelik'
+type Tab = 'genel' | 'tema' | 'bildirim' | 'guvenlik' | 'entegrasyon' | 'abonelik' | 'sla'
 
 const NOTIFICATION_SETTINGS = [
   { id: 'sms_service',    label: 'Servis Tamamlandı SMS',     desc: 'Servis tamamlandığında müşteriye SMS gönder', default: true },
@@ -545,6 +545,7 @@ export default function AyarlarPage() {
     { id: 'guvenlik',    icon: <Shield size={15}/>,     label: 'Güvenlik'         },
     { id: 'entegrasyon', icon: <Zap size={15}/>,        label: 'Entegrasyonlar'   },
     { id: 'abonelik',    icon: <CreditCard size={15}/>, label: 'Abonelik'         },
+    { id: 'sla',         icon: <Clock size={15}/>,      label: 'SLA Kuralları'    },
   ]
 
   return (
@@ -1465,6 +1466,36 @@ export default function AyarlarPage() {
                     <p className="text-xs text-[var(--text-muted)] opacity-70">Ödemeler gerçekleştikçe burada görünecek</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── SLA ──────────────────────────────────────────────────────── */}
+          {tab === 'sla' && (
+            <div className="space-y-4">
+              <div className="card p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600">
+                      <Clock size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-[var(--text-primary)]">SLA (Hizmet Seviyesi) Ayarları</h3>
+                      <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                        6502 Sayılı Tüketici Kanunu ve firma içi onarım hedeflerinizi yönetin.
+                      </p>
+                    </div>
+                  </div>
+                  <Link href="/dashboard/ayarlar/sla" className="btn-primary text-sm">
+                    Gelişmiş SLA Yönetimi
+                  </Link>
+                </div>
+                <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                  <p className="text-sm text-orange-800">
+                    <strong>Bilgi:</strong> SLA konfigürasyonları çok detaylı kurallar içerdiğinden ayrı bir yönetim sayfasında yapılandırılır. 
+                    Yukarıdaki butona tıklayarak cihaz bazlı SLA sürelerini (örn: Cep Telefonu: 20 iş günü, Bilgisayar: 30 gün) belirleyebilirsiniz.
+                  </p>
+                </div>
               </div>
             </div>
           )}

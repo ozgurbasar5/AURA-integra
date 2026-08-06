@@ -97,7 +97,7 @@ export default function DashboardPage() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
-    const list = await loadServiceOrdersFromApi(50)
+    const { orders: list } = await loadServiceOrdersFromApi({ limit: 50 })
     setOrders(list.map(mapOrder))
     setLoading(false)
   }, [])

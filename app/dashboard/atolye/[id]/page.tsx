@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import { buildWaMeUrl } from '@/lib/portal-messaging'
 import { buildServisWhatsappMessage } from '@/utils/servisWhatsappMesaji'
-import { getBusinessBranding } from '@/lib/business-branding'
 import ServicePrintSheet from '@/components/atolye/ServicePrintSheet'
 import WhatsappPreviewModal from '@/components/branding/WhatsappPreviewModal'
+import PrinterSetupModal from '@/components/printer/PrinterSetupModal'
 import {
   updateServiceStatus, updateServiceOrder,
   addServiceExpense, removeServiceExpense, getServiceExpenses, getServiceProfitPreview,
@@ -67,9 +67,9 @@ export default function AtolyeDetailPage() {
   const [partForm, setPartForm] = useState({ stock_id: '', qty: '1' })
   const [profit, setProfit] = useState({ netProfit: 0, totalExpense: 0, profitMargin: 0 })
   const [finalChecks, setFinalChecks] = useState<string[]>([])
-  const [compatible, setCompatible] = useState<ReturnType<typeof getCompatibleParts>>([])
   const [showWaPreview, setShowWaPreview] = useState(false)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
+  const [showPrinterModal, setShowPrinterModal] = useState(false)
   const [showExpertise, setShowExpertise] = useState(false)
   const [technician, setTechnician] = useState<string>('')
   const [deviceImages, setDeviceImages] = useState<string[]>([])
@@ -376,7 +376,7 @@ export default function AtolyeDetailPage() {
           <button type="button" onClick={() => setShowPrintPreview(v => !v)} className="btn-secondary btn-sm">
             <Eye size={14} /> {showPrintPreview ? 'Fiş Gizle' : 'Fiş Önizle'}
           </button>
-          <button type="button" onClick={() => window.print()} className="btn-secondary btn-sm"><Printer size={14} /> Yazdır</button>
+          <button type="button" onClick={() => setShowPrinterModal(true)} className="btn-secondary btn-sm"><Printer size={14} /> Yazdır (ZPL/Termal)</button>
           {!isDone && canDeliver && (
             <button type="button" onClick={handleDeliver} className="btn-sm rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-2 font-semibold text-sm">
               <CheckCircle2 size={14} /> Teslim Et
@@ -711,6 +711,13 @@ export default function AtolyeDetailPage() {
       phone={order.customer_phone}
       waUrl={waUrl()}
     />
+
+    {showPrinterModal && (
+      <PrinterSetupModal
+        order={order}
+        onClose={() => setShowPrinterModal(false)}
+      />
+    )}
 
     <ExpertiseModal
       open={showExpertise}

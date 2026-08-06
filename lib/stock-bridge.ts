@@ -3,6 +3,7 @@
  */
 
 import { partToStock } from './db-mappers'
+import { fetchWithRetry } from './fetch-with-retry'
 import {
   getStock,
   replaceStock,
@@ -13,17 +14,60 @@ import {
 
 type PartRow = Record<string, unknown>
 
-export async function loadStockFromApi(): Promise<StockItem[]> {
+export type StockBridgeResult = {
+  items: StockItem[]
+  hasMore: boolean
+  ok: boolean
+  fromCache: boolean
+  error?: string
+}
+
+export async function loadStockFromApi(opts?: {
+  limit?: number
+  offset?: number
+  search?: string
+}): Promise<StockBridgeResult> {
   try {
-    const res = await fetch('/api/tenant/parts', { credentials: 'same-origin' })
-    if (!res.ok) return getStock()
-    const json = (await res.json()) as { items?: PartRow[] }
-    if (!json.items) return getStock()
+    const limit = opts?.limit ?? 100
+    const offset = opts?.offset ?? 0
+    const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    if (opts?.search) qs.set('search', opts.search)
+    const res = await fetchWithRetry(`/api/tenant/parts?${qs}`, { credentials: 'same-origin' })
+    if (!res.ok) {
+      return {
+        items: getStock(),
+        hasMore: false,
+        ok: false,
+        fromCache: true,
+        error: 'Stok listesi yüklenemedi',
+      }
+    }
+    const json = (await res.json()) as {
+      items?: PartRow[]
+      pagination?: { hasMore?: boolean }
+    }
+    if (!json.items) {
+      return { items: getStock(), hasMore: false, ok: true, fromCache: offset > 0 }
+    }
     const items = json.items.map(r => partToStock(r))
-    replaceStock(items, { silent: true })
-    return items
+    if (offset === 0) replaceStock(items, { silent: true })
+    else {
+      for (const item of items) upsertStockItem(item, { silent: true })
+    }
+    return {
+      items: offset === 0 ? items : getStock(),
+      hasMore: json.pagination?.hasMore ?? false,
+      ok: true,
+      fromCache: false,
+    }
   } catch {
-    return getStock()
+    return {
+      items: getStock(),
+      hasMore: false,
+      ok: false,
+      fromCache: true,
+      error: 'Bağlantı hatası',
+    }
   }
 }
 

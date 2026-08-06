@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
+import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { apiFetch, apiUpload } from '@/lib/api'
@@ -23,6 +24,7 @@ import { ListRow } from '@/components/ui/ListRow'
 import { TextField } from '@/components/ui/TextField'
 import { EmptyState, ErrorBanner, LoadingBlock } from '@/components/ui/States'
 import { printLabel } from '@/lib/label-print'
+import { printToThermalPrinter } from '@/lib/thermal-printer'
 
 type Order = {
   id: string
@@ -180,6 +182,7 @@ export default function KabulScreen() {
       setShowForm(false)
       await load()
       if (id) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
         setSuccess({ id, order_no: orderNo || id.slice(0, 8), tracking })
       }
     } catch (e) {
@@ -199,8 +202,10 @@ export default function KabulScreen() {
           order_no: payload.customer_name.slice(0, 12),
           tracking: 'Kuyrukta',
         })
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
         Alert.alert('Çevrimdışı kuyruk', 'Bağlantı yok — kabul kuyruğa alındı. İnternet gelince otomatik gönderilir.')
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
         setFormError(msg)
       }
     } finally {
@@ -232,19 +237,28 @@ export default function KabulScreen() {
     if (!success?.id) return
     try {
       const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true, mediaTypes: ['images'] })
-      if (result.canceled || !result.assets?.[0]) return
-      const asset = result.assets[0]
-      const formData = new FormData()
-      formData.append('file', {
-        uri: asset.uri,
-        name: `kabul-${Date.now()}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-      } as unknown as Blob)
-      await apiUpload(`/api/service-orders/${success.id}/photos`, formData)
-      Alert.alert('Tamam', 'Fotoğraf eklendi')
+        ? await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: false, allowsMultipleSelection: true, mediaTypes: ['images'] })
+      
+      if (result.canceled || !result.assets?.length) return
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+      
+      // Upload all selected photos sequentially
+      for (const asset of result.assets) {
+        const formData = new FormData()
+        formData.append('file', {
+          uri: asset.uri,
+          name: `kabul-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
+        } as unknown as Blob)
+        await apiUpload(`/api/service-orders/${success.id}/photos`, formData)
+      }
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      Alert.alert('Tamam', `${result.assets.length} fotoğraf eklendi`)
     } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       Alert.alert('Hata', e instanceof Error ? e.message : 'Yüklenemedi')
     } finally {
       setPhotoBusy(false)
@@ -325,6 +339,25 @@ export default function KabulScreen() {
                       orderNo: success.order_no,
                       subtitle: 'Servis kabul',
                     })
+                  }}
+                />
+                <Button
+                  title="Bluetooth Fiş Bas"
+                  variant="secondary"
+                  onPress={async () => {
+                    if (!success) return
+                    const res = await printToThermalPrinter({
+                      receiptNo: success.order_no,
+                      customerName: form.customer_name || 'Müşteri',
+                      customerPhone: form.customer_phone || '-',
+                      deviceModel: `${form.device_brand} ${form.device_model}`.trim(),
+                      serialOrImei: form.imei,
+                      problemDescription: form.fault_description || 'Servis Kabul',
+                      receivedDate: new Date().toLocaleDateString('tr-TR'),
+                      tenantName: profile?.full_name || 'AURA İntegra Bayi',
+                      tenantPhone: '0850 000 0000',
+                    })
+                    Alert.alert('Termal Yazıcı', res.message)
                   }}
                 />
                 <Button

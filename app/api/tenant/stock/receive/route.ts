@@ -6,8 +6,9 @@ import { canPushFinance } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { partToStock } from '@/lib/db-mappers'
 import { normalizePaymentMethod } from '@/lib/payment-method'
+import { withApiHandler } from '@/lib/api-handler'
 
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -125,4 +126,4 @@ export async function POST(req: NextRequest) {
     stock_item: partToStock(updated as Record<string, unknown>),
     kasa_balance: kasaBalance,
   })
-}
+}, 'tenant/stock/receive')

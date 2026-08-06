@@ -155,3 +155,31 @@ export function LoadingCenter() {
     </div>
   )
 }
+
+export function ErrorBanner({
+  message,
+  onRetry,
+  className = '',
+}: {
+  message: string
+  onRetry?: () => void
+  className?: string
+}) {
+  return (
+    <div
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-4 py-3 ${className}`}
+      role="alert"
+    >
+      <p className="text-sm text-red-700 dark:text-red-300">{message}</p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="shrink-0 text-sm font-semibold text-red-700 dark:text-red-300 hover:underline"
+        >
+          Tekrar dene
+        </button>
+      )}
+    </div>
+  )
+}

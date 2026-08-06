@@ -74,6 +74,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('NEXT_REDIRECT') || msg.includes('redirect')) throw err
-    redirect('/login?error=service_unavailable')
+    
+    // Auth hatalarında login sayfasına at
+    if (msg.includes('Auth') || msg.includes('JWT') || msg.includes('session')) {
+      redirect('/login?error=auth_failed')
+    }
+    
+    // Diğer tüm bilinmeyen/beklenmeyen hatalar için throw yap, app/error.tsx yakalayacak.
+    throw err
   }
 }

@@ -2,33 +2,46 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
-import { getServiceClient } from '@/lib/supabase/service'
-import { stockToPart } from '@/lib/db-mappers'
-import type { StockItem } from '@/lib/store'
+import { tenantQuery } from '@/lib/supabase/query-helpers'
+import { withApiHandler } from '@/lib/api-handler'
 
-export async function GET() {
+export const GET = withApiHandler(async function GET(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
 
-  const { data, error } = await auth.supabase
-    .from('parts')
-    .select('*')
-    .eq('tenant_id', auth.tenantId)
+  const searchParams = req.nextUrl.searchParams
+  const limit = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 500)
+  const offset = parseInt(searchParams.get('offset') ?? '0', 10)
+  const search = searchParams.get('search')?.trim()
+
+  let query = tenantQuery(auth.supabase.from('parts').select('*', { count: 'exact' }), auth.tenantId)
     .order('name')
+    .range(offset, offset + limit - 1)
 
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,barcode.ilike.%${search}%`)
+  }
+
+  const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, items: data ?? [] })
-}
 
-export async function POST(req: NextRequest) {
+  const total = count ?? 0
+  return NextResponse.json({
+    ok: true,
+    items: data ?? [],
+    pagination: { limit, offset, total, hasMore: offset + (data?.length ?? 0) < total },
+  })
+}, 'tenant/parts')
+
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
 
-  let body: Partial<StockItem>
+  let body: Partial<import('@/lib/store').StockItem>
   try {
     body = await req.json()
   } catch {
@@ -39,9 +52,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name gerekli' }, { status: 400 })
   }
 
+  const { stockToPart } = await import('@/lib/db-mappers')
   const id = body.id && isUuid(body.id) ? body.id : crypto.randomUUID()
   const row = stockToPart(
-    { ...body, id, stock_qty: body.stock_qty ?? 0, min_stock: body.min_stock ?? 0 } as StockItem,
+    { ...body, id, stock_qty: body.stock_qty ?? 0, min_stock: body.min_stock ?? 0 } as import('@/lib/store').StockItem,
     auth.tenantId,
   )
 
@@ -53,9 +67,9 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, item: data })
-}
+}, 'tenant/parts')
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withApiHandler(async function PATCH(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -72,14 +86,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Geçerli part id gerekli' }, { status: 400 })
   }
 
+  const { getServiceClient } = await import('@/lib/supabase/service')
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
 
   if (body.delta != null) {
-    const { data: part, error: fetchErr } = await admin
-      .from('parts')
-      .select('stock_qty')
-      .eq('tenant_id', auth.tenantId)
+    const { data: part, error: fetchErr } = await tenantQuery(
+      admin.from('parts').select('stock_qty'),
+      auth.tenantId,
+    )
       .eq('id', body.id)
       .single()
 
@@ -92,10 +107,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Stok negatif olamaz' }, { status: 409 })
     }
 
-    const { data, error } = await admin
-      .from('parts')
-      .update({ stock_qty: newQty })
-      .eq('tenant_id', auth.tenantId)
+    const { data, error } = await tenantQuery(admin.from('parts').update({ stock_qty: newQty }), auth.tenantId)
       .eq('id', body.id)
       .select('*')
       .single()
@@ -108,10 +120,10 @@ export async function PATCH(req: NextRequest) {
     if (body.stock_qty < 0) {
       return NextResponse.json({ error: 'Stok negatif olamaz' }, { status: 409 })
     }
-    const { data, error } = await admin
-      .from('parts')
-      .update({ stock_qty: body.stock_qty })
-      .eq('tenant_id', auth.tenantId)
+    const { data, error } = await tenantQuery(
+      admin.from('parts').update({ stock_qty: body.stock_qty }),
+      auth.tenantId,
+    )
       .eq('id', body.id)
       .select('*')
       .single()
@@ -121,9 +133,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'stock_qty veya delta gerekli' }, { status: 400 })
-}
+}, 'tenant/parts')
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withApiHandler(async function DELETE(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -140,12 +152,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Geçerli part id gerekli' }, { status: 400 })
   }
 
-  const { error } = await auth.supabase
-    .from('parts')
-    .delete()
-    .eq('tenant_id', auth.tenantId)
-    .eq('id', body.id)
+  const { error } = await tenantQuery(auth.supabase.from('parts').delete(), auth.tenantId).eq('id', body.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
-}
+}, 'tenant/parts')

@@ -5,8 +5,9 @@ import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { canWriteTenantData } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { partToStock } from '@/lib/db-mappers'
+import { withApiHandler } from '@/lib/api-handler'
 
-type RouteParams = { params: { id: string } }
+type RouteContext = { params?: Record<string, string> }
 
 type UsedPartBody = {
   stock_id: string
@@ -16,7 +17,8 @@ type UsedPartBody = {
   unit_sell?: number
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
+export const POST = withApiHandler(async function POST(req: NextRequest, ctx: RouteContext) {
+  const id = ctx.params?.id ?? ''
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!canWriteTenantData(auth.role)) {
     return NextResponse.json({ error: 'Parça düşüm yetkisi yok' }, { status: 403 })
   }
-  if (!isUuid(params.id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: 'Geçersiz sipariş id' }, { status: 400 })
   }
 
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .from('service_orders')
     .select('id, status, order_no, metadata')
     .eq('tenant_id', auth.tenantId)
-    .eq('id', params.id)
+    .eq('id', id)
     .maybeSingle()
 
   if (orderErr || !order) {
@@ -102,18 +104,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       movement_type: 'cikis',
       quantity: p.qty,
       notes: `Servis parça — ${order.order_no}`,
-      reference_id: params.id,
+      reference_id: id,
       created_by: auth.userId,
     })
 
     await admin.from('service_parts_used').insert({
-      order_id: params.id,
+      order_id: id,
       part_id: p.stock_id,
       quantity: p.qty,
       unit_price: Number(p.unit_sell ?? part.sale_price) || 0,
       unit_cost: Number(p.unit_buy ?? part.purchase_price) || 0,
       part_name: String(part.name),
-      service_order_id: params.id,
+      service_order_id: id,
     })
 
     applied.push({
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       updated_at: new Date().toISOString(),
     })
     .eq('tenant_id', auth.tenantId)
-    .eq('id', params.id)
+    .eq('id', id)
 
   return NextResponse.json({
     ok: true,
@@ -155,4 +157,4 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     stock_items: updatedParts.map(r => partToStock(r as Record<string, unknown>)),
     used_parts: nextUsed,
   })
-}
+}, 'service-orders/use-parts')

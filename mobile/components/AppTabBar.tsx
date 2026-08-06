@@ -1,3 +1,4 @@
+import React from 'react'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -21,14 +22,13 @@ const LABELS: Record<string, string> = {
 }
 
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, appearance } = useAppTheme()
+  const { colors, appearance, isDark } = useAppTheme()
   const insets = useSafeAreaInsets()
-  const floating = appearance.tabBarStyle === 'floating'
-  const bottomPad = Math.max(insets.bottom, floating ? 8 : 4)
+  const floating = appearance.tabBarStyle === 'floating' || true
+  const bottomPad = Math.max(insets.bottom, 12)
 
   const visible = state.routes.filter(route => {
     const opts = descriptors[route.key]?.options
-    // expo-router hides with href: null → tabBarButton null / href
     const href = (opts as { href?: string | null }).href
     if (href === null) return false
     return LABELS[route.name] != null
@@ -38,9 +38,8 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
     <View
       pointerEvents="box-none"
       style={[
-        floating ? styles.outerFloat : styles.outerDock,
-        floating && { paddingHorizontal: 12, paddingBottom: bottomPad },
-        !floating && { paddingBottom: bottomPad },
+        styles.outerFloat,
+        { paddingHorizontal: 16, paddingBottom: bottomPad },
       ]}
     >
       <View
@@ -49,12 +48,14 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
           {
             backgroundColor: colors.card,
             borderColor: colors.border,
-            height: 56,
-            borderRadius: floating ? colors.radiusLg : 0,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderWidth: floating ? StyleSheet.hairlineWidth : 0,
-            shadowOpacity: floating ? 0.12 : 0.04,
-            elevation: floating ? 8 : 2,
+            height: 62,
+            borderRadius: colors.radiusLg || 24,
+            borderWidth: 1,
+            shadowColor: isDark ? '#000000' : '#0284c7',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: isDark ? 0.35 : 0.1,
+            shadowRadius: 12,
+            elevation: 8,
           },
         ]}
       >
@@ -63,6 +64,7 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
           const focused = state.index === index
           const icon = ICONS[route.name] || 'circle'
           const label = LABELS[route.name] || route.name
+
           const onPress = () => {
             const event = navigation.emit({
               type: 'tabPress',
@@ -78,7 +80,10 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
             <Pressable
               key={route.key}
               onPress={onPress}
-              style={styles.item}
+              style={({ pressed }) => [
+                styles.item,
+                { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] },
+              ]}
               accessibilityRole="button"
               accessibilityLabel={`${label} sekmesi`}
               accessibilityState={focused ? { selected: true } : {}}
@@ -88,20 +93,23 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
                   styles.iconWrap,
                   focused && {
                     backgroundColor: colors.primarySoft,
-                    borderRadius: 10,
+                    borderRadius: 16,
                   },
                 ]}
               >
                 <FontAwesome
                   name={icon}
-                  size={20}
+                  size={19}
                   color={focused ? colors.primary : colors.muted}
                 />
               </View>
               <Text
                 style={[
                   styles.label,
-                  { color: focused ? colors.primary : colors.muted },
+                  {
+                    color: focused ? colors.primary : colors.muted,
+                    fontWeight: focused ? '800' : '600',
+                  },
                 ]}
               >
                 {label}
@@ -115,9 +123,6 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
 }
 
 const styles = StyleSheet.create({
-  outerDock: {
-    backgroundColor: 'transparent',
-  },
   outerFloat: {
     position: 'absolute',
     left: 0,
@@ -128,23 +133,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: -2 },
-    shadowRadius: 12,
+    paddingHorizontal: 6,
   },
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
-    gap: 2,
+    paddingVertical: 6,
+    gap: 3,
   },
   iconWrap: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    letterSpacing: 0.1,
   },
 })
+

@@ -8,6 +8,7 @@ import { getServiceClient } from '@/lib/supabase/service'
 import { deepMergeSettings } from '@/lib/tenant-store'
 import { stockToPart, customerToDb, txToDb, saleToDb, appointmentToDb, warrantyToDb, invoiceToDb, notificationLogToDb, supportTicketToDb, cashShiftToDb, supplierOrderToDb, personnelToDb, foreignDeviceToDb, serviceExpenseToDb, statusHistoryToDb } from '@/lib/db-mappers'
 import type { StoreData, ServiceExpense, StatusHistoryEntry } from '@/lib/store'
+import { withApiHandler } from '@/lib/api-handler'
 
 type PushBody = {
   module: keyof StoreData | 'notificationSettings'
@@ -25,7 +26,7 @@ async function upsertRows(
   return { error }
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -481,4 +482,4 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : 'Push hatası'
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
+}, 'tenant/push')

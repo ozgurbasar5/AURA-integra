@@ -3,11 +3,15 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { resolveTenantByPortalSlug } from '@/lib/portal-tenant'
+import { enforcePublicRateLimit } from '@/lib/public-rate-limit'
 import { searchTenantOrders, toPublicOrderHits } from '@/lib/public-tracking'
 
 type RouteParams = { params: { slug: string } }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  const limited = await enforcePublicRateLimit(req, 'portal-search', 40, 15 * 60 * 1000)
+  if (limited) return limited
+
   const q = req.nextUrl.searchParams.get('q')?.trim()
   if (!q) return NextResponse.json({ results: [] })
 

@@ -383,6 +383,44 @@ export interface StoreCustomer {
   updated_at: string
 }
 
+export interface WarrantyRecord {
+  id: string
+  order_id?: string
+  customer_id?: string
+  customer_name: string
+  imei?: string
+  invoice_no?: string
+  device_brand: string
+  device_model: string
+  warranty_months: number
+  start_date: string
+  end_date: string
+  covered_parts: string[]
+  exclusion_reasons?: string[]
+  terms?: string
+  order_no?: string
+  status: 'aktif' | 'süresi_doldu' | 'iptal' | 'ihlal'
+  claim_status?: 'beklemede' | 'onaylandi' | 'reddedildi'
+  claim_notes?: string
+  qr_token?: string
+  sla_days?: number
+  notify_before_days?: number
+  created_at: string
+}
+
+export interface WarrantyClaimRequest {
+  id: string
+  tenant_id: string
+  warranty_id: string
+  issue_description: string
+  reported_at: string
+  technician_notes?: string
+  resolution?: 'ücretsiz_onarım' | 'parça_değişimi' | 'ret' | 'ücretli'
+  resolution_amount?: number
+  status: 'open' | 'in_progress' | 'resolved' | 'rejected'
+  created_at: string
+}
+
 export interface Appointment {
   id: string
   customer_name: string
@@ -422,22 +460,66 @@ export interface PersonnelMember {
   created_at: string
 }
 
-export interface WarrantyRecord {
+export interface SlaConfig {
+  id: string
+  category: string
+  device_type?: string
+  standard_days: number
+  legal_max_days: number
+  warning_at_percent: number
+  escalation_roles: string[]
+  auto_notify_customer: boolean
+  is_active: boolean
+  created_at: string
+}
+
+export interface SlaEvent {
   id: string
   order_id: string
-  customer_id: string
-  imei?: string
-  device_brand: string
-  device_model: string
-  warranty_months: number
-  start_date: string
-  end_date: string
-  covered_parts?: string[]
-  terms?: string
-  status: 'aktif' | 'sona_erdi' | 'kullanildi' | 'reddedildi'
-  claim_status?: 'yok' | 'beklemede' | 'inceleniyor' | 'onaylandi' | 'reddedildi'
+  event_type: 'started' | 'paused' | 'resumed' | 'breached' | 'completed' | 'warning'
+  note?: string
+  timestamp: string
+  triggered_by?: string
+}
+
+export interface ChecklistItem {
+  id: string
+  label: string
+  required: boolean
+  hint?: string
+  photo_required?: boolean
+}
+
+export interface ChecklistTemplate {
+  id: string
+  name: string
+  category: string
+  device_type?: string
+  brand_filter?: string[]
+  items: ChecklistItem[]
+  version: number
+  is_active: boolean
+}
+
+export interface ChecklistResult {
+  id: string
+  order_id: string
+  template_id?: string
+  phase: 'pre_check' | 'qc' | 'delivery'
+  answers: { item_id: string; checked: boolean; note?: string; photo_url?: string }[]
+  completed_by?: string
+  completed_at?: string
+}
+
+export interface ImeiEvent {
+  id: string
+  tenant_id: string
+  imei: string
+  event_type: 'service' | 'sale' | 'warranty' | 'stolen_check' | 'purchase'
+  event_id?: string
   customer_name?: string
-  order_no?: string
+  notes?: string
+  metadata?: Record<string, any>
   created_at: string
 }
 
@@ -472,10 +554,95 @@ export interface NotificationLog {
 
 export interface SupportTicket {
   id: string
+  ticket_no: string
   subject: string
   priority: 'Düşük' | 'Normal' | 'Yüksek' | 'Acil'
   description: string
-  status: 'acik' | 'inceleniyor' | 'cozuldu' | 'kapali'
+  status: 'open' | 'in_progress' | 'waiting_customer' | 'resolved' | 'closed'
+  channel: 'portal' | 'whatsapp' | 'email' | 'phone'
+  customer_id?: string
+  order_id?: string
+  assigned_to?: string
+  sla_deadline?: string
+  first_response_at?: string
+  resolved_at?: string
+  satisfaction_score?: number
+  tags?: string[]
+  category: string
+  internal_notes?: string
+  created_at: string
+}
+
+export interface TicketMessage {
+  id: string
+  ticket_id: string
+  sender_type: 'customer' | 'agent' | 'system'
+  sender_id?: string
+  content: string
+  attachments?: { url: string; name: string; type: string }[]
+  is_internal: boolean
+  created_at: string
+}
+
+export interface FieldOrder {
+  id: string
+  parent_order_id?: string
+  customer_id?: string
+  technician_id?: string
+  address: string
+  latitude?: number
+  longitude?: number
+  scheduled_at?: string
+  arrived_at?: string
+  completed_at?: string
+  status: 'scheduled' | 'en_route' | 'in_progress' | 'completed' | 'cancelled'
+  customer_signature?: string
+  photos?: string[]
+  notes?: string
+  created_at: string
+}
+
+export interface Dealer {
+  id: string
+  company_name: string
+  contact_name?: string
+  email?: string
+  phone?: string
+  address?: string
+  tax_no?: string
+  status: 'pending' | 'active' | 'suspended'
+  discount_rate: number
+  credit_limit: number
+  payment_terms: number
+  notes?: string
+  created_at: string
+}
+
+export interface DealerOrder {
+  id: string
+  dealer_id: string
+  order_no: string
+  items: { name: string; qty: number; unit_price: number }[]
+  subtotal: number
+  discount_amount: number
+  vat_amount: number
+  total: number
+  status: 'draft' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
+  shipping_address?: string
+  notes?: string
+  created_at: string
+}
+
+export interface DealerInvoice {
+  id: string
+  dealer_id: string
+  order_id?: string
+  invoice_no: string
+  amount: number
+  type: 'invoice' | 'payment'
+  due_date?: string
+  paid_at?: string
+  status: 'pending' | 'paid' | 'overdue'
   created_at: string
 }
 
@@ -849,6 +1016,22 @@ export function hydrateStoreFromRemote(data: Partial<StoreData>): void {
       )
       continue
     }
+    if (key === 'stock' && Array.isArray(val) && Array.isArray(store.stock)) {
+      const remote = val as StockItem[]
+      const byId = new Map(store.stock.map(s => [s.id, s]))
+      for (const r of remote) byId.set(r.id, r)
+      store.stock = Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+      continue
+    }
+    if (key === 'transactions' && Array.isArray(val) && Array.isArray(store.transactions)) {
+      const remote = val as FinanceTransaction[]
+      const byId = new Map(store.transactions.map(t => [t.id, t]))
+      for (const r of remote) byId.set(r.id, r)
+      store.transactions = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      )
+      continue
+    }
     // eslint-disable-next-line -- legacy store dynamic key assignment
     ;(store as any)[key] = val
   }
@@ -1182,6 +1365,25 @@ export function addTransaction(tx: Omit<FinanceTransaction, 'id'>): FinanceTrans
   saveStore(store)
   emitChange('finance')
   return newTx
+}
+
+/** Realtime / API senkron — tek finans kaydı ekle veya güncelle */
+export function upsertFinanceTransaction(tx: FinanceTransaction, opts?: { silent?: boolean }): void {
+  const store = loadStore()
+  const idx = store.transactions.findIndex(t => t.id === tx.id)
+  if (idx >= 0) store.transactions[idx] = tx
+  else store.transactions.unshift(tx)
+  syncKasaBakiye(store)
+  saveStore(store)
+  if (!opts?.silent) emitChange('finance')
+}
+
+export function removeFinanceTransactionById(id: string): void {
+  const store = loadStore()
+  store.transactions = store.transactions.filter(t => t.id !== id)
+  syncKasaBakiye(store)
+  saveStore(store)
+  emitChange('finance')
 }
 
 /** Sunucu tarafı işlem — kasa RPC tek kaynak */

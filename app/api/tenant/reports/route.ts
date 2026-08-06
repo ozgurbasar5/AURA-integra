@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { tenantQuery } from '@/lib/supabase/query-helpers'
 import { requireTenantPlanLevel } from '@/lib/tenant-plan-guard'
+import { withApiHandler } from '@/lib/api-handler'
 import {
   aggregateCategories,
   aggregateMonthly,
@@ -11,7 +13,7 @@ import {
   type ReportTx,
 } from '@/lib/reports-aggregate'
 
-export async function GET() {
+export const GET = withApiHandler(async function GET() {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -31,47 +33,39 @@ export async function GET() {
 
   const [txRes, salesRes, partsRes, shiftsRes, statusRes, personnelRes, ordersRes, revenueRes] =
     await Promise.all([
-      supabase
-        .from('financial_transactions')
-        .select('type, amount, category, transaction_date, created_at')
-        .eq('tenant_id', tenantId)
+      tenantQuery(
+        supabase.from('financial_transactions').select('type, amount, category, transaction_date, created_at'),
+        tenantId,
+      )
         .gte('transaction_date', since)
         .order('transaction_date', { ascending: false })
         .limit(5000),
-      supabase
-        .from('sales')
-        .select('total, subtotal, vat_amount, total_with_vat, created_at, items')
-        .eq('tenant_id', tenantId)
+      tenantQuery(
+        supabase.from('sales').select('total, subtotal, vat_amount, total_with_vat, created_at, items'),
+        tenantId,
+      )
         .gte('created_at', twelveMonthsAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(500),
-      supabase
-        .from('parts')
-        .select('stock_qty, min_stock, purchase_price, sale_price')
-        .eq('tenant_id', tenantId)
-        .limit(2000),
-      supabase
-        .from('cash_shifts')
-        .select('id, opened_at, closed_at, opened_by, closed_by, difference, status, closing_cash, expected_cash')
-        .eq('tenant_id', tenantId)
+      tenantQuery(
+        supabase.from('parts').select('stock_qty, min_stock, purchase_price, sale_price'),
+        tenantId,
+      ).limit(2000),
+      tenantQuery(
+        supabase.from('cash_shifts').select('id, opened_at, closed_at, opened_by, closed_by, difference, status, closing_cash, expected_cash'),
+        tenantId,
+      )
         .eq('status', 'closed')
         .order('closed_at', { ascending: false })
         .limit(30),
-      supabase.from('service_status_distribution').select('*').eq('tenant_id', tenantId),
-      supabase
-        .from('personnel_profiles')
-        .select('full_name, completed_month, role')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true),
-      supabase
-        .from('service_orders')
-        .select('status')
-        .eq('tenant_id', tenantId)
+      tenantQuery(supabase.from('service_status_distribution').select('*'), tenantId),
+      tenantQuery(
+        supabase.from('personnel_profiles').select('full_name, completed_month, role'),
+        tenantId,
+      ).eq('is_active', true),
+      tenantQuery(supabase.from('service_orders').select('status'), tenantId)
         .gte('created_at', thirtyDaysAgo.toISOString()),
-      supabase
-        .from('daily_revenue_summary')
-        .select('*')
-        .eq('tenant_id', tenantId)
+      tenantQuery(supabase.from('daily_revenue_summary').select('*'), tenantId)
         .gte('day', thirtyDaysAgo.toISOString().slice(0, 10))
         .order('day'),
     ])
@@ -171,4 +165,4 @@ export async function GET() {
       parts: partsRes.error?.message ?? null,
     },
   })
-}
+}, 'tenant/reports')

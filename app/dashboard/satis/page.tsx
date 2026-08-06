@@ -57,7 +57,7 @@ export default function SatisPage() {
       if (raw) setCart(JSON.parse(raw) as CartItem[])
     } catch { /* ignore */ }
     void (async () => {
-      await loadStockFromApi()
+      await loadStockFromApi({ limit: 200 })
       try {
         const res = await fetch('/api/tenant/sales?limit=30', { credentials: 'same-origin' })
         if (res.ok) {

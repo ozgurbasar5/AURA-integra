@@ -5,6 +5,7 @@ import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { canWriteTenantData } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { partToStock } from '@/lib/db-mappers'
+import { withApiHandler } from '@/lib/api-handler'
 
 type CountItem = {
   part_id: string
@@ -12,7 +13,7 @@ type CountItem = {
   expected_qty?: number
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -116,4 +117,4 @@ export async function POST(req: NextRequest) {
     adjusted,
     items: updatedItems,
   })
-}
+}, 'tenant/stock/count')

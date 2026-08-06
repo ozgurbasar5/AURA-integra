@@ -4,13 +4,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { PUBLIC_STATUS_LABELS, mapDbStatusToPublic } from '@/lib/erp-features'
 import { resolveTenantByPortalSlug } from '@/lib/portal-tenant'
+import { enforcePublicRateLimit } from '@/lib/public-rate-limit'
+import { safeClientMessage } from '@/lib/api-error'
+import { isUuid } from '@/lib/supabase/tenant-auth'
 
 type RouteParams = { params: { slug: string } }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
+  const limited = await enforcePublicRateLimit(req, 'portal-history', 40, 15 * 60 * 1000)
+  if (limited) return limited
+
   const orderId = req.nextUrl.searchParams.get('order_id')?.trim()
-  if (!orderId) {
-    return NextResponse.json({ error: 'order_id zorunlu' }, { status: 400 })
+  if (!orderId || !isUuid(orderId)) {
+    return NextResponse.json({ error: 'Geçerli order_id zorunlu' }, { status: 400 })
   }
 
   const admin = getServiceClient()
@@ -39,7 +45,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     .eq('order_id', orderId)
     .order('created_at', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: safeClientMessage(error) }, { status: 500 })
 
   return NextResponse.json({
     history: (history ?? []).map(h => {

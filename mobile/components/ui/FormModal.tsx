@@ -1,5 +1,7 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type ViewProps } from 'react-native'
+import React, { useCallback, useEffect, useRef, useMemo } from 'react'
+import { Pressable, StyleSheet, Text, View, type ViewProps } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { BottomSheetModal, BottomSheetScrollView, BottomSheetBackdrop } from '@gorhom/bottom-sheet'
 import { useAppTheme } from '@/lib/ThemeContext'
 
 type Props = ViewProps & {
@@ -11,24 +13,57 @@ type Props = ViewProps & {
 }
 
 export function FormModal({ visible, title, onClose, children, footer }: Props) {
-  const { colors } = useAppTheme()
+  const { colors, isDark } = useAppTheme()
   const insets = useSafeAreaInsets()
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null)
+  const snapPoints = useMemo(() => ['85%', '95%'], [])
+
+  useEffect(() => {
+    if (visible) {
+      bottomSheetModalRef.current?.present()
+    } else {
+      bottomSheetModalRef.current?.dismiss()
+    }
+  }, [visible])
+
+  const handleSheetChanges = useCallback((index: number) => {
+    if (index === -1 && visible) {
+      onClose()
+    }
+  }, [visible, onClose])
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.6} />
+    ),
+    []
+  )
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top + 8 }]}>
+    <BottomSheetModal
+      ref={bottomSheetModalRef}
+      index={0}
+      snapPoints={snapPoints}
+      onChange={handleSheetChanges}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.bg }}
+      handleIndicatorStyle={{ backgroundColor: colors.border, width: 40 }}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+    >
+      <View style={styles.root}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={{ color: colors.muted, fontWeight: '700' }}>Kapat</Text>
+            <Text style={{ color: colors.muted, fontWeight: '700' }}>İptal</Text>
           </Pressable>
         </View>
-        <ScrollView
+        <BottomSheetScrollView
           contentContainerStyle={{ padding: colors.space, gap: 12, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
           {children}
-        </ScrollView>
+        </BottomSheetScrollView>
         {footer ? (
           <View
             style={[
@@ -44,7 +79,7 @@ export function FormModal({ visible, title, onClose, children, footer }: Props) 
           </View>
         ) : null}
       </View>
-    </Modal>
+    </BottomSheetModal>
   )
 }
 

@@ -9,8 +9,11 @@ import { onStoreChange, getServiceOrders, type StoreServiceOrder } from '@/lib/s
 import { loadServiceOrdersFromApi, createServiceOrderRemote } from '@/lib/service-order-bridge'
 import dynamic from 'next/dynamic'
 import AtolyeOrderTable, { type AtolyeTableOrder } from '@/components/atolye/AtolyeOrderTable'
-import { PageShell, PageHeader, LoadingCenter, EmptyState } from '@/components/ui/PageShell'
+import { PageShell, PageHeader, LoadingCenter, EmptyState, ErrorBanner } from '@/components/ui/PageShell'
 import { filterOrdersByTrackingQuery } from '@/lib/tracking-search'
+import SlaWidget from '@/components/sla/SlaWidget'
+import { generateSlaReport } from '@/lib/sla-engine'
+import type { SlaConfig } from '@/lib/store'
 
 const AtolyeKanban = dynamic(() => import('@/components/atolye/AtolyeKanban'), { ssr: false })
 
@@ -26,6 +29,7 @@ interface OrderRow extends AtolyeTableOrder {}
 
 export default function AtolyePage() {
   const [orders, setOrders] = useState<OrderRow[]>([])
+  const [configs, setConfigs] = useState<SlaConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
@@ -37,11 +41,35 @@ export default function AtolyePage() {
     device_model: '', imei: '', description: '', estimated_cost: '',
   })
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true)
-    const list = await loadServiceOrdersFromApi()
-    setOrders(list.map(mapStore))
-    setLoading(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const fetchOrders = useCallback(async (append = false) => {
+    if (append) setLoadingMore(true)
+    else setLoading(true)
+    const offset = append ? orders.length : 0
+    const result = await loadServiceOrdersFromApi({ limit: 50, offset })
+    if (!result.ok && result.fromCache) {
+      setLoadError(result.error ?? 'Kayıtlar yüklenemedi')
+    } else {
+      setLoadError(null)
+    }
+    const mapped = result.orders.map(mapStore)
+    setOrders(prev => (append ? [...prev, ...mapped] : mapped))
+    setHasMore(result.hasMore)
+    if (append) setLoadingMore(false)
+    else setLoading(false)
+  }, [orders.length])
+
+  const fetchConfigs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/sla')
+      if (res.ok) {
+        const data = await res.json()
+        setConfigs(data.items || [])
+      }
+    } catch {}
   }, [])
 
   function mapStore(o: StoreServiceOrder): OrderRow {
@@ -58,12 +86,17 @@ export default function AtolyePage() {
 
   useEffect(() => {
     fetchOrders()
+    fetchConfigs()
     return onStoreChange(m => {
       if (m === 'service') {
         setOrders(getServiceOrders().map(mapStore))
       }
     })
-  }, [fetchOrders])
+  }, [fetchOrders, fetchConfigs])
+
+  const slaReport = useMemo(() => {
+    return generateSlaReport(orders as StoreServiceOrder[], configs)
+  }, [orders, configs])
 
   const filtered = useMemo(() => {
     const q = search.trim()
@@ -131,6 +164,10 @@ export default function AtolyePage() {
           </div>
         }
       />
+      
+      <div className="mb-6">
+        <SlaWidget report={slaReport} loading={loading && orders.length === 0} />
+      </div>
 
       <div className="relative">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -157,6 +194,10 @@ export default function AtolyePage() {
         ))}
       </div>
 
+      {loadError && (
+        <ErrorBanner message={loadError} onRetry={() => void fetchOrders(false)} />
+      )}
+
       <div data-tour="atolye-icerik">
       {loading ? (
         <LoadingCenter />
@@ -165,7 +206,21 @@ export default function AtolyePage() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={Wrench} title="Kayıt bulunamadı" description="Yeni servis kaydı oluşturun veya filtreyi değiştirin." />
       ) : (
-        <AtolyeOrderTable orders={filtered} />
+        <>
+          <AtolyeOrderTable orders={filtered} />
+          {hasMore && !search && !filter && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => void fetchOrders(true)}
+                disabled={loadingMore}
+                className="btn-secondary btn-sm"
+              >
+                {loadingMore ? <Loader2 size={14} className="animate-spin" /> : 'Daha fazla yükle'}
+              </button>
+            </div>
+          )}
+        </>
       )}
       </div>
 

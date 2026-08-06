@@ -1,5 +1,5 @@
 /**
- * Bayi dashboard — Supabase ↔ localStorage otomatik senkronizasyon
+ * Bayi dashboard — Supabase Realtime + minimal localStorage sync
  */
 
 import {
@@ -17,6 +17,8 @@ import {
   incrementPending,
   decrementPending,
 } from './sync-status'
+import { subscribeTenantRealtime, unsubscribeTenantRealtime } from './realtime/tenant-channel'
+import { fetchWithRetry } from './fetch-with-retry'
 
 const MODULE_MAP: Record<string, keyof StoreData | 'notificationSettings'> = {
   stock: 'stock',
@@ -59,9 +61,10 @@ let syncing = false
 let autoSyncEnabled = false
 let flushListenersAttached = false
 let syncInitStarted = false
-let rehydrateTimer: ReturnType<typeof setInterval> | null = null
+let lastHydrateFailed = false
+let realtimeCleanup: (() => void) | null = null
 const SYNC_TOKEN_KEY = 'aura_sync_token'
-const REHYDRATE_MS = 3 * 60 * 1000
+const LAST_SYNC_KEY = 'aura_last_sync_at'
 
 function settingsForPush(settings: StoreData['notificationSettings']): Record<string, unknown> {
   const copy = { ...settings } as Record<string, unknown>
@@ -77,12 +80,25 @@ function isPermissionError(message: string): boolean {
   return /permission denied|42501/i.test(message)
 }
 
-export async function hydrateFromSupabase(): Promise<boolean> {
+function getLastSyncAt(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(LAST_SYNC_KEY)
+}
+
+function setLastSyncAt(iso: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(LAST_SYNC_KEY, iso)
+}
+
+export async function hydrateFromSupabase(full = false): Promise<boolean> {
   if (typeof window === 'undefined') return false
   setSyncSyncing()
   try {
-    const res = await fetch('/api/tenant/sync', { credentials: 'same-origin' })
+    const since = full ? null : getLastSyncAt()
+    const qs = since ? `?since=${encodeURIComponent(since)}` : ''
+    const res = await fetchWithRetry(`/api/tenant/sync${qs}`, { credentials: 'same-origin' })
     if (!res.ok) {
+      lastHydrateFailed = true
       setSyncError('Senkronizasyon başarısız')
       return false
     }
@@ -90,13 +106,20 @@ export async function hydrateFromSupabase(): Promise<boolean> {
       tenantId?: string
       data?: Partial<StoreData>
       partial?: boolean
+      incremental?: boolean
       queryErrors?: { table: string; err: string }[]
       sync_token?: string
+      synced_at?: string
     }
-    if (json.tenantId) setActiveTenantId(json.tenantId)
+    if (json.tenantId) {
+      setActiveTenantId(json.tenantId)
+      if (realtimeCleanup) realtimeCleanup()
+      realtimeCleanup = subscribeTenantRealtime(json.tenantId)
+    }
     if (json.sync_token && typeof window !== 'undefined') {
       localStorage.setItem(SYNC_TOKEN_KEY, json.sync_token)
     }
+    if (json.synced_at) setLastSyncAt(json.synced_at)
     if (json.data) {
       syncing = true
       hydrateStoreFromRemote(json.data)
@@ -137,15 +160,25 @@ export async function hydrateFromSupabase(): Promise<boolean> {
           setSyncError(`Kısmi senkron: ${otherErrors.map(e => e.table).join(', ')}`)
         }
       }
+      lastHydrateFailed = false
       return true
     }
+    lastHydrateFailed = true
+    setSyncError('Senkron yanıtı geçersiz')
   } catch {
+    lastHydrateFailed = true
     setSyncError('Çevrimdışı')
   }
   return false
 }
 
-/** API-first modüller — bulk push kapalı (service-orders pattern) */
+/** Bağlantı geri gelince veya manuel retry için yeniden hydrate */
+export async function retryTenantDataSync(full = false): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  return hydrateFromSupabase(full)
+}
+
+/** API-first modüller — bulk push kapalı */
 const PUSH_DISABLED = new Set<string>([
   'serviceOrders',
   'stock',
@@ -226,6 +259,7 @@ export async function flushPendingPush(): Promise<void> {
 
 function schedulePush(moduleKey: string) {
   if (!autoSyncEnabled || syncing) return
+  if (PUSH_DISABLED.has(moduleKey)) return
   pendingModuleKey = moduleKey
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(() => {
@@ -254,27 +288,31 @@ function attachFlushListeners() {
   })
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void flushPendingPush()
+    else if (document.visibilityState === 'visible' && lastHydrateFailed) {
+      void hydrateFromSupabase(false)
+    }
+  })
+  window.addEventListener('online', () => {
+    if (lastHydrateFailed || autoSyncEnabled) {
+      void hydrateFromSupabase(false).then(ok => {
+        if (ok) void flushPendingPush()
+      })
+    }
   })
 }
 
-/** Dashboard açılışında çağır — önce çek, sonra dinlemeye başla */
+/** Dashboard açılışında — ilk full sync, sonra Realtime + incremental */
 export async function initTenantDataSync(): Promise<void> {
   if (typeof window === 'undefined') return
-  if (syncInitStarted) return
+  if (syncInitStarted && !lastHydrateFailed) return
   syncInitStarted = true
-  await hydrateFromSupabase()
+  const hasSyncedBefore = Boolean(getLastSyncAt())
+  await hydrateFromSupabase(!hasSyncedBefore)
   seedDemoDataIfEmpty()
   if (!autoSyncEnabled) {
     autoSyncEnabled = true
     attachFlushListeners()
     onStoreChange(schedulePush)
-  }
-  if (!rehydrateTimer) {
-    rehydrateTimer = setInterval(() => {
-      if (!syncing && document.visibilityState === 'visible') {
-        void hydrateFromSupabase()
-      }
-    }, REHYDRATE_MS)
   }
 }
 
@@ -282,8 +320,9 @@ export function disableAutoSync() {
   autoSyncEnabled = false
   if (pushTimer) clearTimeout(pushTimer)
   pendingModuleKey = null
-  if (rehydrateTimer) {
-    clearInterval(rehydrateTimer)
-    rehydrateTimer = null
+  if (realtimeCleanup) {
+    realtimeCleanup()
+    realtimeCleanup = null
   }
+  unsubscribeTenantRealtime()
 }

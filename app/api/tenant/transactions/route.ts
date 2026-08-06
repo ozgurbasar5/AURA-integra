@@ -2,13 +2,15 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
+import { tenantQuery } from '@/lib/supabase/query-helpers'
 import { canPushFinance } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { txToDb } from '@/lib/db-mappers'
 import { normalizePaymentMethod } from '@/lib/payment-method'
+import { withApiHandler } from '@/lib/api-handler'
 import type { FinanceTransaction } from '@/lib/store'
 
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -68,4 +70,4 @@ export async function POST(req: NextRequest) {
     transaction_id: inserted?.id,
     kasa_balance: newBalance,
   })
-}
+}, 'tenant/transactions')

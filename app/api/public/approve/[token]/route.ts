@@ -3,10 +3,15 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServiceClient } from '@/lib/supabase/service'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
+import { enforcePublicRateLimit } from '@/lib/public-rate-limit'
+import { safeClientMessage } from '@/lib/api-error'
 
 type RouteParams = { params: { token: string } }
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
+  const limited = await enforcePublicRateLimit(req, 'approve-get', 30, 15 * 60 * 1000)
+  if (limited) return limited
+
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Servis kullanılamıyor' }, { status: 503 })
 
@@ -40,6 +45,9 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
+  const limited = await enforcePublicRateLimit(req, 'approve-patch', 10, 15 * 60 * 1000)
+  if (limited) return limited
+
   const admin = getServiceClient()
   if (!admin) return NextResponse.json({ error: 'Servis kullanılamıyor' }, { status: 503 })
 
@@ -84,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .maybeSingle()
 
   if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    return NextResponse.json({ error: safeClientMessage(updateErr) }, { status: 500 })
   }
 
   if (!updated) {
@@ -93,6 +101,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   await admin.from('service_status_history').insert({
     order_id: order.id,
+    tenant_id: order.tenant_id,
     status: newStatus,
     note: approved ? 'Müşteri onay linki ile onayladı' : 'Müşteri onay linki ile reddetti',
     created_by: null,

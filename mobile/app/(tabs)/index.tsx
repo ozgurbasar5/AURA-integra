@@ -253,7 +253,13 @@ export default function HomeScreen() {
                   borderColor: colors.border,
                   borderRadius: colors.radiusLg,
                   minHeight: appearance.density === 'compact' ? 88 : 104,
-                  opacity: pressed ? 0.88 : 1,
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                  shadowColor: colors.primary,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.04,
+                  shadowRadius: 6,
+                  elevation: 2,
                 },
               ]}
               onPress={() => router.push(a.href as never)}

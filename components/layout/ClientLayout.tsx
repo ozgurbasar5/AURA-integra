@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Lock } from 'lucide-react'
 import TenantSidebar from './TenantSidebar'
 import SidebarErrorBoundary from './SidebarErrorBoundary'
+import MainContentErrorBoundary from './MainContentErrorBoundary'
 import DashboardHeader from './DashboardHeader'
 import ThemeProvider from '@/components/ThemeProvider'
 import GlobalSearchModal, { useGlobalSearchShortcut } from '@/components/search/GlobalSearchModal'
@@ -52,7 +53,9 @@ export default function ClientLayout({ tenant, user, children }: Props) {
 
   useEffect(() => {
     clearDemoSeedOnce()
-    void initTenantDataSync()
+    void initTenantDataSync().catch(() => {
+      /* sync-status banner handles error */
+    })
     setMounted(true)
   }, [])
 
@@ -86,7 +89,7 @@ export default function ClientLayout({ tenant, user, children }: Props) {
             <div className="page-wrapper">
               <SubscriptionBanner />
               {allowed ? (
-                children
+                <MainContentErrorBoundary>{children}</MainContentErrorBoundary>
               ) : !roleAllowed ? (
                 <div className="flex items-center justify-center min-h-[70vh] p-6">
                   <div className="max-w-md w-full surface p-8 text-center">

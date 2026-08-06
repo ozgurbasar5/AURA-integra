@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   MFA_PENDING_COOKIE,
   MFA_TOKEN_COOKIE,
@@ -15,6 +16,15 @@ import { sendMail, isSmtpConfigured } from '@/lib/mail'
 
 /** OTP doğrula — başarılıysa MFA verified cookie */
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  const rl = await checkRateLimit(`mfa-verify:${ip}`, 8, 15 * 60 * 1000)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Çok fazla deneme. Lütfen bekleyin.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) {

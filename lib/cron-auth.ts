@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 /** Vercel Cron / manuel tetikleme — CRON_SECRET zorunlu (prod) */
 export function verifyCronRequest(req: NextRequest): NextResponse | null {
-  const secret = process.env.CRON_SECRET?.trim()?.trim()
+  const secret = process.env.CRON_SECRET?.trim()
 
   if (secret) {
     const auth = req.headers.get('authorization')?.trim()

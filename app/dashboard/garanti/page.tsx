@@ -15,6 +15,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; i
   sona_erdi:   { label: 'Sona Erdi',   bg: 'bg-slate-100',   text: 'text-slate-600',   icon: Clock },
   kullanildi:  { label: 'Kullanıldı',  bg: 'bg-blue-100',    text: 'text-blue-700',    icon: Wrench },
   reddedildi:  { label: 'Reddedildi',  bg: 'bg-red-100',     text: 'text-red-700',     icon: AlertTriangle },
+  ihlal:       { label: 'İhlal',       bg: 'bg-orange-100',  text: 'text-orange-700',  icon: AlertTriangle },
 }
 
 const CLAIM_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
@@ -26,7 +27,7 @@ const CLAIM_CONFIG: Record<string, { label: string; bg: string; text: string }> 
 }
 
 const emptyForm = {
-  order_id: '', customer_id: '', imei: '', device_brand: '', device_model: '',
+  order_id: '', customer_id: '', imei: '', invoice_no: '', device_brand: '', device_model: '',
   warranty_months: 6, start_date: new Date().toISOString().split('T')[0],
   end_date: '', covered_parts: [] as string[], customer_name: '', order_no: '', status: 'aktif' as const,
 }
@@ -183,6 +184,7 @@ export default function GarantiPage() {
           <option value="sona_erdi">Sona Erdi</option>
           <option value="kullanildi">Kullanıldı</option>
           <option value="reddedildi">Reddedildi</option>
+          <option value="ihlal">İhlal</option>
         </select>
         <select value={claimFilter} onChange={e => setClaimFilter(e.target.value)} className="select text-xs py-2">
           <option value="">Tüm Talepler</option>
@@ -216,6 +218,7 @@ export default function GarantiPage() {
                 <th className="text-left py-3 px-4 font-semibold text-slate-500 text-xs">KAPSAM</th>
                 <th className="text-center py-3 px-4 font-semibold text-slate-500 text-xs">DURUM</th>
                 <th className="text-center py-3 px-4 font-semibold text-slate-500 text-xs">TALEP</th>
+                <th className="text-center py-3 px-4 font-semibold text-slate-500 text-xs">İŞLEM</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -257,6 +260,11 @@ export default function GarantiPage() {
                         {Object.entries(CLAIM_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                     </td>
+                    <td className="py-3 px-4 text-center">
+                      <a href={`/dashboard/garanti/${w.id}`} className="text-sky-600 hover:text-sky-800 text-xs font-semibold px-2 py-1 bg-sky-50 rounded">
+                        Detay
+                      </a>
+                    </td>
                   </tr>
                 )
               })}
@@ -283,9 +291,12 @@ export default function GarantiPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">IMEI</label><input className="input" value={form.imei} onChange={e => setForm(f => ({ ...f, imei: e.target.value }))} /></div>
-                <div><label className="label">Süre (ay)</label><input type="number" className="input" value={form.warranty_months} onChange={e => setForm(f => ({ ...f, warranty_months: parseInt(e.target.value) || 6 }))} /></div>
+                <div><label className="label">Fatura No</label><input className="input" value={form.invoice_no} onChange={e => setForm(f => ({ ...f, invoice_no: e.target.value }))} /></div>
               </div>
-              <div><label className="label">Başlangıç</label><input type="date" className="input" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Süre (ay)</label><input type="number" className="input" value={form.warranty_months} onChange={e => setForm(f => ({ ...f, warranty_months: parseInt(e.target.value) || 6 }))} /></div>
+                <div><label className="label">Başlangıç</label><input type="date" className="input" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
+              </div>
             </div>
             <div className="flex gap-3 p-5 border-t border-slate-100">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">İptal</button>

@@ -5,13 +5,14 @@ import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canPushFinance } from '@/lib/api-role-guard'
 import { getServiceClient } from '@/lib/supabase/service'
 import { isOwnerRole } from '@/lib/role-access'
+import { withApiHandler } from '@/lib/api-handler'
 
 /**
  * Tarihsel kasa düzeltme — yalnızca sahip/yönetici.
  * Body: { delta: number, reason: string }
  * delta pozitif = kasa artar, negatif = azalır.
  */
-export async function POST(req: NextRequest) {
+export const POST = withApiHandler(async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
@@ -75,4 +76,4 @@ export async function POST(req: NextRequest) {
     delta,
     reason,
   })
-}
+}, 'tenant/kasa/adjust')

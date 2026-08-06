@@ -34,7 +34,7 @@ export default function StokSayimPage() {
 
   useEffect(() => {
     setMounted(true)
-    void loadStockFromApi().then(() => load())
+    void loadStockFromApi({ limit: 200 }).then(() => load())
     return onStoreChange(m => { if (!m || m === 'stock') load() })
   }, [load])
 

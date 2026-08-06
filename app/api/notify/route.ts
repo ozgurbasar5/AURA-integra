@@ -6,6 +6,7 @@ import { sendSms } from '@/lib/notification-service'
 import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { canWriteTenantData } from '@/lib/api-role-guard'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 function escapeHtml(str: string): string {
   return String(str)
@@ -18,6 +19,15 @@ function escapeHtml(str: string): string {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request)
+    const rl = await checkRateLimit(`notify:${ip}`, 20, 15 * 60 * 1000)
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: 'Çok fazla bildirim isteği. Lütfen bekleyin.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      )
+    }
+
     const auth = await requireTenantAuth()
     if (!auth.ok) {
       return NextResponse.json({ error: auth.message }, { status: auth.status })

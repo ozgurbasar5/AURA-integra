@@ -1,11 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
+import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { parseDeviceImages } from '@/lib/device-images'
+import { withApiHandler } from '@/lib/api-handler'
+import { safeClientMessage } from '@/lib/api-error'
+import { canWriteTenantData, roleGuardResponse } from '@/lib/api-role-guard'
 
-type RouteParams = { params: { id: string } }
+type RouteContext = { params?: Record<string, string> }
 
 const BUCKET = 'device-photos'
 const MAX_PHOTOS = 8
@@ -23,13 +26,19 @@ async function getOrderImages(tenantId: string, orderId: string) {
   return data
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
+export const POST = withApiHandler(async function POST(req: NextRequest, ctx: RouteContext) {
+  const id = ctx.params?.id ?? ''
   const auth = await requireTenantAuth()
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.message }, { status: auth.status })
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+  if (!canWriteTenantData(auth.role)) {
+    const denied = roleGuardResponse()
+    return NextResponse.json({ error: denied.message }, { status: denied.status })
+  }
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: 'Geçersiz kayıt kimliği.' }, { status: 400 })
   }
 
-  const order = await getOrderImages(auth.tenantId, params.id)
+  const order = await getOrderImages(auth.tenantId, id)
   if (!order) return NextResponse.json({ error: 'Kayıt bulunamadı.' }, { status: 404 })
 
   const form = await req.formData()
@@ -50,15 +59,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!admin) return NextResponse.json({ error: 'Service role gerekli' }, { status: 503 })
 
   const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg'
-  const path = `${auth.tenantId}/${params.id}/${Date.now()}.${ext}`
+  const path = `${auth.tenantId}/${id}/${Date.now()}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error: uploadErr } = await admin.storage
     .from(BUCKET)
-    .upload(path, buffer, { contentType: file.type || 'image/jpeg', upsert: false })
+    .upload(path, buffer, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+      cacheControl: '3600',
+    })
 
   if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message }, { status: 500 })
+    return NextResponse.json({ error: safeClientMessage(uploadErr, 'Yükleme başarısız') }, { status: 500 })
   }
 
   const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path)
@@ -68,21 +81,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { error: updateErr } = await admin
     .from('service_orders')
     .update({ device_images: nextImages, updated_at: new Date().toISOString() })
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('tenant_id', auth.tenantId)
 
   if (updateErr) {
     await admin.storage.from(BUCKET).remove([path])
-    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    return NextResponse.json({ error: safeClientMessage(updateErr) }, { status: 500 })
   }
 
   return NextResponse.json({ url, images: nextImages })
-}
+}, 'service-orders/[id]/photos')
 
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export const DELETE = withApiHandler(async function DELETE(req: NextRequest, ctx: RouteContext) {
+  const id = ctx.params?.id ?? ''
   const auth = await requireTenantAuth()
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.message }, { status: auth.status })
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+  if (!canWriteTenantData(auth.role)) {
+    const denied = roleGuardResponse()
+    return NextResponse.json({ error: denied.message }, { status: denied.status })
+  }
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: 'Geçersiz kayıt kimliği.' }, { status: 400 })
   }
 
   let body: { url?: string }
@@ -93,7 +112,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   }
   if (!body.url) return NextResponse.json({ error: 'url gerekli' }, { status: 400 })
 
-  const order = await getOrderImages(auth.tenantId, params.id)
+  const order = await getOrderImages(auth.tenantId, id)
   if (!order) return NextResponse.json({ error: 'Kayıt bulunamadı.' }, { status: 404 })
 
   const current = parseDeviceImages(order as Record<string, unknown>)
@@ -114,9 +133,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { error: updateErr } = await admin
     .from('service_orders')
     .update({ device_images: nextImages, updated_at: new Date().toISOString() })
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('tenant_id', auth.tenantId)
 
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  if (updateErr) {
+    return NextResponse.json({ error: safeClientMessage(updateErr) }, { status: 500 })
+  }
   return NextResponse.json({ images: nextImages })
-}
+}, 'service-orders/[id]/photos')

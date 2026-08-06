@@ -7,9 +7,9 @@ describe('api-role-guard push modules', () => {
     expect(canPushModule('tenant_admin', 'madeUpModule')).toBe(false)
   })
 
-  it('allows tenant_admin for customers', () => {
-    expect(isKnownPushModule('customers')).toBe(true)
-    expect(canPushModule('tenant_admin', 'customers')).toBe(true)
+  it('allows tenant_admin for todos', () => {
+    expect(isKnownPushModule('todos')).toBe(true)
+    expect(canPushModule('tenant_admin', 'todos')).toBe(true)
   })
 
   it('blocks push for API-first stock module', () => {

@@ -72,18 +72,56 @@ async function apiFetch(path: string, init?: RequestInit) {
   return res
 }
 
-/** API'den çek, store'a yaz, döndür */
-export async function loadServiceOrdersFromApi(limit = 100): Promise<StoreServiceOrder[]> {
+export type BridgeResult<T> = {
+  ok: boolean
+  fromCache: boolean
+  error?: string
+} & T
+
+/** API'den sayfalı çek, store'a yaz */
+export async function loadServiceOrdersFromApi(opts?: {
+  limit?: number
+  offset?: number
+  search?: string
+}): Promise<BridgeResult<{ orders: StoreServiceOrder[]; hasMore: boolean }>> {
   try {
-    const res = await apiFetch(`/api/service-orders?limit=${limit}`)
-    if (!res.ok) return getServiceOrders()
-    const json = (await res.json()) as { data?: DbRow[] }
-    if (!json.data?.length) return getServiceOrders()
+    const limit = opts?.limit ?? 50
+    const offset = opts?.offset ?? 0
+    const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    if (opts?.search) qs.set('search', opts.search)
+    const res = await apiFetch(`/api/service-orders?${qs}`)
+    if (!res.ok) {
+      return {
+        orders: getServiceOrders(),
+        hasMore: false,
+        ok: false,
+        fromCache: true,
+        error: 'Servis kayıtları yüklenemedi',
+      }
+    }
+    const json = (await res.json()) as { data?: DbRow[]; pagination?: { hasMore?: boolean } }
+    if (!json.data?.length) {
+      return { orders: getServiceOrders(), hasMore: false, ok: true, fromCache: offset > 0 }
+    }
     const orders = json.data.map(dbToStore)
-    replaceServiceOrders(orders, { silent: true })
-    return orders
+    if (offset === 0) replaceServiceOrders(orders, { silent: true })
+    else {
+      for (const o of orders) upsertServiceOrder(o)
+    }
+    return {
+      orders: offset === 0 ? orders : getServiceOrders(),
+      hasMore: json.pagination?.hasMore ?? false,
+      ok: true,
+      fromCache: false,
+    }
   } catch {
-    return getServiceOrders()
+    return {
+      orders: getServiceOrders(),
+      hasMore: false,
+      ok: false,
+      fromCache: true,
+      error: 'Bağlantı hatası',
+    }
   }
 }
 
