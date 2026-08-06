@@ -18,10 +18,7 @@ export async function GET(
   }
 
   // 1. IMEI history getir (database model olarak)
-  const dbHistory = await getImeiHistory(auth.tenantId, imei)
-  
-  // 2. Store modeline çevir (uyumlu olması için)
-  const history = dbHistory.map(imeiEventToStore)
+  const history = await getImeiHistory(auth.tenantId, imei)
 
   // 3. Risk skorunu hesapla
   const risk = getImeiRiskScore(history)

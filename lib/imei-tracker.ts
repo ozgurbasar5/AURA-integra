@@ -1,5 +1,6 @@
 import { type ImeiEvent } from './store'
-import { getServiceClient } from './supabase/service'
+import { getServiceClient } from '@/lib/supabase/service'
+import { imeiEventToStore } from '@/lib/db-mappers'
 
 export interface TimelineEntry {
   date: string
@@ -61,7 +62,7 @@ export async function getImeiHistory(tenantId: string, imei: string): Promise<Im
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    return (data || []).map(imeiEventToStore)
   } catch {
     return []
   }
