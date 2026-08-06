@@ -25,8 +25,8 @@ export default function PrinterSetupModal({ order, onClose }: PrinterSetupModalP
           type: 'kabul',
           order,
           shopName: brand.shopName,
-          shopPhone: brand.phone,
-          shopAddress: brand.address,
+          shopPhone: brand.shopPhone,
+          shopAddress: brand.shopAddress,
         }
         const escpos = buildReceiptEscPos(data)
         await printBluetooth(escpos)

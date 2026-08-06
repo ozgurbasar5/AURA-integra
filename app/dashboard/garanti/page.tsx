@@ -12,8 +12,8 @@ import { formatDate } from '@/lib/validators'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof CheckCircle }> = {
   aktif:       { label: 'Aktif',       bg: 'bg-emerald-100', text: 'text-emerald-700', icon: CheckCircle },
-  sona_erdi:   { label: 'Sona Erdi',   bg: 'bg-slate-100',   text: 'text-slate-600',   icon: Clock },
-  kullanildi:  { label: 'Kullanıldı',  bg: 'bg-blue-100',    text: 'text-blue-700',    icon: Wrench },
+  süresi_doldu:{ label: 'Sona Erdi',   bg: 'bg-slate-100',   text: 'text-slate-600',   icon: Clock },
+  iptal:       { label: 'İptal',       bg: 'bg-red-100',     text: 'text-red-700',     icon: AlertTriangle },
   reddedildi:  { label: 'Reddedildi',  bg: 'bg-red-100',     text: 'text-red-700',     icon: AlertTriangle },
   ihlal:       { label: 'İhlal',       bg: 'bg-orange-100',  text: 'text-orange-700',  icon: AlertTriangle },
 }
@@ -80,8 +80,8 @@ export default function GarantiPage() {
 
   const stats = {
     aktif: warranties.filter(w => w.status === 'aktif').length,
-    sona_erdi: warranties.filter(w => w.status === 'sona_erdi').length,
-    kullanildi: warranties.filter(w => w.status === 'kullanildi').length,
+    sona_erdi: warranties.filter(w => w.status === 'süresi_doldu').length,
+    kullanildi: warranties.filter(w => w.claim_status === 'onaylandi').length,
     yaklasan: warranties.filter(w => {
       if (w.status !== 'aktif') return false
       const daysLeft = Math.ceil((new Date(w.end_date).getTime() - Date.now()) / 86400000)

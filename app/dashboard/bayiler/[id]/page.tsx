@@ -79,7 +79,7 @@ export default function DealerDetailPage({ params }: { params: { id: string } })
         
         {/* Sol: Bayi Finansal Özeti */}
         <div className="md:col-span-1 space-y-6">
-          <PageCard title="Ticari Koşullar" icon={Wallet}>
+          <PageCard title="Ticari Koşullar">
             <div className="space-y-4">
               <div className="flex justify-between items-center py-2 border-b border-slate-50">
                 <span className="text-sm text-slate-500">İskonto Oranı</span>
@@ -103,13 +103,13 @@ export default function DealerDetailPage({ params }: { params: { id: string } })
           </PageCard>
 
           {dealer.address && (
-            <PageCard title="Adres Bilgileri" icon={MapPin}>
+            <PageCard title="Adres Bilgileri">
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{dealer.address}</p>
             </PageCard>
           )}
 
           {dealer.notes && (
-            <PageCard title="Özel Notlar" icon={FileText}>
+            <PageCard title="Özel Notlar">
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{dealer.notes}</p>
             </PageCard>
           )}
@@ -120,8 +120,7 @@ export default function DealerDetailPage({ params }: { params: { id: string } })
           
           <PageCard 
             title="Bayi Siparişleri (B2B)" 
-            icon={Package}
-            actions={<button className="btn-secondary btn-sm" onClick={() => toast.info('Yeni sipariş ekranı eklenecek')}>+ Sipariş</button>}
+            action={<button className="btn-secondary btn-sm" onClick={() => toast.info('Yeni sipariş ekranı eklenecek')}>+ Sipariş</button>}
           >
             {orders.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-sm">
@@ -134,8 +133,7 @@ export default function DealerDetailPage({ params }: { params: { id: string } })
 
           <PageCard 
             title="Cari Hesap & Faturalar" 
-            icon={Receipt}
-            actions={<button className="btn-secondary btn-sm" onClick={() => toast.info('Tahsilat ekle ekranı eklenecek')}>+ Tahsilat</button>}
+            action={<button className="btn-secondary btn-sm" onClick={() => toast.info('Tahsilat ekle ekranı eklenecek')}>+ Tahsilat</button>}
           >
             {invoices.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-sm">
