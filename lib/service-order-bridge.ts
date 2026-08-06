@@ -289,9 +289,9 @@ export async function updateServiceOrderRemote(
   return getServiceOrderById(id)
 }
 
-export async function usePartsForServiceViaApi(
+export async function addPartsForServiceViaApi(
   orderId: string,
-  parts: UsedPart[],
+  parts: { stock_id: string; name: string; qty: number; unit_buy: number; unit_sell: number }[],
 ): Promise<{ ok: true; used_parts: unknown[] } | { ok: false; error: string }> {
   try {
     const res = await apiFetch(`/api/service-orders/${orderId}/use-parts`, {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop, ExternalLink } from 'lucide-react'
+import { Check, Palette, Bell, Shield, User, Globe, CreditCard, Zap, ChevronRight, Save, Eye, EyeOff, Copy, RefreshCw, Upload, Trash2, Building2, Crop, ExternalLink, Clock } from 'lucide-react'
 import { THEMES, type ThemeKey } from '@/lib/theme'
 import {
   getUiAppearance, saveUiAppearance, applyUiAppearance,

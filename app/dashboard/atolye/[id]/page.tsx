@@ -27,7 +27,7 @@ import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '
 import {
   fetchServiceOrderById,
   updateServiceOrderRemote,
-  usePartsForServiceViaApi,
+  addPartsForServiceViaApi,
   deliverServiceViaApi,
 } from '@/lib/service-order-bridge'
 import { useUserRole } from '@/lib/role-context'
@@ -215,7 +215,7 @@ export default function AtolyeDetailPage() {
     }
     const unitCost = stockItem.buy_price
     const unitSell = stockItem.sell_price || stockItem.buy_price
-    const result = await usePartsForServiceViaApi(id, [{
+    const result = await addPartsForServiceViaApi(id, [{
       stock_id: stockItem.id,
       name: stockItem.name,
       qty,
