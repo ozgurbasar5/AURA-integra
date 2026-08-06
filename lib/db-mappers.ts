@@ -1002,6 +1002,7 @@ export function statusHistoryToDb(entry: StatusHistoryEntry, userId?: string): R
 export function slaConfigToStore(row: Row): SlaConfig {
   return {
     id: String(row.id),
+    tenant_id: String(row.tenant_id),
     category: String(row.category),
     device_type: row.device_type ? String(row.device_type) : undefined,
     standard_days: Number(row.standard_days) || 3,

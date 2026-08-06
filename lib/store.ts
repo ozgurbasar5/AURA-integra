@@ -462,6 +462,7 @@ export interface PersonnelMember {
 
 export interface SlaConfig {
   id: string
+  tenant_id?: string
   category: string
   device_type?: string
   standard_days: number
