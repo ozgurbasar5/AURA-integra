@@ -2333,7 +2333,7 @@ export function addSupportTicket(data: Omit<SupportTicket, 'id' | 'created_at' |
   const item: SupportTicket = {
     ...data,
     id: uid('ticket'),
-    status: 'acik',
+    status: 'open',
     created_at: new Date().toISOString(),
   }
   store.supportTickets.unshift(item)
