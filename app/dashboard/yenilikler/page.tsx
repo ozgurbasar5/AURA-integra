@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Sparkles, Loader2, Megaphone, Wrench, Zap, Bug, ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { DEFAULT_PLATFORM_YENILIKLER } from '@/lib/default-yenilikler'
 
 interface Yenilik {
   id: string
@@ -73,11 +74,14 @@ export default function YeniliklerPage() {
           .order('published_at', { ascending: false }),
       ])
 
-      const uid = auth.user?.id ?? null
+      const uid = auth?.user?.id ?? null
       setUserId(uid)
 
-      if (!error && data) setItems(data as Yenilik[])
-      else setItems([])
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setItems(data as Yenilik[])
+      } else {
+        setItems(DEFAULT_PLATFORM_YENILIKLER as Yenilik[])
+      }
 
       if (uid) {
         const { data: reads } = await (supabase.from('platform_yenilik_reads') as any)
@@ -86,7 +90,7 @@ export default function YeniliklerPage() {
         if (reads) setReadIds(new Set(reads.map((r: { yenilik_id: string }) => r.yenilik_id)))
       }
     } catch {
-      setItems([])
+      setItems(DEFAULT_PLATFORM_YENILIKLER as Yenilik[])
     } finally {
       setLoading(false)
     }

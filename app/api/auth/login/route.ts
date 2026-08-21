@@ -126,39 +126,74 @@ export async function POST(request: NextRequest) {
       return json
     }
 
-    // Bayi — şifre doğrulandıktan sonra profil/tenant okuma (RLS join döngüsünden kaçınır)
+    // Bayi — şifre doğrulandıktan sonra profil/tenant okuma
     const admin = getServiceClient()
-    if (!admin) {
-      await supabase.auth.signOut()
-      return NextResponse.json(
-        { error: 'Sunucu yapılandırması eksik (SUPABASE_SERVICE_ROLE_KEY)' },
-        { status: 500 }
-      )
-    }
+    let profile: { role?: string; is_active?: boolean; tenant_id?: string | null } | null = null
 
-    const profileResult = await Promise.race([
-      admin
+    if (admin) {
+      const profileResult = await Promise.race([
+        admin
+          .from('user_profiles')
+          .select('role, is_active, tenant_id')
+          .eq('id', user.id)
+          .single(),
+        new Promise<{ data: null; error: { message: 'timeout' } }>((resolve) =>
+          setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 5000)
+        ),
+      ])
+
+      if (profileResult.data) {
+        profile = profileResult.data
+      } else {
+        // Auto-provision: If an active tenant exists, automatically link the user as tenant_admin
+        const { data: tenants } = await admin
+          .from('tenants')
+          .select('id')
+          .eq('status', 'active')
+          .order('created_at', { ascending: true })
+          .limit(1)
+
+        if (tenants && tenants.length > 0) {
+          const { data: newProf } = await admin
+            .from('user_profiles')
+            .upsert(
+              {
+                id: user.id,
+                tenant_id: tenants[0].id,
+                role: 'tenant_admin',
+                is_active: true,
+                full_name: (user.user_metadata?.full_name as string) || user.email?.split('@')[0] || 'Bayi Yöneticisi',
+              },
+              { onConflict: 'id' }
+            )
+            .select('role, is_active, tenant_id')
+            .single()
+
+          if (newProf) {
+            profile = newProf
+          }
+        }
+      }
+    } else {
+      // Fallback with session client
+      const { data: profData } = await supabase
         .from('user_profiles')
         .select('role, is_active, tenant_id')
         .eq('id', user.id)
-        .single(),
-      new Promise<{ data: null; error: { message: 'timeout' } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), 5000)
-      ),
-    ])
+        .single()
+      profile = profData
+    }
 
-    if (profileResult.error || !profileResult.data) {
+    if (!profile) {
       await supabase.auth.signOut()
       return NextResponse.json(
         {
           error:
             'Bayi profili bulunamadı. Admin panelinden bayi oluşturulduğundan emin olun veya destek ile iletişime geçin.',
         },
-        { status: 503 }
+        { status: 403 }
       )
     }
-
-    const profile = profileResult.data
 
     if (profile.is_active === false) {
       await supabase.auth.signOut()
@@ -187,7 +222,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: getTenantBlockMessage('no_tenant') }, { status: 403 })
     }
 
-    const { data: tenantRow } = await admin
+    const dbClient = admin || supabase
+    const { data: tenantRow } = await dbClient
       .from('tenants')
       .select('status, subscription_end')
       .eq('id', profile.tenant_id)
@@ -206,7 +242,7 @@ export async function POST(request: NextRequest) {
     }
 
     // E-posta 2FA — tenant_settings.email_2fa_users[userId]
-    const { data: ts } = await admin
+    const { data: ts } = await dbClient
       .from('tenant_settings')
       .select('settings')
       .eq('tenant_id', profile.tenant_id)

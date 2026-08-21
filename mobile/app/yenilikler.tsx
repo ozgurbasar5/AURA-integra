@@ -10,6 +10,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { DEFAULT_PLATFORM_YENILIKLER } from '@/lib/default-yenilikler'
 
 type Yenilik = {
   id: string
@@ -56,7 +57,11 @@ export default function YeniliklerScreen() {
         .eq('published', true)
         .order('published_at', { ascending: false })
         .limit(40)
-      setItems((data as Yenilik[]) ?? [])
+      if (Array.isArray(data) && data.length > 0) {
+        setItems(data as Yenilik[])
+      } else {
+        setItems(DEFAULT_PLATFORM_YENILIKLER as Yenilik[])
+      }
 
       const uid = session?.user?.id
       if (uid) {
@@ -67,7 +72,7 @@ export default function YeniliklerScreen() {
         setReadIds(new Set((reads ?? []).map((r: { yenilik_id: string }) => r.yenilik_id)))
       }
     } catch {
-      setItems([])
+      setItems(DEFAULT_PLATFORM_YENILIKLER as Yenilik[])
     } finally {
       setLoading(false)
     }

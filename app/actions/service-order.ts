@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { mapStoreStatusToDb } from '@/lib/erp-features'
 import type { ServiceOrderStatus } from '@/types/database'
 
@@ -52,23 +53,12 @@ async function resolveCustomerId(
 }
 
 export async function createServiceOrderAction(input: CreateServiceOrderActionInput) {
-  const supabase = createClient()
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
-  if (authErr || !user) {
-    return { ok: false as const, error: 'Oturum bulunamadı' }
+  const auth = await requireTenantAuth()
+  if (!auth.ok) {
+    return { ok: false as const, error: auth.message }
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id, role, is_active')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.tenant_id || profile.is_active === false) {
-    return { ok: false as const, error: 'Bayi profili bulunamadı' }
-  }
-
-  const tenantId = profile.tenant_id
+  const { supabase, tenantId, userId } = auth
   const customer_id = await resolveCustomerId(
     supabase,
     tenantId,
@@ -117,7 +107,7 @@ export async function createServiceOrderAction(input: CreateServiceOrderActionIn
     tenant_id: tenantId,
     status: newOrder.status,
     note: 'Servis kaydı oluşturuldu.',
-    created_by: user.id,
+    created_by: userId,
   })
 
   revalidatePath('/dashboard/atolye')

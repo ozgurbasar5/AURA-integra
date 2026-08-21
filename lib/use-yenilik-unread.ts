@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { DEFAULT_PLATFORM_YENILIKLER } from '@/lib/default-yenilikler'
 
 export function useYenilikUnread() {
   const supabase = createClient()
@@ -11,14 +12,16 @@ export function useYenilikUnread() {
   const refresh = useCallback(async () => {
     try {
       const { data: auth } = await supabase.auth.getUser()
-      const uid = auth.user?.id
-      const { data: items } = await (supabase.from('platform_yenilikler') as any)
+      const uid = auth?.user?.id
+      const { data: dbItems } = await (supabase.from('platform_yenilikler') as any)
         .select('id, title, published_at')
         .eq('published', true)
         .order('published_at', { ascending: false })
         .limit(20)
 
-      if (!items?.length) {
+      const items = Array.isArray(dbItems) && dbItems.length > 0 ? dbItems : DEFAULT_PLATFORM_YENILIKLER
+
+      if (!items.length) {
         setUnread(0)
         setLatestTitle(null)
         return
@@ -38,7 +41,8 @@ export function useYenilikUnread() {
       const readSet = new Set((reads ?? []).map((r: { yenilik_id: string }) => r.yenilik_id))
       setUnread(items.filter((i: { id: string }) => !readSet.has(i.id)).length)
     } catch {
-      setUnread(0)
+      setLatestTitle(DEFAULT_PLATFORM_YENILIKLER[0]?.title ?? null)
+      setUnread(DEFAULT_PLATFORM_YENILIKLER.length)
     }
   }, [supabase])
 

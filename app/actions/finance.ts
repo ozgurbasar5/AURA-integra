@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
 import { getServiceClient } from '@/lib/supabase/service'
 import { txToDb } from '@/lib/db-mappers'
 import { normalizePaymentMethod } from '@/lib/payment-method'
@@ -19,23 +20,14 @@ export type CreateFinanceTransactionInput = {
 }
 
 export async function createFinanceTransactionAction(input: CreateFinanceTransactionInput) {
-  const supabase = createClient()
-  const { data: { user }, error: authErr } = await supabase.auth.getUser()
-  if (authErr || !user) {
-    return { ok: false as const, error: 'Oturum bulunamadı' }
+  const auth = await requireTenantAuth()
+  if (!auth.ok) {
+    return { ok: false as const, error: auth.message }
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('tenant_id, role, is_active')
-    .eq('id', user.id)
-    .single()
+  const { tenantId, userId, role } = auth
 
-  if (!profile?.tenant_id || profile.is_active === false) {
-    return { ok: false as const, error: 'Bayi profili bulunamadı' }
-  }
-
-  if (!canPushFinance(profile.role)) {
+  if (!canPushFinance(role)) {
     return { ok: false as const, error: 'Finans yazma yetkisi yok' }
   }
 
@@ -55,7 +47,7 @@ export async function createFinanceTransactionAction(input: CreateFinanceTransac
     customer_name: input.customer_name,
   }
 
-  const row = txToDb(tx, profile.tenant_id, user.id) as Record<string, unknown>
+  const row = txToDb(tx, tenantId, userId) as Record<string, unknown>
 
   const { error: insErr } = await admin.from('financial_transactions').insert(row)
   if (insErr) {
@@ -67,7 +59,7 @@ export async function createFinanceTransactionAction(input: CreateFinanceTransac
   if (paymentMethod === 'nakit') {
     const delta = input.type === 'gelir' ? input.amount : -input.amount
     const { data: bal, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
-      p_tenant_id: profile.tenant_id,
+      p_tenant_id: tenantId,
       p_delta: delta,
     })
     if (kasaErr) {

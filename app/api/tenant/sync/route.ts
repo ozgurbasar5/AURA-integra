@@ -129,7 +129,7 @@ export const GET = withApiHandler(async function GET(req: NextRequest) {
       incremental
         ? Promise.resolve({ data: [], error: null })
         : tenantQuery(supabase.from('branches').select('*'), tid).order('name'),
-      supabase.from('tenants').select('company_name, phone, address, shop_name, shop_logo, portal_slug').eq('id', tid).single(),
+      supabase.from('tenants').select('company_name, phone, address, shop_name, shop_logo, portal_slug').eq('id', tid).maybeSingle(),
       tenantQuery(supabase.from('tenant_settings').select('settings, updated_at'), tid).maybeSingle(),
       tenantQuery(supabase.from('accounts').select('balance'), tid).eq('type', 'kasa').limit(1),
     ])

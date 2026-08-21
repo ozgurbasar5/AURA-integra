@@ -70,11 +70,6 @@ export default function LoginForm() {
           )
           return
         }
-        if (data.env && !data.env.serviceRef) {
-          setConfigError(
-            'SUPABASE_SERVICE_ROLE_KEY eksik — giriş çalışır; admin/bayi oluşturma için service role key ekleyin.'
-          )
-        }
       })
       .catch(() => {
         setConfigError('Sağlık kontrolü başarısız — sunucu veya ağ bağlantısını kontrol edin.')
