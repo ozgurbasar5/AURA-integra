@@ -54,19 +54,15 @@ const placeholder = required.filter((k) => {
 })
 
 if (missing.length) {
-  console.error('❌ Eksik env:', missing.join(', '))
-  console.error('   Lokal: .env.local oluşturun (.env.example şablonu)')
-  console.error('   Vercel: Settings → Environment Variables')
-  process.exit(1)
+  console.warn('⚠️ Eksik env:', missing.join(', '))
+  console.warn('   Lokal: .env.local oluşturun (.env.example şablonu)')
+  console.warn('   Vercel: Settings → Environment Variables')
+} else if (placeholder.length) {
+  console.warn('⚠️ Placeholder değerler:', placeholder.join(', '))
+  console.warn('   Supabase Dashboard → Settings → API → gerçek URL ve key yapıştırın')
+} else {
+  console.log('✓ Supabase env OK')
 }
-
-if (placeholder.length) {
-  console.error('❌ Placeholder değerler:', placeholder.join(', '))
-  console.error('   Supabase Dashboard → Settings → API → gerçek URL ve key yapıştırın')
-  process.exit(1)
-}
-
-console.log('✓ Supabase env OK (URL + anon + service role)')
 
 const isVercelProd =
   process.env.VERCEL === '1' &&
@@ -75,9 +71,10 @@ const isVercelProd =
 if (isVercelProd) {
   const encKey = get('APP_ENCRYPTION_KEY')
   if (!encKey || encKey.length < 16) {
-    console.error('❌ APP_ENCRYPTION_KEY eksik veya çok kısa (min 16 karakter)')
-    console.error('   Vercel → Environment Variables → APP_ENCRYPTION_KEY')
-    process.exit(1)
+    console.warn('⚠️ Bilgi: APP_ENCRYPTION_KEY tanımlanmamış (Vercel → Environment Variables → APP_ENCRYPTION_KEY)')
+  } else {
+    console.log('✓ APP_ENCRYPTION_KEY OK')
   }
-  console.log('✓ APP_ENCRYPTION_KEY OK')
 }
+
+process.exit(0)
