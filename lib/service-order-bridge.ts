@@ -319,6 +319,7 @@ export async function deliverServiceViaApi(
   input: {
     service_fee: number
     payment_method?: string
+    account_id?: string
     used_parts?: UsedPart[]
     warranty_months?: number
     final_checks?: string[]
@@ -333,6 +334,7 @@ export async function deliverServiceViaApi(
       body: JSON.stringify({
         service_fee: input.service_fee,
         payment_method: input.payment_method ?? 'nakit',
+        account_id: input.account_id,
         used_parts: input.used_parts?.map(p => ({
           stock_id: p.stock_id,
           name: p.name,

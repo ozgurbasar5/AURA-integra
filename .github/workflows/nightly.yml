@@ -1,0 +1,46 @@
+name: AURA Integra — Nightly Regression & Stress Benchmark
+
+on:
+  schedule:
+    # Her gece saat 02:00 UTC'de otomatik çalışır
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  NEXT_PUBLIC_SUPABASE_URL: https://ci-test-project.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ci-anon-key
+  SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ci-service-key
+  NODE_ENV: test
+  CI: '1'
+
+jobs:
+  nightly-regression:
+    name: Nightly Full Regression & Stress
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Full Test Suite
+        run: npm test
+
+      - name: Run Performance Suite
+        run: npm run test:performance
+
+      - name: Build Next.js Production Bundle
+        run: npm run build
+
+      - name: Install Playwright Browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Full E2E Suite
+        run: npx playwright test

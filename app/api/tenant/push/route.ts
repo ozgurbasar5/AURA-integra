@@ -465,7 +465,7 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
       }
       case 'statusHistory': {
         const rows = (items as StatusHistoryEntry[]).map(h => {
-          const row = statusHistoryToDb(h, userId) as Record<string, unknown>
+          const row = statusHistoryToDb(h, userId, tenantId) as Record<string, unknown>
           if (!isUuid(String(row.id ?? ''))) delete row.id
           return row
         })

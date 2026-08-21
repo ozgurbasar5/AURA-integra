@@ -14,6 +14,7 @@ export type TenantNotificationConfig = {
   smtp_email?: string
   smtp_host?: string
   whatsapp_phone?: string
+  has_netgsm_pass?: boolean
 }
 
 export async function GET() {

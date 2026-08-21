@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
@@ -5,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/lib/auth'
 import { useTenant } from '@/lib/TenantContext'
 import { useAppTheme } from '@/lib/ThemeContext'
+import { GlobalSearchModal } from '@/components/GlobalSearchModal'
 
 export function BrandHeader({ title }: { title?: string }) {
   const { colors } = useAppTheme()
@@ -12,6 +14,7 @@ export function BrandHeader({ title }: { title?: string }) {
   const { me } = useTenant()
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const shop =
     me?.shop_name ||
@@ -45,20 +48,23 @@ export function BrandHeader({ title }: { title?: string }) {
           </Text>
         </View>
         <Pressable
-          onPress={() => router.push('/yenilikler' as never)}
+          onPress={() => setSearchOpen(true)}
           style={[styles.iconBtn, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}
           hitSlop={8}
+          accessibilityLabel="Arama Yap"
         >
-          <FontAwesome name="magic" size={14} color={colors.primary} />
+          <FontAwesome name="search" size={15} color={colors.primary} />
         </Pressable>
         <Pressable
           onPress={() => router.push('/gorunum' as never)}
           style={[styles.iconBtn, { backgroundColor: colors.bgElevated, borderColor: colors.border }]}
           hitSlop={8}
+          accessibilityLabel="Görünüm Ayarları"
         >
-          <FontAwesome name="sliders" size={16} color={colors.primary} />
+          <FontAwesome name="sliders" size={15} color={colors.primary} />
         </Pressable>
       </View>
+      <GlobalSearchModal visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </View>
   )
 }
@@ -82,11 +88,12 @@ const styles = StyleSheet.create({
   shop: { fontSize: 16, fontWeight: '800' },
   sub: { fontSize: 12, marginTop: 1 },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
 })
+

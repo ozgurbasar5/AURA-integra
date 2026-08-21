@@ -1,236 +1,346 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Wallet, Lock, Unlock, Loader2, FileText } from 'lucide-react'
+import { Wallet, RefreshCw, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageShell, PageHeader, PageCard } from '@/components/ui/PageShell'
-import { openCashShiftViaApi, closeCashShiftViaApi, loadCashShiftsFromApi } from '@/lib/cash-bridge'
-import {
-  getOpenCashShift, getCashShifts,
-  getCashSummary, onStoreChange, attachShiftReport, type CashShift,
-} from '@/lib/store'
-import { buildShiftReport, suggestOpeningCash } from '@/lib/eod-report'
-import { getBusinessBranding } from '@/lib/business-branding'
-import { formatCurrency } from '@/lib/validators'
-import { parseLocaleNumber } from '@/lib/parse-locale-number'
-import { useUserRole } from '@/lib/role-context'
-import { isOwnerRole } from '@/lib/role-access'
-
-function fmt(n: number) {
-  return formatCurrency(n)
-}
+import { PageShell, PageHeader } from '@/components/ui/PageShell'
+import { AccountCardsGrid } from '@/components/finans/AccountCardsGrid'
+import { QuickActionBar } from '@/components/finans/QuickActionBar'
+import { DailySummaryCards } from '@/components/finans/DailySummaryCards'
+import { LiveLedgerTable, type LedgerTransactionItem } from '@/components/finans/LiveLedgerTable'
+import { TransactionModal } from '@/components/finans/TransactionModal'
+import { TransferModal } from '@/components/finans/TransferModal'
+import { ReconciliationModal } from '@/components/finans/ReconciliationModal'
+import { DailyEodModal } from '@/components/finans/DailyEodModal'
+import { LegacyShiftsModal } from '@/components/finans/LegacyShiftsModal'
+import { ErrorState } from '@/components/ui/ErrorState'
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { createClient } from '@/lib/supabase/client'
+import type { FinanceAccount } from '@/lib/finance-accounts'
 
 export default function KasaPage() {
-  const router = useRouter()
-  const { role } = useUserRole()
-  const cashier = role === 'kasiyer' ? 'Kasiyer' : isOwnerRole(role) ? 'Sahip' : 'Personel'
-
+  const [supabase] = useState(() => createClient())
   const [mounted, setMounted] = useState(false)
-  const [openShift, setOpenShift] = useState<CashShift | undefined>()
-  const [history, setHistory] = useState<CashShift[]>([])
-  const [shiftCash, setShiftCash] = useState(getCashSummary())
-  const [opening, setOpening] = useState('')
-  const [closing, setClosing] = useState('')
-  const [notes, setNotes] = useState('')
-  const [adjDelta, setAdjDelta] = useState('')
-  const [adjReason, setAdjReason] = useState('')
-  const [adjBusy, setAdjBusy] = useState(false)
-  const canAdjust = isOwnerRole(role)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const refresh = useCallback(() => {
-    const open = getOpenCashShift()
-    setOpenShift(open)
-    setHistory(getCashShifts().slice(0, 20))
-    if (open) {
-      setShiftCash(getCashSummary({ from: open.opened_at, to: new Date().toISOString() }))
-    } else {
-      const today = new Date().toISOString().slice(0, 10)
-      setShiftCash(getCashSummary({ from: `${today}T00:00:00`, to: new Date().toISOString() }))
+  // Finans Verileri
+  const [accounts, setAccounts] = useState<FinanceAccount[]>([])
+  const [transactions, setTransactions] = useState<LedgerTransactionItem[]>([])
+  const [totalTxCount, setTotalTxCount] = useState(0)
+  const [dailyStats, setDailyStats] = useState({
+    income: 0,
+    expense: 0,
+    refund: 0,
+    transferVolume: 0,
+    netFlow: 0,
+    veresiyeAccrual: 0,
+  })
+
+  // Filtreler & Sayfalama
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [accountFilter, setAccountFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  // Modallar
+  const [isDepositOpen, setIsDepositOpen] = useState(false)
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
+  const [isTransferOpen, setIsTransferOpen] = useState(false)
+  const [isReconcileOpen, setIsReconcileOpen] = useState(false)
+  const [isDailyEodOpen, setIsDailyEodOpen] = useState(false)
+  const [isLegacyShiftsOpen, setIsLegacyShiftsOpen] = useState(false)
+  const [targetAccount, setTargetAccount] = useState<FinanceAccount | null>(null)
+
+  // 1. Hesapları Yükle
+  const loadAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/accounts', { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok && json.accounts) {
+        setAccounts(json.accounts)
+      }
+    } catch (err: any) {
+      console.error('Hesaplar yüklenemedi:', err)
     }
   }, [])
 
+  // 2. Canlı Defter İşlemlerini Yükle
+  const loadTransactions = useCallback(async (p = page, q = search, acc = accountFilter, t = typeFilter) => {
+    try {
+      const limit = 50
+      const offset = (p - 1) * limit
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+      })
+      if (q) params.set('search', q)
+      if (acc) params.set('account_id', acc)
+      if (t) params.set('type', t)
+
+      const res = await fetch(`/api/tenant/transactions?${params.toString()}`, { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok && json.transactions) {
+        setTransactions(json.transactions)
+        setTotalTxCount(json.total || 0)
+      }
+    } catch (err: any) {
+      console.error('İşlemler yüklenemedi:', err)
+    }
+  }, [page, search, accountFilter, typeFilter])
+
+  // 3. Günlük Finans İstatistiklerini Yükle
+  const loadDailyStats = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const res = await fetch(`/api/tenant/reports/daily-eod?date=${today}`, { credentials: 'same-origin' })
+      const json = await res.json()
+      if (res.ok && json.report) {
+        const rep = json.report
+        setDailyStats({
+          income: rep.totals.total_income || 0,
+          expense: rep.totals.total_expense || 0,
+          refund: rep.totals.total_refund || 0,
+          transferVolume: rep.totals.total_transfers || 0,
+          netFlow: rep.totals.net_flow || 0,
+          veresiyeAccrual: (rep.sales.veresiye_sales || 0) + (rep.sales.cek_senet_sales || 0),
+        })
+      }
+    } catch (err: any) {
+      console.error('Günlük istatistikler yüklenemedi:', err)
+    }
+  }, [])
+
+  // Tüm Verileri Yenile
+  const refreshAll = useCallback(async () => {
+    setError('')
+    await Promise.all([
+      loadAccounts(),
+      loadTransactions(page, search, accountFilter, typeFilter),
+      loadDailyStats(),
+    ])
+  }, [loadAccounts, loadTransactions, loadDailyStats, page, search, accountFilter, typeFilter])
+
   useEffect(() => {
     setMounted(true)
-    void loadCashShiftsFromApi().then(() => {
-      refresh()
-      if (!getOpenCashShift()) {
-        const suggested = suggestOpeningCash()
-        if (suggested > 0) setOpening(String(suggested))
+    void (async () => {
+      setLoading(true)
+      try {
+        await refreshAll()
+      } catch (err: any) {
+        setError(err.message || 'Finans verileri yüklenemedi')
+      } finally {
+        setLoading(false)
       }
-    })
-    return onStoreChange(m => { if (!m || m === 'cashShifts' || m === 'cash' || m === 'finance' || m === 'sales') refresh() })
-  }, [refresh])
+    })()
+  }, [refreshAll])
 
-  function handleOpen() {
-    const bal = Number(opening) || 0
-    void openCashShiftViaApi(bal, cashier).then(() => {
-      toast.success('Vardiya açıldı')
-      setOpening('')
-      refresh()
-    }).catch(err => toast.error(err instanceof Error ? err.message : 'Vardiya açılamadı'))
+  // Realtime Supabase Abonelikleri (Hesaplar ve Finansal İşlemler)
+  useRealtimeSubscription({
+    table: 'financial_transactions',
+    supabaseClient: supabase as any,
+    onPayload: () => {
+      void refreshAll()
+    },
+  })
+
+  useRealtimeSubscription({
+    table: 'accounts',
+    supabaseClient: supabase as any,
+    onPayload: () => {
+      void loadAccounts()
+    },
+  })
+
+  // Hesap Kartı Aksiyon Tetikleyicileri
+  const handleDepositAccount = (acc: FinanceAccount) => {
+    setTargetAccount(acc)
+    setIsDepositOpen(true)
   }
 
-  function handleClose() {
-    const bal = Number(closing)
-    if (Number.isNaN(bal)) { toast.error('Kapanış tutarı girin'); return }
-    void closeCashShiftViaApi(bal, cashier, notes).then(result => {
-      if (!result) { toast.error('Açık vardiya yok'); return }
-      const report = buildShiftReport(result, getBusinessBranding().shopName)
-      attachShiftReport(result.id, report as unknown as Record<string, unknown>)
-      toast.success(`Vardiya kapandı · Fark: ${fmt(result.difference || 0)}`)
-      setClosing('')
-      setNotes('')
-      refresh()
-      router.push(`/dashboard/kasa/rapor/${result.id}`)
-    }).catch(err => toast.error(err instanceof Error ? err.message : 'Vardiya kapatılamadı'))
+  const handleWithdrawAccount = (acc: FinanceAccount) => {
+    setTargetAccount(acc)
+    setIsWithdrawOpen(true)
+  }
+
+  const handleTransferAccount = (acc: FinanceAccount) => {
+    setTargetAccount(acc)
+    setIsTransferOpen(true)
+  }
+
+  const handleReconcileAccount = (acc: FinanceAccount) => {
+    setTargetAccount(acc)
+    setIsReconcileOpen(true)
   }
 
   if (!mounted) {
-    return <div className="flex justify-center py-32"><Loader2 className="animate-spin text-sky-500" size={28} /></div>
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="animate-spin text-indigo-500" size={32} />
+      </div>
+    )
   }
 
-  const expected = openShift
-    ? openShift.opening_balance + shiftCash.nakit - shiftCash.nakitCikis
-    : 0
+  if (error && accounts.length === 0) {
+    return (
+      <PageShell>
+        <ErrorState
+          title="Kasa & Finans Konsolu Yüklenemedi"
+          description={error}
+          onRetry={refreshAll}
+        />
+      </PageShell>
+    )
+  }
 
-  const cashLabel = openShift ? 'Vardiya Nakit Giriş' : 'Bugün Nakit Giriş'
+  const totalLiquidity = accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0)
 
   return (
     <PageShell>
-      <PageHeader
-        data-tour="kasa-baslik"
-        eyebrow="Finans"
-        title="Kasa Vardiyası"
-        description="Açılış/kapanış, nakit sayımı ve gün sonu Z raporu."
-        icon={Wallet}
+      {/* Sayfa Başlığı */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <PageHeader
+          data-tour="kasa-baslik"
+          eyebrow="Finans & Kasa 2.0"
+          title="Kasa & Finans Konsolu"
+          description="Çoklu hesap yönetimi, canlı defter (ledger), hızlı finansal aksiyonlar ve gün sonu mutabakatı."
+          icon={Wallet}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            void refreshAll()
+            toast.success('Finans verileri güncellendi')
+          }}
+          className="btn-ghost py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 text-slate-500 hover:text-slate-900 self-start sm:self-auto"
+        >
+          <RefreshCw size={13} /> Yenile
+        </button>
+      </div>
+
+      {/* 1. ÜST BÖLÜM: Hesap Kartları & Toplam Likidite */}
+      <AccountCardsGrid
+        accounts={accounts}
+        totalLiquidity={totalLiquidity}
+        onDeposit={handleDepositAccount}
+        onWithdraw={handleWithdrawAccount}
+        onTransfer={handleTransferAccount}
+        onReconcile={handleReconcileAccount}
       />
 
-      <div data-tour="kasa-ozet-kartlar" className="grid md:grid-cols-3 gap-4">
-        <div className="surface p-5 rounded-2xl">
-          <p className="text-xs font-bold text-slate-500 uppercase">Kasa Bakiye</p>
-          <p className="text-2xl font-black text-slate-900 mt-1">{fmt(shiftCash.kasaBakiye)}</p>
-        </div>
-        <div className="surface p-5 rounded-2xl">
-          <p className="text-xs font-bold text-slate-500 uppercase">{cashLabel}</p>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{fmt(shiftCash.nakit)}</p>
-        </div>
-        <div className="surface p-5 rounded-2xl">
-          <p className="text-xs font-bold text-slate-500 uppercase">{openShift ? 'Vardiya Nakit Çıkış' : 'Bugün Nakit Çıkış'}</p>
-          <p className="text-2xl font-black text-red-600 mt-1">{fmt(shiftCash.nakitCikis)}</p>
-        </div>
-      </div>
+      {/* 2. HIZLI AKSİYON BARI */}
+      <QuickActionBar
+        onOpenDeposit={() => {
+          setTargetAccount(null)
+          setIsDepositOpen(true)
+        }}
+        onOpenWithdraw={() => {
+          setTargetAccount(null)
+          setIsWithdrawOpen(true)
+        }}
+        onOpenTransfer={() => {
+          setTargetAccount(null)
+          setIsTransferOpen(true)
+        }}
+        onOpenReconcile={() => {
+          setTargetAccount(null)
+          setIsReconcileOpen(true)
+        }}
+        onOpenDailyEod={() => setIsDailyEodOpen(true)}
+        onOpenLegacyShifts={() => setIsLegacyShiftsOpen(true)}
+      />
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <PageCard data-tour="kasa-vardiya-panel" title={openShift ? 'Açık Vardiya' : 'Vardiya Aç'}>
-          {openShift ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl text-sm font-semibold">
-                <Unlock size={16} /> {new Date(openShift.opened_at).toLocaleString('tr-TR')} — {openShift.opened_by}
-              </div>
-              <p className="text-sm text-slate-600">Açılış: <strong>{fmt(openShift.opening_balance)}</strong></p>
-              <p className="text-sm text-slate-600">Beklenen nakit: <strong>{fmt(expected)}</strong></p>
-              <input className="input" type="number" placeholder="Sayım tutarı (₺)" value={closing} onChange={e => setClosing(e.target.value)} />
-              <input className="input" placeholder="Not (opsiyonel)" value={notes} onChange={e => setNotes(e.target.value)} />
-              <button data-tour="kasa-vardiya-kapat-btn" type="button" onClick={handleClose} className="btn-primary w-full flex items-center justify-center gap-2">
-                <Lock size={16} /> Vardiyayı Kapat & Rapor
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-500">Sabah kasadaki nakit tutarını girin. Önerilen: {fmt(suggestOpeningCash())}</p>
-              <input data-tour="kasa-acilis-input" className="input" type="number" placeholder="Açılış kasa tutarı (₺)" value={opening} onChange={e => setOpening(e.target.value)} />
-              <button data-tour="kasa-vardiya-ac-btn" type="button" onClick={handleOpen} className="btn-primary w-full flex items-center justify-center gap-2">
-                <Unlock size={16} /> Vardiya Aç
-              </button>
-            </div>
-          )}
-        </PageCard>
+      {/* 3. BUGÜNKÜ FİNANS ÖZETİ */}
+      <DailySummaryCards
+        income={dailyStats.income}
+        expense={dailyStats.expense}
+        refund={dailyStats.refund}
+        transferVolume={dailyStats.transferVolume}
+        netFlow={dailyStats.netFlow}
+        veresiyeAccrual={dailyStats.veresiyeAccrual}
+      />
 
-        <PageCard data-tour="kasa-gecmis" title="Vardiya Geçmişi" noPadding>
-          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-            {history.length === 0 ? (
-              <p className="text-sm text-slate-400 p-5 text-center">Kayıt yok</p>
-            ) : history.map(s => (
-              <div key={s.id} className="px-5 py-3 flex justify-between items-center text-sm">
-                <div>
-                  <p className="font-semibold text-slate-800">{new Date(s.opened_at).toLocaleDateString('tr-TR')}</p>
-                  <p className="text-xs text-slate-400">{s.status === 'open' ? 'Açık' : 'Kapalı'}</p>
-                </div>
-                <div className="text-right flex flex-col items-end gap-1">
-                  <p className="font-mono font-bold">{fmt(s.closing_balance ?? s.opening_balance)}</p>
-                  {s.difference !== undefined && (
-                    <p className={`text-xs font-bold ${s.difference === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      Fark: {fmt(s.difference)}
-                    </p>
-                  )}
-                  {s.status === 'closed' && (
-                    <Link href={`/dashboard/kasa/rapor/${s.id}`} className="text-xs text-sky-600 flex items-center gap-1">
-                      <FileText size={12} /> Rapor
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </PageCard>
-      </div>
+      {/* 4. CANLI DEFTER (LEDGER) TABLOSU */}
+      <LiveLedgerTable
+        transactions={transactions}
+        accounts={accounts}
+        loading={loading}
+        totalCount={totalTxCount}
+        page={page}
+        pageSize={50}
+        onPageChange={p => {
+          setPage(p)
+          void loadTransactions(p, search, accountFilter, typeFilter)
+        }}
+        onSearchChange={q => {
+          setSearch(q)
+          setPage(1)
+          void loadTransactions(1, q, accountFilter, typeFilter)
+        }}
+        onAccountFilterChange={acc => {
+          setAccountFilter(acc)
+          setPage(1)
+          void loadTransactions(1, search, acc, typeFilter)
+        }}
+        onTypeFilterChange={t => {
+          setTypeFilter(t)
+          setPage(1)
+          void loadTransactions(1, search, accountFilter, t)
+        }}
+      />
 
-      {canAdjust && (
-        <PageCard title="Kasa Düzeltme">
-          <p className="text-xs text-slate-500 mb-3">
-            Eski bug veya sayım farkı için nakit bakiyeyi düzeltin. İşlem loglanır (Kasa Düzeltme).
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              className="input sm:w-40"
-              type="number"
-              placeholder="Δ tutar (±₺)"
-              value={adjDelta}
-              onChange={e => setAdjDelta(e.target.value)}
-            />
-            <input
-              className="input flex-1"
-              placeholder="Gerekçe (zorunlu)"
-              value={adjReason}
-              onChange={e => setAdjReason(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={adjBusy}
-              className="btn-secondary whitespace-nowrap"
-              onClick={() => {
-                const delta = parseLocaleNumber(adjDelta)
-                if (!Number.isFinite(delta) || delta === 0) { toast.error('Geçerli tutar girin (örn. 50,5)'); return }
-                if (!delta || !adjReason.trim()) {
-                  toast.error('Tutar ve gerekçe girin')
-                  return
-                }
-                setAdjBusy(true)
-                void fetch('/api/tenant/kasa/adjust', {
-                  method: 'POST',
-                  credentials: 'same-origin',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ delta, reason: adjReason.trim() }),
-                })
-                  .then(async r => {
-                    const j = await r.json()
-                    if (!r.ok) throw new Error(j.error || 'Düzeltme başarısız')
-                    toast.success(`Kasa güncellendi: ${fmt(j.kasa_balance)}`)
-                    setAdjDelta('')
-                    setAdjReason('')
-                    refresh()
-                  })
-                  .catch(e => toast.error(e instanceof Error ? e.message : 'Hata'))
-                  .finally(() => setAdjBusy(false))
-              }}
-            >
-              {adjBusy ? <Loader2 className="animate-spin" size={14} /> : 'Uygula'}
-            </button>
-          </div>
-        </PageCard>
-      )}
+      {/* ─── MODALLAR ──────────────────────────────────────────────────────── */}
+
+      {/* Para Girişi Modalı */}
+      <TransactionModal
+        isOpen={isDepositOpen}
+        type="gelir"
+        accounts={accounts}
+        selectedAccount={targetAccount}
+        onClose={() => setIsDepositOpen(false)}
+        onSuccess={refreshAll}
+      />
+
+      {/* Para Çıkışı Modalı */}
+      <TransactionModal
+        isOpen={isWithdrawOpen}
+        type="gider"
+        accounts={accounts}
+        selectedAccount={targetAccount}
+        onClose={() => setIsWithdrawOpen(false)}
+        onSuccess={refreshAll}
+      />
+
+      {/* Transfer Modalı */}
+      <TransferModal
+        isOpen={isTransferOpen}
+        accounts={accounts}
+        fromAccount={targetAccount}
+        onClose={() => setIsTransferOpen(false)}
+        onSuccess={refreshAll}
+      />
+
+      {/* Mutabakat Modalı */}
+      <ReconciliationModal
+        isOpen={isReconcileOpen}
+        accounts={accounts}
+        selectedAccount={targetAccount}
+        onClose={() => setIsReconcileOpen(false)}
+        onSuccess={refreshAll}
+      />
+
+      {/* Gün Sonu EOD Modalı */}
+      <DailyEodModal
+        isOpen={isDailyEodOpen}
+        onClose={() => setIsDailyEodOpen(false)}
+      />
+
+      {/* Geçmiş Vardiyalar Modalı */}
+      <LegacyShiftsModal
+        isOpen={isLegacyShiftsOpen}
+        onClose={() => setIsLegacyShiftsOpen(false)}
+        onShiftChange={refreshAll}
+      />
     </PageShell>
   )
 }

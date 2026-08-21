@@ -48,6 +48,8 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [scanMode, setScanMode] = useState<ScanMode>('off')
 
+  const abortControllerRef = useRef<AbortController | null>(null)
+
   const stopCamera = useCallback(async () => {
     if (cleanupRef.current) {
       const fn = cleanupRef.current
@@ -65,11 +67,15 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
       setResults([])
       setTimeout(() => inputRef.current?.focus(), 50)
     } else {
+      abortControllerRef.current?.abort()
       void stopCamera()
     }
   }, [open, stopCamera])
 
-  useEffect(() => () => { void stopCamera() }, [stopCamera])
+  useEffect(() => () => {
+    abortControllerRef.current?.abort()
+    void stopCamera()
+  }, [stopCamera])
 
   const runSearch = useCallback(async (q: string) => {
     const trimmed = q.trim()
@@ -78,22 +84,37 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
       setResults([])
       return
     }
+
+    // Önceki bekleyen aramayı iptal et (Stale response protection)
+    abortControllerRef.current?.abort()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     setLoading(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, { credentials: 'same-origin' })
+      const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, {
+        credentials: 'same-origin',
+        signal: controller.signal,
+      })
       const json = await res.json()
       setResults(json.results ?? [])
-    } catch {
-      setResults([])
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setResults([])
+      }
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) {
+        setLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
     if (!open) return
     const t = setTimeout(() => void runSearch(query), 300)
-    return () => clearTimeout(t)
+    return () => {
+      clearTimeout(t)
+    }
   }, [query, open, runSearch])
 
   const applyScan = useCallback((raw: string) => {

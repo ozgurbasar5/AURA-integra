@@ -16,6 +16,7 @@ const AdminChurnPanel = dynamic(() => import('./AdminChurnPanel'), { ssr: false 
 const AdminOpsAlerts = dynamic(() => import('@/components/admin/AdminOpsAlerts'), { ssr: false })
 const ModuleMaturityPanel = dynamic(() => import('@/components/admin/ModuleMaturityPanel'), { ssr: false })
 const AdminAiCostWidget = dynamic(() => import('@/components/admin/AdminAiCostWidget'), { ssr: false })
+const AdminControlCenter = dynamic(() => import('@/components/admin/AdminControlCenter').then(m => m.AdminControlCenter), { ssr: false })
 
 interface TenantRow {
   id: string
@@ -86,6 +87,8 @@ export default async function AdminDashboardPage() {
         description={`${now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })} — Bayi, ödeme ve operasyon özeti`}
         icon={LayoutDashboard}
       />
+
+      <AdminControlCenter isPlatformAdmin={true} />
 
       <AdminOpsAlerts />
 

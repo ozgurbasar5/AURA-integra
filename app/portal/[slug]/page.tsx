@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import PortalTrackUI from '@/components/portal/PortalTrackUI'
+import PortalSelfService from '@/components/portal/PortalSelfService'
 import { Loader2, Package } from 'lucide-react'
 
 export default function PortalPage({ params }: { params: { slug: string } }) {
@@ -60,12 +60,12 @@ export default function PortalPage({ params }: { params: { slug: string } }) {
   }
 
   return (
-    <PortalTrackUI
+    <PortalSelfService
       slug={params.slug}
-      shopName={branding.shopName}
-      shopPhone={branding.shopPhone}
-      shopLogo={branding.shopLogo}
-      shopAddress={branding.shopAddress}
+      initialShopName={branding.shopName}
+      initialShopPhone={branding.shopPhone}
+      initialShopLogo={branding.shopLogo}
+      initialShopAddress={branding.shopAddress}
     />
   )
 }

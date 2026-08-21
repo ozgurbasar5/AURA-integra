@@ -20,9 +20,14 @@ export default function OnboardingTourTrigger({
 }: Props) {
   const planLevel = usePlanLevel()
   const { role, isOwner } = useUserRole()
-  const [wizardDone, setWizardDone] = useState(
-    () => setupWizardCompleted || (!!userId && readLocalSetupWizardDone(userId)),
-  )
+  const [wizardDone, setWizardDone] = useState(setupWizardCompleted)
+
+  // Kurulum sihirbazı durumunu mount sonrası güvenle oku
+  useEffect(() => {
+    if (!wizardDone && userId && readLocalSetupWizardDone(userId)) {
+      setWizardDone(true)
+    }
+  }, [userId, wizardDone])
 
   // Kurulum sihirbazı bitmeden tur başlatma (üst üste binen overlay önlenir)
   useEffect(() => {

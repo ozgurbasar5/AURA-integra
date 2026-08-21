@@ -31,6 +31,7 @@ import {
   TodaySalesBreakdownWidget, RecentActivityWidget, TodosPreviewWidget, QualityDistributionWidget,
 } from '@/components/dashboard/DashboardVantaWidgets'
 import { getBusinessBranding } from '@/lib/business-branding'
+import { useUserPreferences } from '@/lib/useUserPreferences'
 import { toast } from 'sonner'
 
 const STATUS: Record<string, { label: string; dot: string; pipelineKey: string }> = {
@@ -89,6 +90,15 @@ export default function DashboardPage() {
   const [pipelineFilter, setPipelineFilter] = useState<string | null>(null)
   const [shopName, setShopName] = useState('')
   const [remoteStats, setRemoteStats] = useState<{ active_orders?: number; low_stock?: number; today_sales?: number } | null>(null)
+  const { preferences } = useUserPreferences()
+
+  const isWidgetVisible = useCallback(
+    (widgetId: string) => {
+      const w = preferences.dashboard?.widgets?.find(x => x.id === widgetId)
+      return w ? w.visible : true
+    },
+    [preferences.dashboard?.widgets],
+  )
 
   const refresh = useCallback(() => {
     setSummary(getFinanceSummary())
@@ -186,32 +196,36 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-12">
       <DashboardDayHeader shopName={shopName || 'Mağaza'} />
-      <DashboardHero homeLabel={homeLabel} subtitle={subtitle} shopName={shopName !== 'AURA İntegra' ? shopName : undefined}>
-        {isTechnician ? (
-          <>
-            <Link href="/dashboard/atolye" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-sky-800 text-sm font-bold hover:bg-sky-50 shadow-lg">
-              <Wrench size={15} /> Atölye
-            </Link>
-          </>
-        ) : (
-          <>
-            <Link href="/dashboard/satis" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-sky-800 text-sm font-bold hover:bg-sky-50 shadow-lg">
-              Satış
-            </Link>
-            {hasService && (
-              <Link href="/dashboard/kabul" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white text-sm font-bold hover:bg-white/20">
-                + Kabul
+      {isWidgetVisible('hero') && (
+        <DashboardHero homeLabel={homeLabel} subtitle={subtitle} shopName={shopName !== 'AURA İntegra' ? shopName : undefined}>
+          {isTechnician ? (
+            <>
+              <Link href="/dashboard/atolye" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-sky-800 text-sm font-bold hover:bg-sky-50 shadow-lg">
+                <Wrench size={15} /> Atölye
               </Link>
-            )}
-          </>
-        )}
-      </DashboardHero>
+            </>
+          ) : (
+            <>
+              <Link href="/dashboard/satis" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-sky-800 text-sm font-bold hover:bg-sky-50 shadow-lg">
+                Satış
+              </Link>
+              {hasService && (
+                <Link href="/dashboard/kabul" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white text-sm font-bold hover:bg-white/20">
+                  + Kabul
+                </Link>
+              )}
+            </>
+          )}
+        </DashboardHero>
+      )}
 
       <YenilikBanner />
 
-      <QuickActionGrid role={role} isOwner={isOwner} planLevel={planLevel} />
+      {isWidgetVisible('quick_actions') && (
+        <QuickActionGrid role={role} isOwner={isOwner} planLevel={planLevel} />
+      )}
 
-      {summary.criticalStockCount > 0 && !isTechnician && (
+      {summary.criticalStockCount > 0 && !isTechnician && isWidgetVisible('critical_stock') && (
         <CriticalStockBanner count={lowStockCount} />
       )}
 

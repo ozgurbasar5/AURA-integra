@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Wrench, Plus, ShoppingCart, Package, Store, ClipboardCheck, Wallet,
@@ -19,9 +20,14 @@ export function DashboardHero({
   shopName?: string
   children?: React.ReactNode
 }) {
-  const hour = new Date().getHours()
-  const greet = hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
-  const today = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const [greet, setGreet] = useState('İyi günler')
+  const [today, setToday] = useState('GENEL BAKIŞ')
+
+  useEffect(() => {
+    const hour = new Date().getHours()
+    setGreet(hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar')
+    setToday(new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }))
+  }, [])
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-[var(--accent)]/20 hero-themed text-white shadow-xl" data-tour="dashboard-hero">

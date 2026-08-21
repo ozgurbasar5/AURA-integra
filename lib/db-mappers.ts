@@ -222,7 +222,7 @@ export function saleToDb(
   s: Sale,
   tenantId: string,
   userId?: string,
-  opts?: { cash_shift_id?: string | null },
+  opts?: { cash_shift_id?: string | null; account_id?: string | null },
 ): Row {
   return {
     id: s.id.match(/^[0-9a-f-]{36}$/i) ? s.id : undefined,
@@ -244,6 +244,7 @@ export function saleToDb(
       profit_margin: s.profit_margin,
       total_with_vat: s.total_with_vat,
       ...(opts?.cash_shift_id ? { cash_shift_id: opts.cash_shift_id } : {}),
+      ...(opts?.account_id ? { account_id: opts.account_id } : {}),
     },
   }
 }
@@ -986,9 +987,10 @@ export function statusHistoryToStore(row: Row): StatusHistoryEntry {
   }
 }
 
-export function statusHistoryToDb(entry: StatusHistoryEntry, userId?: string): Row {
+export function statusHistoryToDb(entry: StatusHistoryEntry, userId?: string, tenantId?: string): Row {
   return {
     id: entry.id.match(/^[0-9a-f-]{36}$/i) ? entry.id : undefined,
+    tenant_id: tenantId,
     order_id: entry.service_order_id,
     status: entry.status,
     note: entry.note ?? null,

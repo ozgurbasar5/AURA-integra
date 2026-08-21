@@ -1,281 +1,449 @@
-import { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
+  FlatList,
+  Pressable,
   RefreshControl,
-  ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
+import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { apiFetch, invalidateApiCache } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 import { useAppTheme } from '@/lib/ThemeContext'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { FormModal } from '@/components/ui/FormModal'
-import { ListRow } from '@/components/ui/ListRow'
+import { useRealtimeSubscription } from '@/lib/useRealtimeSubscription'
+import { ErrorBanner, LoadingBlock } from '@/components/ui/States'
 import { SectionHeader } from '@/components/ui/SectionHeader'
-import { TextField } from '@/components/ui/TextField'
-import { EmptyState, ErrorBanner, LoadingBlock, StatPill } from '@/components/ui/States'
-import { parseLocaleNumber } from '@/lib/parse-locale-number'
+import { LiquidityBanner } from '@/components/kasa/LiquidityBanner'
+import { AccountCardStrip, type AccountItem } from '@/components/kasa/AccountCardStrip'
+import { QuickActions } from '@/components/kasa/QuickActions'
+import { DailySummaryRow } from '@/components/kasa/DailySummaryRow'
+import { TransactionListItem, type TransactionItem } from '@/components/kasa/TransactionListItem'
+import { NetworkBanner } from '@/components/kasa/NetworkBanner'
+import { IncomeSheet } from '@/components/kasa/IncomeSheet'
+import { ExpenseSheet } from '@/components/kasa/ExpenseSheet'
+import { TransferSheet } from '@/components/kasa/TransferSheet'
+import { ReconcileSheet } from '@/components/kasa/ReconcileSheet'
+import { FilterSheet } from '@/components/kasa/FilterSheet'
 
-type Shift = {
-  id: string
-  status: string
-  opening_balance: number
-  closing_balance?: number | null
-  opened_at: string
-  closed_at?: string | null
-  difference?: number | null
-  expected_cash?: number | null
-}
+const PAGE_SIZE = 20
 
-type EodReport = {
-  meta?: { shop_name?: string }
-  totals?: { sales?: number; cash?: number; card?: number; income?: number; expense?: number }
-  summary?: Record<string, number>
-}
-
+/**
+ * KasaScreen — Mobile Kasa 2.0
+ *
+ * ARCHITECTURE:
+ * - Server-authoritative: all balances from GET /api/tenant/accounts
+ * - No local balance manipulation
+ * - Realtime: invalidate+refetch on postgres_changes
+ * - No cash-shift dependency
+ * - No duplicate state store
+ */
 export default function KasaScreen() {
   const { colors } = useAppTheme()
-  const [shifts, setShifts] = useState<Shift[]>([])
+
+  // ─── Server Data ──────────────────────────────────────────────────────────
+  const [accounts, setAccounts] = useState<AccountItem[]>([])
+  const [transactions, setTransactions] = useState<TransactionItem[]>([])
+  const [totalTxCount, setTotalTxCount] = useState(0)
+  const [dailyStats, setDailyStats] = useState({ income: 0, expense: 0, net: 0 })
+
+  // ─── UI State ─────────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [opening, setOpening] = useState('0')
-  const [closing, setClosing] = useState('0')
-  const [adjustOpen, setAdjustOpen] = useState(false)
-  const [adjustDelta, setAdjustDelta] = useState('')
-  const [adjustReason, setAdjustReason] = useState('')
-  const [report, setReport] = useState<EodReport | null>(null)
-  const [reportShiftId, setReportShiftId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [accountFilter, setAccountFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
   const hasData = useRef(false)
 
-  const load = useCallback(async (fresh = false, isRefresh = false) => {
-    if (!hasData.current && !isRefresh) setLoading(true)
-    if (isRefresh) setRefreshing(true)
+  // ─── Modal States ─────────────────────────────────────────────────────────
+  const [incomeOpen, setIncomeOpen] = useState(false)
+  const [expenseOpen, setExpenseOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [reconcileOpen, setReconcileOpen] = useState(false)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [targetAccount, setTargetAccount] = useState<AccountItem | null>(null)
+
+  // ─── Data Loaders ─────────────────────────────────────────────────────────
+
+  const loadAccounts = useCallback(async () => {
     try {
-      const json = await apiFetch('/api/tenant/cash-shifts', { fresh }) as { items?: Shift[] }
-      setShifts(json.items ?? [])
-      hasData.current = true
-      setError('')
+      const json = await apiFetch('/api/tenant/accounts', { fresh: true }) as { accounts?: AccountItem[] }
+      if (json.accounts) {
+        setAccounts(json.accounts.map(a => ({
+          ...a,
+          balance: Number(a.balance) || 0,
+        })))
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Yüklenemedi')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
+      console.warn('[Kasa] accounts load failed:', e)
     }
   }, [])
 
-  useFocusEffect(useCallback(() => {
-    void (async () => {
-      if (!hasData.current) await load(false)
-      else await load(true)
-    })()
-  }, [load]))
-
-  const openShift = shifts.find(s => s.status === 'open')
-  const closed = shifts.filter(s => s.status !== 'open')
-  const lastDiff = closed[0]?.difference
-
-  async function open() {
-    setBusy(true)
-    setError('')
+  const loadTransactions = useCallback(async (p = 1, acc = '', t = '') => {
     try {
-      await apiFetch('/api/tenant/cash-shifts', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'open', opening_balance: Number(opening) || 0 }),
-      })
-      invalidateApiCache('/api/tenant/cash-shifts')
-      await load(true, true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Açılamadı')
-    } finally {
-      setBusy(false)
-    }
-  }
+      const limit = PAGE_SIZE
+      const offset = (p - 1) * limit
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+      if (acc) params.set('account_id', acc)
+      if (t) params.set('type', t)
 
-  async function close() {
-    setBusy(true)
-    setError('')
-    try {
-      await apiFetch('/api/tenant/cash-shifts', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'close', closing_balance: Number(closing) || 0 }),
-      })
-      invalidateApiCache('/api/tenant/cash-shifts')
-      await load(true, true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Kapatılamadı')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function loadReport(shiftId: string) {
-    setBusy(true)
-    setError('')
-    try {
-      const json = await apiFetch(`/api/tenant/eod-report?shiftId=${shiftId}`, { fresh: true }) as {
-        report?: EodReport
+      const json = await apiFetch(`/api/tenant/transactions?${params.toString()}`, { fresh: true }) as {
+        transactions?: TransactionItem[]
+        total?: number
       }
-      setReport(json.report ?? null)
-      setReportShiftId(shiftId)
+      if (json.transactions) {
+        setTransactions(json.transactions.map(tx => ({
+          ...tx,
+          amount: Number(tx.amount) || 0,
+        })))
+        setTotalTxCount(json.total || 0)
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Z raporu alınamadı')
-    } finally {
-      setBusy(false)
+      console.warn('[Kasa] transactions load failed:', e)
     }
-  }
+  }, [])
 
-  async function submitAdjust() {
-    const delta = parseLocaleNumber(adjustDelta)
-    if (!Number.isFinite(delta) || delta === 0 || adjustReason.trim().length < 5) {
-      setError('Geçerli tutar (örn. 50,5) ve en az 5 karakter neden gerekli')
-      return
-    }
-    setBusy(true)
-    setError('')
+  const loadDailyStats = useCallback(async () => {
     try {
-      await apiFetch('/api/tenant/kasa/adjust', {
-        method: 'POST',
-        body: JSON.stringify({ delta, reason: adjustReason.trim() }),
-      })
-      setAdjustOpen(false)
-      setAdjustDelta('')
-      setAdjustReason('')
-      await load(true, true)
+      const today = new Date().toISOString().slice(0, 10)
+      const json = await apiFetch(`/api/tenant/reports/daily-eod?date=${today}`, { fresh: true }) as {
+        report?: { totals?: { total_income?: number; total_expense?: number; net_flow?: number } }
+      }
+      if (json.report?.totals) {
+        const t = json.report.totals
+        setDailyStats({
+          income: t.total_income || 0,
+          expense: t.total_expense || 0,
+          net: t.net_flow || 0,
+        })
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Düzeltme başarısız')
-    } finally {
-      setBusy(false)
+      console.warn('[Kasa] daily stats load failed:', e)
     }
-  }
+  }, [])
 
-  if (loading && shifts.length === 0) {
-    return <View style={[styles.root, { backgroundColor: colors.bg }]}><LoadingBlock label="Kasa yükleniyor…" /></View>
-  }
+  const refreshAll = useCallback(async () => {
+    setError('')
+    await Promise.all([
+      loadAccounts(),
+      loadTransactions(page, accountFilter, typeFilter),
+      loadDailyStats(),
+    ])
+  }, [loadAccounts, loadTransactions, loadDailyStats, page, accountFilter, typeFilter])
 
-  const totals = report?.totals || report?.summary
+  // ─── Initial Load + Focus Refetch ─────────────────────────────────────────
 
-  async function shareReport() {
-    if (!totals) return
-    const lines = Object.entries(totals).slice(0, 12).map(([k, v]) =>
-      `${k.replace(/_/g, ' ')}: ${typeof v === 'number' ? `${Number(v).toLocaleString('tr-TR')} ₺` : String(v)}`,
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        if (!hasData.current) {
+          setLoading(true)
+          try {
+            await refreshAll()
+            hasData.current = true
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Kasa verileri yüklenemedi')
+          } finally {
+            setLoading(false)
+          }
+        } else {
+          // Stale-while-revalidate: show cached, refetch in background
+          void refreshAll()
+        }
+      })()
+    }, [refreshAll])
+  )
+
+  // ─── Realtime Subscriptions ───────────────────────────────────────────────
+  // Rule #4: invalidate+refetch, never blindly increment
+
+  useRealtimeSubscription({
+    table: 'accounts',
+    supabaseClient: supabase as any,
+    onPayload: () => {
+      void loadAccounts()
+    },
+  })
+
+  useRealtimeSubscription({
+    table: 'financial_transactions',
+    supabaseClient: supabase as any,
+    onPayload: () => {
+      void loadTransactions(page, accountFilter, typeFilter)
+      void loadAccounts()
+      void loadDailyStats()
+    },
+  })
+
+  // ─── Action Handlers ──────────────────────────────────────────────────────
+
+  const handleMutationSuccess = useCallback(() => {
+    setIsSaving(true)
+    void refreshAll().finally(() => setIsSaving(false))
+  }, [refreshAll])
+
+  const handleAccountCardTap = useCallback((acc: AccountItem) => {
+    // Filter ledger by this account
+    setAccountFilter(acc.id)
+    setPage(1)
+    void loadTransactions(1, acc.id, typeFilter)
+  }, [loadTransactions, typeFilter])
+
+  const handleQuickIncome = useCallback((acc: AccountItem) => {
+    setTargetAccount(acc)
+    setIncomeOpen(true)
+  }, [])
+
+  const handleQuickExpense = useCallback((acc: AccountItem) => {
+    setTargetAccount(acc)
+    setExpenseOpen(true)
+  }, [])
+
+  const handleFilterChange = useCallback((acc: string, t: string) => {
+    setAccountFilter(acc)
+    setTypeFilter(t)
+    setPage(1)
+    void loadTransactions(1, acc, t)
+  }, [loadTransactions])
+
+  const handleLoadMore = useCallback(() => {
+    if (transactions.length >= totalTxCount) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    void loadTransactions(nextPage, accountFilter, typeFilter)
+  }, [page, transactions.length, totalTxCount, loadTransactions, accountFilter, typeFilter])
+
+  // ─── Computed ─────────────────────────────────────────────────────────────
+
+  const totalLiquidity = useMemo(
+    () => accounts.reduce((s, a) => s + (Number(a.balance) || 0), 0),
+    [accounts]
+  )
+
+  const accountNameMap = useMemo(
+    () => Object.fromEntries(accounts.map(a => [a.id, a.name])),
+    [accounts]
+  )
+
+  const hasActiveFilters = accountFilter !== '' || typeFilter !== ''
+
+  // ─── Loading State ────────────────────────────────────────────────────────
+
+  if (loading && !hasData.current) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.bg }]}>
+        <LoadingBlock label="Kasa yükleniyor…" />
+      </View>
     )
-    await Share.share({
-      message: `Z raporu özeti\n${lines.join('\n')}`,
-      title: 'Kasa Z raporu',
-    })
   }
 
-  return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: colors.bg }]}
-      contentContainerStyle={{ padding: 16, gap: 12 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true, true)} tintColor={colors.primary} />}
-    >
-      {error ? <ErrorBanner message={error} onRetry={() => void load(true, true)} /> : null}
+  // ─── Render ───────────────────────────────────────────────────────────────
 
-      <View style={styles.stats}>
-        <StatPill label="Durum" value={openShift ? 'Açık' : 'Kapalı'} tone={openShift ? 'success' : 'warning'} />
-        <StatPill
-          label="Son fark"
-          value={lastDiff == null ? '—' : `${Number(lastDiff).toFixed(0)}₺`}
-          tone={lastDiff != null && Number(lastDiff) < 0 ? 'danger' : 'default'}
-        />
-        <StatPill label="Kayıt" value={shifts.length} />
+  const ListHeader = (
+    <View style={styles.headerContent}>
+      {/* Network status */}
+      <NetworkBanner isConnected={true} isSaving={isSaving} />
+
+      {/* Error */}
+      {error ? <ErrorBanner message={error} onRetry={() => void refreshAll()} /> : null}
+
+      {/* 1. Total Liquidity */}
+      <View style={styles.padH}>
+        <LiquidityBanner totalLiquidity={totalLiquidity} />
       </View>
 
-      <Card>
-        <Text style={[styles.title, { color: colors.text }]}>Güncel vardiya</Text>
-        {openShift ? (
-          <>
-            <Text style={{ fontWeight: '800', color: colors.success, fontSize: 15 }}>Vardiya açık</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Açılış: {Number(openShift.opening_balance).toFixed(2)} ₺ · {new Date(openShift.opened_at).toLocaleString('tr-TR')}
-            </Text>
-            <TextField label="Kapanış bakiyesi" keyboardType="decimal-pad" value={closing} onChangeText={setClosing} />
-            <Button title="Kasayı Kapat" variant="danger" loading={busy} onPress={() => void close()} />
-            <Button title="Z raporu (açık)" variant="secondary" loading={busy} onPress={() => void loadReport(openShift.id)} />
-          </>
-        ) : (
-          <>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>Satış ve tahsilat için önce vardiya açın</Text>
-            <TextField label="Açılış bakiyesi" keyboardType="decimal-pad" value={opening} onChangeText={setOpening} />
-            <Button title="Kasayı Aç" loading={busy} onPress={() => void open()} />
-          </>
-        )}
-        <Button title="Kasa düzeltme" variant="ghost" onPress={() => setAdjustOpen(true)} />
-      </Card>
+      {/* 2. Account Cards */}
+      <AccountCardStrip
+        accounts={accounts}
+        onSelectAccount={handleAccountCardTap}
+        onQuickIncome={handleQuickIncome}
+        onQuickExpense={handleQuickExpense}
+      />
 
-      {report && reportShiftId ? (
-        <Card>
-          <SectionHeader title="Z raporu özeti" />
-          <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 8 }}>
-            Vardiya {reportShiftId.slice(0, 8)}…
+      {/* 3. Quick Actions */}
+      <QuickActions
+        onIncome={() => { setTargetAccount(null); setIncomeOpen(true) }}
+        onExpense={() => { setTargetAccount(null); setExpenseOpen(true) }}
+        onTransfer={() => { setTargetAccount(null); setTransferOpen(true) }}
+        onReconcile={() => { setTargetAccount(null); setReconcileOpen(true) }}
+      />
+
+      {/* 4. Daily Summary */}
+      <DailySummaryRow
+        income={dailyStats.income}
+        expense={dailyStats.expense}
+        net={dailyStats.net}
+      />
+
+      {/* 5. Transaction List Header */}
+      <View style={styles.txHeaderRow}>
+        <SectionHeader title="Son Hareketler" />
+        <Pressable
+          onPress={() => setFilterOpen(true)}
+          style={[styles.filterBtn, { backgroundColor: hasActiveFilters ? colors.primarySoft : colors.card, borderColor: colors.border, borderRadius: colors.radiusSm }]}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Filtreleri aç"
+        >
+          <FontAwesome name="filter" size={13} color={hasActiveFilters ? colors.primary : colors.muted} />
+          <Text style={[styles.filterText, { color: hasActiveFilters ? colors.primary : colors.muted }]}>
+            {hasActiveFilters ? 'Filtreli' : 'Filtre'}
           </Text>
-          {totals ? (
-            <View style={{ gap: 6 }}>
-              {Object.entries(totals).slice(0, 8).map(([k, v]) => (
-                <View key={k} style={styles.reportRow}>
-                  <Text style={{ color: colors.muted, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</Text>
-                  <Text style={{ color: colors.text, fontWeight: '800' }}>
-                    {typeof v === 'number' ? `${Number(v).toLocaleString('tr-TR')} ₺` : String(v)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>Özet alanları yok — web’de detaylı rapor</Text>
-          )}
-          {totals ? (
-            <Button title="Raporu paylaş" variant="secondary" onPress={() => void shareReport()} style={{ marginTop: 12 }} />
-          ) : null}
-        </Card>
+        </Pressable>
+      </View>
+
+      {/* Active filter badge */}
+      {hasActiveFilters ? (
+        <Pressable
+          onPress={() => { setAccountFilter(''); setTypeFilter(''); setPage(1); void loadTransactions(1, '', '') }}
+          style={[styles.clearFilter, { backgroundColor: colors.warningSoft, borderRadius: colors.radiusSm }]}
+          accessibilityRole="button"
+          accessibilityLabel="Filtreleri temizle"
+        >
+          <Text style={[styles.clearFilterText, { color: colors.warning }]}>
+            ✕ Filtreleri temizle
+          </Text>
+        </Pressable>
       ) : null}
+    </View>
+  )
 
-      <Text style={[styles.section, { color: colors.muted }]}>Son vardiyalar</Text>
-      {shifts.length === 0 ? (
-        <EmptyState icon="money" title="Vardiya geçmişi yok" subtitle="İlk vardiyayı açarak başlayın" />
-      ) : (
-        shifts.slice(0, 12).map(s => (
-          <ListRow
-            key={s.id}
-            title={s.status === 'open' ? 'Açık vardiya' : 'Kapalı vardiya'}
-            meta={`${new Date(s.opened_at).toLocaleString('tr-TR')}${s.difference != null ? ` · fark ${Number(s.difference).toFixed(0)} ₺` : ''}`}
-            right={
-              <Text style={{ color: colors.primary, fontWeight: '800' }}>
-                {Number(s.closing_balance ?? s.opening_balance).toFixed(0)} ₺
+  return (
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <FlatList
+        data={transactions}
+        keyExtractor={(item, idx) => item.id || String(idx)}
+        ListHeaderComponent={ListHeader}
+        renderItem={({ item }) => (
+          <TransactionListItem item={item} accountNames={accountNameMap} />
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={[styles.emptyText, { color: colors.muted }]}>Hareket bulunamadı</Text>
+          </View>
+        }
+        ListFooterComponent={
+          transactions.length < totalTxCount ? (
+            <Pressable
+              onPress={handleLoadMore}
+              style={[styles.loadMore, { borderColor: colors.border, borderRadius: colors.radius }]}
+              accessibilityRole="button"
+              accessibilityLabel="Daha fazla hareket yükle"
+            >
+              <Text style={[styles.loadMoreText, { color: colors.primary }]}>
+                Daha fazla yükle ({transactions.length}/{totalTxCount})
               </Text>
-            }
-            onPress={() => void loadReport(s.id)}
-            chevron
+            </Pressable>
+          ) : transactions.length > 0 ? (
+            <Text style={[styles.endText, { color: colors.muted }]}>
+              {totalTxCount} hareket gösteriliyor
+            </Text>
+          ) : null
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true)
+              void refreshAll().finally(() => setRefreshing(false))
+            }}
+            tintColor={colors.primary}
           />
-        ))
-      )}
+        }
+        contentContainerStyle={{ paddingBottom: 32, gap: 0 }}
+        showsVerticalScrollIndicator={false}
+      />
 
-      <FormModal
-        visible={adjustOpen}
-        title="Kasa düzeltme"
-        onClose={() => setAdjustOpen(false)}
-        footer={<Button title="Uygula" loading={busy} onPress={() => void submitAdjust()} />}
-      >
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Pozitif delta kasayı artırır. Yalnızca sahip/yönetici.
-        </Text>
-        <TextField label="Delta (₺)" keyboardType="decimal-pad" value={adjustDelta} onChangeText={setAdjustDelta} placeholder="örn. -50 veya 100" />
-        <TextField label="Neden" value={adjustReason} onChangeText={setAdjustReason} placeholder="En az 5 karakter" />
-      </FormModal>
-    </ScrollView>
+      {/* ─── Bottom Sheet Modals ────────────────────────────────────────── */}
+
+      <IncomeSheet
+        visible={incomeOpen}
+        accounts={accounts}
+        preselectedAccount={targetAccount}
+        onClose={() => setIncomeOpen(false)}
+        onSuccess={handleMutationSuccess}
+      />
+
+      <ExpenseSheet
+        visible={expenseOpen}
+        accounts={accounts}
+        preselectedAccount={targetAccount}
+        onClose={() => setExpenseOpen(false)}
+        onSuccess={handleMutationSuccess}
+      />
+
+      <TransferSheet
+        visible={transferOpen}
+        accounts={accounts}
+        preselectedFrom={targetAccount}
+        onClose={() => setTransferOpen(false)}
+        onSuccess={handleMutationSuccess}
+      />
+
+      <ReconcileSheet
+        visible={reconcileOpen}
+        accounts={accounts}
+        preselectedAccount={targetAccount}
+        onClose={() => setReconcileOpen(false)}
+        onSuccess={handleMutationSuccess}
+      />
+
+      <FilterSheet
+        visible={filterOpen}
+        accounts={accounts}
+        accountFilter={accountFilter}
+        typeFilter={typeFilter}
+        onAccountChange={acc => handleFilterChange(acc, typeFilter)}
+        onTypeChange={t => handleFilterChange(accountFilter, t)}
+        onClear={() => handleFilterChange('', '')}
+        onClose={() => setFilterOpen(false)}
+      />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  stats: { flexDirection: 'row', gap: 8 },
-  title: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
-  section: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
-  reportRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  headerContent: { gap: 12, paddingTop: 8, paddingBottom: 8 },
+  padH: { paddingHorizontal: 16 },
+  txHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    minHeight: 32,
+  },
+  filterText: { fontSize: 12, fontWeight: '700' },
+  clearFilter: {
+    marginHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  clearFilterText: { fontSize: 12, fontWeight: '700' },
+  emptyBox: { paddingVertical: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, fontWeight: '600' },
+  loadMore: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  loadMoreText: { fontSize: 13, fontWeight: '700' },
+  endText: { textAlign: 'center', fontSize: 12, fontWeight: '600', paddingVertical: 16 },
 })

@@ -4,13 +4,13 @@ import { useAppTheme } from '@/lib/ThemeContext'
 type Props = PressableProps & {
   label: string
   active?: boolean
-  tone?: 'default' | 'success' | 'danger'
+  tone?: 'default' | 'success' | 'danger' | 'warning'
 }
 
 export function Chip({ label, active, tone = 'default', style, ...rest }: Props) {
   const { colors } = useAppTheme()
   const bg = active
-    ? (tone === 'success' ? colors.success : tone === 'danger' ? colors.danger : colors.primary)
+    ? (tone === 'success' ? colors.success : tone === 'danger' ? colors.danger : tone === 'warning' ? colors.warning : colors.primary)
     : colors.card
   const fg = active ? '#fff' : colors.text
   const border = active ? bg : colors.border

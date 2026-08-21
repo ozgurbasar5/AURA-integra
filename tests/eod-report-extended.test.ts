@@ -80,6 +80,6 @@ describe('buildShiftReportFromDb — genişletilmiş', () => {
       sales: [],
       orders: [],
     })
-    expect(report.shopName ?? 'AURA Bilişim').toContain('AURA')
+    expect((report as any).shopName ?? 'AURA Bilişim').toContain('AURA')
   })
 })

@@ -14,6 +14,7 @@ type SaleBody = {
   customer_name?: string
   payment_method: string
   vat_rate?: number
+  account_id?: string
 }
 
 export async function GET(req: NextRequest) {
@@ -93,6 +94,24 @@ async function completeSaleLegacy(
       .maybeSingle()
     const cashShiftId = openShift?.id ? String(openShift.id) : null
 
+    // Kasa 2.0 Account resolution
+    let accountId: string | null = body.account_id && isUuid(body.account_id) ? body.account_id : null
+    if (!accountId) {
+      const targetType = paymentMethod === 'nakit' ? 'kasa' : paymentMethod === 'kredi_karti' ? 'pos' : paymentMethod === 'havale' ? 'banka' : null
+      if (targetType) {
+        const { data: acc } = await admin
+          .from('accounts')
+          .select('id')
+          .eq('tenant_id', auth.tenantId)
+          .eq('type', targetType)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (acc?.id) accountId = String(acc.id)
+      }
+    }
+
     const saleRow = saleToDb(
       {
         id: saleId,
@@ -113,7 +132,7 @@ async function completeSaleLegacy(
       },
       auth.tenantId,
       auth.userId,
-      { cash_shift_id: cashShiftId },
+      { cash_shift_id: cashShiftId, account_id: accountId },
     )
 
     const { error: saleErr } = await admin.from('sales').insert(saleRow)
@@ -132,6 +151,7 @@ async function completeSaleLegacy(
       customer_name: body.customer_name ?? 'Perakende',
       created_by: auth.userId,
       reference_id: cashShiftId,
+      account_id: accountId,
     })
     if (txErr) throw new Error(txErr.message)
 
@@ -150,7 +170,16 @@ async function completeSaleLegacy(
     }
 
     let newBalance: number | undefined
-    if (paymentMethod === 'nakit') {
+    if (accountId) {
+      const { data: bal } = await admin.rpc('adjust_account_balance', {
+        p_tenant_id: auth.tenantId,
+        p_account_id: accountId,
+        p_delta: totalWithVat,
+      })
+      if (bal != null) newBalance = Number(bal)
+    }
+
+    if (paymentMethod === 'nakit' && newBalance === undefined) {
       const { data: bal, error: kasaErr } = await admin.rpc('adjust_kasa_balance', {
         p_tenant_id: auth.tenantId,
         p_delta: totalWithVat,
@@ -162,12 +191,14 @@ async function completeSaleLegacy(
     return {
       sale_id: saleId,
       transaction_id: transactionId,
+      account_id: accountId,
       cash_shift_id: cashShiftId,
       total_with_vat: totalWithVat,
       subtotal,
       vat_rate: vatRate,
       vat_amount: vatAmount,
       cost_price: costPrice,
+      account_balance: newBalance,
       kasa_balance: newBalance,
       sale: saleRow,
       atomic: false,
@@ -251,12 +282,15 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
     p_customer_name: body.customer_name ?? 'Perakende',
     p_payment_method: paymentMethod,
     p_vat_rate: vatRate,
+    p_account_id: body.account_id && isUuid(body.account_id) ? body.account_id : null,
   })
 
   if (!rpcErr && rpcResult && (rpcResult as { ok?: boolean }).ok !== false) {
     const r = rpcResult as {
       sale_id: string
       transaction_id: string
+      account_id?: string
+      account_balance?: number
       cash_shift_id?: string
       total_with_vat: number
       subtotal: number
@@ -279,6 +313,8 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
       atomic: true,
       sale_id: r.sale_id,
       transaction_id: r.transaction_id,
+      account_id: r.account_id ?? null,
+      account_balance: r.account_balance != null ? Number(r.account_balance) : undefined,
       cash_shift_id: r.cash_shift_id ?? null,
       total_with_vat: Number(r.total_with_vat),
       subtotal: Number(r.subtotal),

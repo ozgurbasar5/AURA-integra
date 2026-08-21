@@ -15,24 +15,29 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ListRow } from '@/components/ui/ListRow'
 import { SectionHeader } from '@/components/ui/SectionHeader'
-import { ErrorBanner, Skeleton, StatPill } from '@/components/ui/States'
+import { ErrorBanner, Skeleton } from '@/components/ui/States'
+import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
+import { TechnicianHomeWidget } from '@/components/home/TechnicianHomeWidget'
+import { ManagerHomeWidget } from '@/components/home/ManagerHomeWidget'
+import { CashierHomeWidget } from '@/components/home/CashierHomeWidget'
 
 export default function HomeScreen() {
   const { profile, user, signOut } = useAuth()
   const { me } = useTenant()
   const { colors, appearance } = useAppTheme()
   const router = useRouter()
-  const role = profile?.role
+  const role = String(me?.role || profile?.role || '').toLowerCase()
   const [openCount, setOpenCount] = useState<number | null>(null)
   const [deliveredToday, setDeliveredToday] = useState<number | null>(null)
   const [todaySales, setTodaySales] = useState<number | null>(null)
   const [lowStock, setLowStock] = useState<number | null>(null)
-  const [openShift, setOpenShift] = useState<boolean | null>(null)
+  const [waitingApproval, setWaitingApproval] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [netHint, setNetHint] = useState<string | null>(null)
   const [queueCount, setQueueCount] = useState(0)
   const [queueJobs, setQueueJobs] = useState<QueuedJob[]>([])
   const [flushing, setFlushing] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const hasStats = useRef(false)
 
   const loadStats = useCallback(async (fresh = false) => {
@@ -50,10 +55,9 @@ export default function HomeScreen() {
           ready_orders?: number
           today_sales?: number
           low_stock?: number
-          open_shift?: boolean
+          waiting_approval?: number
         }
       }>
-      // Health yalnızca hata / ilk yüklemede force değil — 60s cache
       const healthP = checkApiHealth(false)
 
       const [queue, statsRes, health] = await Promise.all([
@@ -74,6 +78,7 @@ export default function HomeScreen() {
           setDeliveredToday(null)
           setTodaySales(null)
           setLowStock(null)
+          setWaitingApproval(null)
         }
         if (/404/.test(msg)) setNetHint('Sunucu güncel değil (API 404).')
         else if (/401|403/.test(msg)) setNetHint('Oturum geçersiz — tekrar giriş yapın.')
@@ -84,7 +89,7 @@ export default function HomeScreen() {
         setDeliveredToday(Number(s.ready_orders) || 0)
         setTodaySales(Number(s.today_sales) || 0)
         setLowStock(Number(s.low_stock) || 0)
-        setOpenShift(!!s.open_shift)
+        setWaitingApproval(Number(s.waiting_approval) || 0)
         hasStats.current = true
         if (health.ok) setNetHint(null)
       }
@@ -98,27 +103,33 @@ export default function HomeScreen() {
     }
   }, [profile, profile?.tenant_id])
 
-  useFocusEffect(useCallback(() => {
-    void (async () => {
-      if (!hasStats.current) await loadStats(false)
-      else await loadStats(true)
-    })()
-  }, [loadStats]))
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        if (!hasStats.current) await loadStats(false)
+        else await loadStats(true)
+      })()
+    }, [loadStats]),
+  )
 
-  useFocusEffect(useCallback(() => {
-    if (!profile?.tenant_id) return
-    void (async () => {
-      const perm = await getPushPermissionStatus()
-      if (perm === 'granted') await registerForPushNotifications().catch(() => {})
-    })()
-  }, [profile?.tenant_id]))
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.tenant_id) return
+      void (async () => {
+        const perm = await getPushPermissionStatus()
+        if (perm === 'granted') await registerForPushNotifications().catch(() => {})
+      })()
+    }, [profile?.tenant_id]),
+  )
 
-  useFocusEffect(useCallback(() => {
-    void listQueuedJobs().then(jobs => {
-      setQueueCount(jobs.length)
-      setQueueJobs(jobs)
-    })
-  }, []))
+  useFocusEffect(
+    useCallback(() => {
+      void listQueuedJobs().then(jobs => {
+        setQueueCount(jobs.length)
+        setQueueJobs(jobs)
+      })
+    }, []),
+  )
 
   async function handleFlushQueue() {
     setFlushing(true)
@@ -140,27 +151,32 @@ export default function HomeScreen() {
   const firstName = (me?.full_name || profile?.full_name || '').split(' ')[0]
   const shop = me?.shop_name || me?.company_name
   const cols = appearance.homeColumns
-  const cardWidth = cols === 3 ? '31%' : '48%' as const
+  const cardWidth = cols === 3 ? '31%' : ('48%' as const)
+
+  const isTechnician = role === 'teknisyen' || role === 'technician'
+  const isCashier = role === 'kasiyer' || role === 'cashier'
 
   return (
     <Screen scroll>
+      {/* Brand Hero */}
       <View style={[styles.hero, { backgroundColor: colors.primaryDark, borderRadius: colors.radiusLg }]}>
-        <Text style={styles.brand}>AURA İntegra</Text>
+        <Text style={styles.brand}>AURA İntegra · Mobile 2.0</Text>
         <Text style={styles.h1}>Merhaba{firstName ? `, ${firstName}` : ''}</Text>
-        <Text style={styles.muted}>
-          {[shop, user?.email].filter(Boolean).join(' · ')}
-        </Text>
+        <Text style={styles.muted}>{[shop, user?.email].filter(Boolean).join(' · ')}</Text>
         <View style={styles.heroActions}>
           <Pressable
             style={styles.heroChip}
-            onPress={() => { invalidateApiCache(); void loadStats(true) }}
+            onPress={() => {
+              invalidateApiCache()
+              void loadStats(true)
+            }}
           >
             <FontAwesome name="refresh" size={12} color="#fff" />
             <Text style={styles.heroChipText}>Yenile</Text>
           </Pressable>
-          <Pressable style={styles.heroChip} onPress={() => router.push('/yenilikler' as never)}>
-            <FontAwesome name="magic" size={12} color="#fff" />
-            <Text style={styles.heroChipText}>Yenilikler</Text>
+          <Pressable style={styles.heroChip} onPress={() => setScanOpen(true)}>
+            <FontAwesome name="barcode" size={12} color="#fff" />
+            <Text style={styles.heroChipText}>Barkod Tara</Text>
           </Pressable>
           <Pressable style={styles.heroChip} onPress={() => router.push('/gorunum' as never)}>
             <FontAwesome name="sliders" size={12} color="#fff" />
@@ -171,12 +187,11 @@ export default function HomeScreen() {
 
       {netHint ? <ErrorBanner message={netHint} onRetry={() => void loadStats(true)} /> : null}
 
+      {/* Offline Queue Sync Card */}
       {queueCount > 0 ? (
         <Card style={styles.queueRow}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontWeight: '800', color: colors.text, fontSize: 14 }}>
-              Çevrimdışı kuyruk
-            </Text>
+            <Text style={{ fontWeight: '800', color: colors.text, fontSize: 14 }}>Çevrimdışı Kuyruk</Text>
             <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
               {queueCount} işlem bekliyor — bağlantı gelince otomatik gönderilir
             </Text>
@@ -201,8 +216,8 @@ export default function HomeScreen() {
 
       {queueJobs.length > 0 ? (
         <>
-          <SectionHeader title="Bekleyen işlemler" />
-          {queueJobs.slice(0, 8).map(job => (
+          <SectionHeader title="Bekleyen İşlemler" />
+          {queueJobs.slice(0, 5).map(job => (
             <ListRow
               key={job.id}
               title={job.label || job.path}
@@ -212,36 +227,36 @@ export default function HomeScreen() {
         </>
       ) : null}
 
-      <SectionHeader title="Özet" />
+      {/* Role-Aware Dashboard Section */}
+      <SectionHeader title="Operasyon Paneli" />
       {loading && !hasStats.current ? (
-        <View style={styles.pillRow}>
-          <Skeleton height={64} style={{ flex: 1, marginRight: 8 }} />
-          <Skeleton height={64} style={{ flex: 1 }} />
+        <View style={{ gap: 10 }}>
+          <Skeleton height={60} style={{ borderRadius: 12 }} />
+          <Skeleton height={140} style={{ borderRadius: 16 }} />
         </View>
+      ) : isTechnician ? (
+        <TechnicianHomeWidget
+          openCount={openCount}
+          readyCount={deliveredToday}
+          waitingApproval={waitingApproval}
+          onRefresh={() => void loadStats(true)}
+          onScan={() => setScanOpen(true)}
+        />
+      ) : isCashier ? (
+        <CashierHomeWidget
+          todaySales={todaySales}
+          openCount={openCount}
+        />
       ) : (
-        <>
-          <View style={styles.pillRow}>
-            <StatPill label="Açık iş" value={openCount ?? '—'} />
-            <StatPill label="Hazır" value={deliveredToday ?? '—'} tone="success" />
-            <StatPill label="Kuyruk" value={queueCount} tone={queueCount ? 'warning' : 'default'} />
-          </View>
-          <View style={[styles.pillRow, { marginTop: 8 }]}>
-            <StatPill
-              label="Bugün satış"
-              value={todaySales == null ? '—' : `${Math.round(todaySales).toLocaleString('tr-TR')}₺`}
-              tone="success"
-            />
-            <StatPill label="Düşük stok" value={lowStock ?? '—'} tone={lowStock ? 'warning' : 'default'} />
-            <StatPill
-              label="Kasa"
-              value={openShift == null ? '—' : openShift ? 'Açık' : 'Kapalı'}
-              tone={openShift ? 'success' : 'warning'}
-            />
-          </View>
-        </>
+        <ManagerHomeWidget
+          openCount={openCount}
+          todaySales={todaySales}
+          lowStock={lowStock}
+        />
       )}
 
-      <SectionHeader title="Tüm modüller" />
+      {/* Quick All-Modules Grid */}
+      <SectionHeader title="Tüm Modüller" />
       <View style={styles.grid}>
         {modules.map(a => (
           <View key={a.href} style={{ width: cardWidth }}>
@@ -252,7 +267,7 @@ export default function HomeScreen() {
                   backgroundColor: colors.card,
                   borderColor: colors.border,
                   borderRadius: colors.radiusLg,
-                  minHeight: appearance.density === 'compact' ? 88 : 104,
+                  minHeight: appearance.density === 'compact' ? 88 : 100,
                   opacity: pressed ? 0.9 : 1,
                   transform: [{ scale: pressed ? 0.97 : 1 }],
                   shadowColor: colors.primary,
@@ -274,9 +289,10 @@ export default function HomeScreen() {
         ))}
       </View>
 
+      {/* Account Info */}
       <SectionHeader title="Hesap" />
       <Card>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Rol</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Rol & Yetki</Text>
         <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15, marginBottom: 8 }}>
           {me?.role || profile?.role || '—'}
         </Text>
@@ -284,8 +300,17 @@ export default function HomeScreen() {
         <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{user?.email}</Text>
       </Card>
 
-      <Button title="Görünüm ayarları" variant="secondary" onPress={() => router.push('/gorunum' as never)} />
+      <Button title="Görünüm Ayarları" variant="secondary" onPress={() => router.push('/gorunum' as never)} />
       <Button title="Çıkış Yap" variant="ghost" onPress={() => void signOut()} />
+
+      <BarcodeScannerModal
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={data => {
+          // If 15 digits IMEI or starts with SRV, open search
+          router.push('/atolye' as never)
+        }}
+      />
     </Screen>
   )
 }
@@ -307,13 +332,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
   },
   heroChipText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   queueRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pillRow: { flexDirection: 'row', gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   action: {
     padding: 14,

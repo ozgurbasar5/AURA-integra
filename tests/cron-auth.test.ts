@@ -15,7 +15,7 @@ describe('verifyCronRequest', () => {
 
   it('CRON_SECRET eşleşiyorsa null döner (geçti)', async () => {
     process.env.CRON_SECRET = 'super-secret-key'
-    process.env.NODE_ENV = 'test'
+    ;(process.env as any).NODE_ENV = 'test'
 
     const req = new NextRequest('http://localhost/api/cron/test', {
       headers: { authorization: 'Bearer super-secret-key' },
@@ -26,7 +26,7 @@ describe('verifyCronRequest', () => {
 
   it('CRON_SECRET yanlışsa 401 döner', () => {
     process.env.CRON_SECRET = 'super-secret-key'
-    process.env.NODE_ENV = 'test'
+    ;(process.env as any).NODE_ENV = 'test'
 
     const req = new NextRequest('http://localhost/api/cron/test', {
       headers: { authorization: 'Bearer wrong-key' },
@@ -38,7 +38,7 @@ describe('verifyCronRequest', () => {
 
   it('Authorization header yoksa 401 döner', () => {
     process.env.CRON_SECRET = 'super-secret-key'
-    process.env.NODE_ENV = 'test'
+    ;(process.env as any).NODE_ENV = 'test'
 
     const req = new NextRequest('http://localhost/api/cron/test')
     const result = verifyCronRequest(req)
@@ -49,7 +49,7 @@ describe('verifyCronRequest', () => {
   it('CRON_SECRET yoksa ve dev mod değilse 503 döner', () => {
     delete process.env.CRON_SECRET
     delete process.env.CRON_ALLOW_DEV
-    process.env.NODE_ENV = 'development'
+    ;(process.env as any).NODE_ENV = 'development'
 
     const req = new NextRequest('http://localhost/api/cron/test')
     const result = verifyCronRequest(req)
@@ -60,7 +60,7 @@ describe('verifyCronRequest', () => {
   it('CRON_ALLOW_DEV=1 ise geliştirme ortamında izin verir', () => {
     delete process.env.CRON_SECRET
     process.env.CRON_ALLOW_DEV = '1'
-    process.env.NODE_ENV = 'development'
+    ;(process.env as any).NODE_ENV = 'development'
 
     const req = new NextRequest('http://localhost/api/cron/test')
     const result = verifyCronRequest(req)
@@ -70,7 +70,7 @@ describe('verifyCronRequest', () => {
   it('CRON_SECRET yoksa ve production ise 503 döner', () => {
     delete process.env.CRON_SECRET
     delete process.env.CRON_ALLOW_DEV
-    process.env.NODE_ENV = 'production'
+    ;(process.env as any).NODE_ENV = 'production'
 
     const req = new NextRequest('http://localhost/api/cron/test')
     const result = verifyCronRequest(req)

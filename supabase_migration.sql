@@ -795,11 +795,13 @@ FOR EACH ROW EXECUTE FUNCTION set_todo_completed_at();
 CREATE OR REPLACE FUNCTION log_service_status_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF OLD.status IS DISTINCT FROM NEW.status THEN
-    INSERT INTO service_status_history (order_id, status, note, created_by)
-    VALUES (NEW.id, NEW.status, 'Otomatik durum değişikliği', auth.uid());
+    INSERT INTO service_status_history (order_id, tenant_id, status, note, created_by)
+    VALUES (NEW.id, NEW.tenant_id, NEW.status, 'Otomatik durum değişikliği', COALESCE(auth.uid(), NEW.created_by));
   END IF;
   RETURN NEW;
 END;

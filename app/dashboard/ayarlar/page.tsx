@@ -39,8 +39,11 @@ import LogoCropModal from '@/components/branding/LogoCropModal'
 import ColorModeToggle from '@/components/ColorModeToggle'
 import { toast } from 'sonner'
 import IntegrationHealthBanner from '@/components/settings/IntegrationHealthBanner'
+import { AdminControlCenter } from '@/components/admin/AdminControlCenter'
+import WorkspaceCustomizer from '@/components/settings/WorkspaceCustomizer'
+import { LayoutDashboard, Sparkles } from 'lucide-react'
 
-type Tab = 'genel' | 'tema' | 'bildirim' | 'guvenlik' | 'entegrasyon' | 'abonelik' | 'sla'
+type Tab = 'workspace' | 'control_center' | 'genel' | 'tema' | 'bildirim' | 'guvenlik' | 'entegrasyon' | 'abonelik' | 'sla'
 
 const NOTIFICATION_SETTINGS = [
   { id: 'sms_service',    label: 'Servis Tamamlandı SMS',     desc: 'Servis tamamlandığında müşteriye SMS gönder', default: true },
@@ -539,6 +542,8 @@ export default function AyarlarPage() {
   }
 
   const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
+    { id: 'workspace',   icon: <Sparkles size={15} className="text-sky-500" />, label: 'Çalışma Alanım 2.0' },
+    { id: 'control_center', icon: <LayoutDashboard size={15}/>, label: 'Control Center 2.0' },
     { id: 'genel',       icon: <User size={15}/>,       label: 'Genel Bilgiler'    },
     { id: 'tema',        icon: <Palette size={15}/>,    label: 'Tema & Görünüm'   },
     { id: 'bildirim',    icon: <Bell size={15}/>,       label: 'Bildirimler'      },
@@ -576,6 +581,16 @@ export default function AyarlarPage() {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
+
+          {/* ── WORKSPACE 2.0 ────────────────────────────────────────────── */}
+          {tab === 'workspace' && (
+            <WorkspaceCustomizer />
+          )}
+
+          {/* ── CONTROL CENTER 2.0 ────────────────────────────────────────── */}
+          {tab === 'control_center' && (
+            <AdminControlCenter />
+          )}
 
           {/* ── GENEL ──────────────────────────────────────────────────────── */}
           {tab === 'genel' && (

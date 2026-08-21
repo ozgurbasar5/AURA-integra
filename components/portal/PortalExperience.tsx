@@ -1,3 +1,3 @@
 'use client'
 
-export { default } from './PortalTrackUI'
+export { default } from './PortalSelfService'

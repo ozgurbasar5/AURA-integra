@@ -3,10 +3,13 @@
 import type { AppModule } from '../../lib/role-matrix'
 import {
   isModuleAllowed,
+  isOwnerRole,
   isMobileTabAllowed as matrixTabAllowed,
 } from '../../lib/role-matrix'
 
 export type MobileTab = AppModule
+
+export { isOwnerRole }
 
 export function normalizeMobileRole(role?: string | null): string {
   return (role || '').trim().toLowerCase()

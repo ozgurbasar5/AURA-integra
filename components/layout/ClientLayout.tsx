@@ -83,8 +83,8 @@ export default function ClientLayout({ tenant, user, children }: Props) {
           <TenantSidebar tenant={tenant} user={user} onOpenSearch={openSearch} />
         </SidebarErrorBoundary>
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {mounted && <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>}
-          {mounted && <ConnectionStatusBanner compact />}
+          <div className="no-print"><DashboardHeader companyName={tenant.company_name} onOpenSearch={openSearch} /></div>
+          <ConnectionStatusBanner compact />
           <main className="flex-1 overflow-y-auto has-mobile-bottom-nav">
             <div className="page-wrapper">
               <SubscriptionBanner />
