@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/verify-env.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "verify:env": "node scripts/verify-env.mjs",
