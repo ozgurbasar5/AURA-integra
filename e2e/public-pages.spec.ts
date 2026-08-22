@@ -17,15 +17,15 @@ test.describe('Landing Page 2.0', () => {
   })
 
   test('Demo Talep Et butonuna basıldığında demo modalı açılır', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.goto('/', { waitUntil: 'load', timeout: 60_000 })
+    await page.waitForTimeout(600)
     
-    const demoBtn = page.getByRole('button', { name: 'Demo Talep Et' }).first()
+    const demoBtn = page.locator('#hero-demo-button')
     await expect(demoBtn).toBeVisible()
     await demoBtn.click()
 
     // Modal should be visible
-    const modalHeading = page.locator('text=AURA İntegra Demo Talebi')
-    await expect(modalHeading).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('#demo-modal')).toBeVisible({ timeout: 10_000 })
   })
 
   test('tüm ana ürün ve operasyon bölümleri sayfada yer alır', async ({ page }) => {
@@ -46,13 +46,14 @@ test.describe('Landing Page 2.0', () => {
 
   test('mobil görünümde logo ve menü düzgün çalışır', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 60_000 })
+    await page.goto('/', { waitUntil: 'load', timeout: 60_000 })
+    await page.waitForTimeout(600)
 
     await expect(page.locator('header')).toBeVisible()
     const menuBtn = page.getByLabel('Menüyü aç')
     if (await menuBtn.isVisible()) {
       await menuBtn.click()
-      await expect(page.locator('nav a').first()).toBeVisible()
+      await expect(page.locator('#mobile-menu-drawer')).toBeVisible({ timeout: 5_000 })
     }
   })
 })

@@ -76,33 +76,41 @@ async function resolveProfile(
       }
     }
 
-    // Auto-heal / provision: If active tenant exists in system, link orphan user to it
-    const { data: activeTenants } = await admin
-      .from('tenants')
-      .select('id')
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .limit(1)
+    // Controlled resolution: look up user email from auth admin if needed
+    try {
+      const { data: userData } = await admin.auth.admin.getUserById(userId)
+      const email = userData?.user?.email?.toLowerCase().trim()
+      if (email) {
+        const { data: matchingTenants } = await admin
+          .from('tenants')
+          .select('id')
+          .ilike('email', email)
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-    if (activeTenants && activeTenants.length > 0) {
-      const autoTenantId = activeTenants[0].id
-      await admin.from('user_profiles').upsert(
-        {
-          id: userId,
-          tenant_id: autoTenantId,
-          role: 'tenant_admin',
-          is_active: true,
-          full_name: 'Bayi Yöneticisi',
-        },
-        { onConflict: 'id' }
-      )
-      return {
-        ok: true,
-        supabase: supabase as ReturnType<typeof createClient>,
-        userId,
-        tenantId: autoTenantId,
-        role: 'tenant_admin',
+        if (matchingTenants && matchingTenants.length > 0) {
+          const autoTenantId = matchingTenants[0].id
+          await admin.from('user_profiles').upsert(
+            {
+              id: userId,
+              tenant_id: autoTenantId,
+              role: 'tenant_admin',
+              is_active: true,
+              full_name: (userData?.user?.user_metadata?.full_name as string) || email.split('@')[0] || 'Bayi Yöneticisi',
+            },
+            { onConflict: 'id' }
+          )
+          return {
+            ok: true,
+            supabase: supabase as ReturnType<typeof createClient>,
+            userId,
+            tenantId: autoTenantId,
+            role: 'tenant_admin',
+          }
+        }
       }
+    } catch {
+      /* ignore */
     }
   }
 

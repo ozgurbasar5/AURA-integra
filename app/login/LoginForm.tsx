@@ -32,21 +32,42 @@ export default function LoginForm() {
 
   const [configError, setConfigError] = useState('')
   const [hasSession, setHasSession] = useState(false)
+  const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sessionEmail, setSessionEmail] = useState<string | null>(null)
 
   useEffect(() => {
     if (searchParams.get('mfa') === '1') setMfaStep(true)
   }, [searchParams])
 
   useEffect(() => {
-    try {
-      const supabase = createClient()
-      supabase.auth.getSession().then(({ data: { session } }: { data: { session: unknown } }) => {
-        setHasSession(!!session)
+    if (searchParams.get('cikis') === '1') {
+      try {
+        const supabase = createClient()
+        supabase.auth.signOut()
+      } catch {}
+      fetch('/api/auth/logout', { method: 'POST' }).finally(() => {
+        setHasSession(false)
+        setSessionError(null)
+        setSessionEmail(null)
       })
-    } catch {
-      /* env eksik — build/SSR güvenli */
+      return
     }
-  }, [])
+
+    fetch('/api/auth/session', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setHasSession(true)
+          if (data.email) setSessionEmail(data.email)
+          if (data.redirect) {
+            window.location.href = data.redirect
+          } else if (data.error === 'no_tenant') {
+            setSessionError('no_tenant')
+          }
+        }
+      })
+      .catch(() => {})
+  }, [searchParams])
 
   useEffect(() => {
     fetch('/api/health/supabase', { cache: 'no-store' })
@@ -324,14 +345,26 @@ export default function LoginForm() {
           </form>
           ) : (
           <form onSubmit={handleLogin} className="space-y-5">
-            {hasSession && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-900 space-y-2">
-                <p className="font-semibold">Zaten giriş yaptınız.</p>
-                <div className="flex flex-wrap gap-3">
-                  <a href="/admin" className="text-blue-700 font-bold hover:underline">Admin paneli →</a>
-                  <a href="/dashboard" className="text-blue-700 font-bold hover:underline">Bayi paneli →</a>
-                  <a href="/login?cikis=1" className="text-red-600 font-bold hover:underline">Çıkış yap</a>
+            {sessionError === 'no_tenant' && (
+              <div className="bg-amber-50 border border-amber-300/80 rounded-xl p-4 text-sm text-amber-950 space-y-2.5">
+                <p className="font-bold text-amber-900">İşletme / Bayi Kaydı Bekleniyor</p>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  {sessionEmail ? `${sessionEmail} adresiyle oturumunuz açık.` : 'Oturumunuz açık.'} Ancak bu hesaba bağlı aktif bir bayi kaydı bulunamadı.
+                </p>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <a href="/basvuru" className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors">
+                    Bayi Başvurusu Yap →
+                  </a>
+                  <a href="/login?cikis=1" className="text-xs text-amber-800 hover:text-red-700 font-semibold underline">
+                    Farklı hesapla giriş yap
+                  </a>
                 </div>
+              </div>
+            )}
+            {hasSession && !sessionError && (
+              <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-sm text-sky-900 flex items-center gap-2.5">
+                <Loader2 size={16} className="animate-spin text-sky-600 flex-shrink-0" />
+                <p className="text-xs font-semibold">Oturum doğrulandı, yönlendiriliyorsunuz…</p>
               </div>
             )}
             {configError && (

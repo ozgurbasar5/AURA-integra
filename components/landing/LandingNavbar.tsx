@@ -97,7 +97,7 @@ export function LandingNavbar({ onOpenDemo }: NavbarProps) {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-b border-slate-200 bg-white/95 backdrop-blur-xl px-5 py-6 space-y-4 animate-in slide-in-from-top-2 duration-200 shadow-xl">
+        <div id="mobile-menu-drawer" className="lg:hidden border-b border-slate-200 bg-white/95 backdrop-blur-xl px-5 py-6 space-y-4 animate-in slide-in-from-top-2 duration-200 shadow-xl">
           <nav className="flex flex-col space-y-3">
             {NAV_LINKS.map((link) => (
               <a

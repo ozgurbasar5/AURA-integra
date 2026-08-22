@@ -80,6 +80,7 @@ export function LandingHero2({ onOpenDemo }: HeroProps) {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3.5 mb-8">
               <button
+                id="hero-demo-button"
                 type="button"
                 onClick={onOpenDemo}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-[#0e8fad] hover:bg-[#0c7a94] text-white font-black text-base shadow-lg shadow-[#0e8fad]/25 hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"

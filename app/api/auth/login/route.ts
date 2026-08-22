@@ -144,33 +144,59 @@ export async function POST(request: NextRequest) {
 
       if (profileResult.data) {
         profile = profileResult.data
-      } else {
-        // Auto-provision: If an active tenant exists, automatically link the user as tenant_admin
-        const { data: tenants } = await admin
+      } else if (email) {
+        // Controlled resolution: check if a tenant matches user's verified email
+        const { data: matchingTenants } = await admin
           .from('tenants')
           .select('id')
-          .eq('status', 'active')
-          .order('created_at', { ascending: true })
+          .ilike('email', email)
+          .order('created_at', { ascending: false })
           .limit(1)
 
-        if (tenants && tenants.length > 0) {
+        if (matchingTenants && matchingTenants.length > 0) {
           const { data: newProf } = await admin
             .from('user_profiles')
             .upsert(
               {
                 id: user.id,
-                tenant_id: tenants[0].id,
+                tenant_id: matchingTenants[0].id,
                 role: 'tenant_admin',
                 is_active: true,
-                full_name: (user.user_metadata?.full_name as string) || user.email?.split('@')[0] || 'Bayi Yöneticisi',
+                full_name: (user.user_metadata?.full_name as string) || email.split('@')[0] || 'Bayi Yöneticisi',
               },
               { onConflict: 'id' }
             )
             .select('role, is_active, tenant_id')
             .single()
 
-          if (newProf) {
-            profile = newProf
+          if (newProf) profile = newProf
+        } else {
+          // Check approved application in bayi_basvurulari
+          const { data: basvuru } = await admin
+            .from('bayi_basvurulari')
+            .select('tenant_id')
+            .ilike('email', email)
+            .not('tenant_id', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+
+          if (basvuru && basvuru.length > 0 && basvuru[0].tenant_id) {
+            const { data: newProf } = await admin
+              .from('user_profiles')
+              .upsert(
+                {
+                  id: user.id,
+                  tenant_id: basvuru[0].tenant_id,
+                  role: 'tenant_admin',
+                  is_active: true,
+                  full_name: (user.user_metadata?.full_name as string) || email.split('@')[0] || 'Bayi Yöneticisi',
+                },
+                { onConflict: 'id' }
+              )
+              .select('role, is_active, tenant_id')
+              .single()
+
+            if (newProf) profile = newProf
           }
         }
       }
@@ -189,7 +215,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Bayi profili bulunamadı. Admin panelinden bayi oluşturulduğundan emin olun veya destek ile iletişime geçin.',
+            'Bayi profili bulunamadı. İşletmeniz için henüz bayi kaydı oluşturulmamış. Lütfen bayi başvurusu yapın veya sistem yöneticinizle iletişime geçin.',
         },
         { status: 403 }
       )
