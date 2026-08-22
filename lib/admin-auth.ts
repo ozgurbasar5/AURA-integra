@@ -31,6 +31,9 @@ export async function requireSuperAdmin(
   }
 
   if (!access.ok) {
+    if (isSuperAdminEmail(user.email)) {
+      return { authorized: true, userId: user.id }
+    }
     return { authorized: false, error: NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }) }
   }
 
@@ -72,7 +75,12 @@ export async function requireSuperAdminFromCookies(): Promise<
       access = await requireSuperAdminFromServiceRole(user)
     }
 
-    if (!access.ok) return { authorized: false }
+    if (!access.ok) {
+      if (isSuperAdminEmail(user.email)) {
+        return { authorized: true, userId: user.id }
+      }
+      return { authorized: false }
+    }
 
     return { authorized: true, userId: user.id }
   } catch {

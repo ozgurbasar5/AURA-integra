@@ -68,8 +68,8 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    // 3. If no profile exists, check if user's verified email matches their own tenant
-    if (!profile && email) {
+    // 3. If no profile exists or tenant_id is missing, check if user's verified email matches their own tenant
+    if ((!profile || !profile.tenant_id) && email) {
       const { data: matchingTenants } = await admin
         .from('tenants')
         .select('id, status')

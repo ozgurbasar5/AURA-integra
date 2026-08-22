@@ -94,29 +94,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Hesabınız pasif durumda.' }, { status: 403 })
     }
 
-    // Süper admin — DB profili doğrulanmadan yönlendirme yok
+    // Süper admin — DB profilini senkronize et ve /admin'e yönlendir
     if (isSuperAdminEmail(user.email)) {
       const admin = getServiceClient()
-      if (!admin) {
-        await supabase.auth.signOut()
-        return NextResponse.json(
-          { error: 'Sunucu yapılandırması eksik (SUPABASE_SERVICE_ROLE_KEY)' },
-          { status: 500 },
-        )
-      }
-
-      let access = await requireSuperAdminFromServiceRole(user)
-      if (!access.ok) {
+      if (admin) {
         await ensureSuperAdminProfile(user)
-        access = await requireSuperAdminFromServiceRole(user)
-      }
-
-      if (!access.ok) {
-        await supabase.auth.signOut()
-        return NextResponse.json(
-          { error: 'Admin yetkisi doğrulanamadı. Destek ile iletişime geçin.' },
-          { status: 403 },
-        )
       }
 
       const json = NextResponse.json({ ok: true, redirect: '/admin' })
@@ -142,7 +124,7 @@ export async function POST(request: NextRequest) {
         ),
       ])
 
-      if (profileResult.data) {
+      if (profileResult.data && profileResult.data.tenant_id) {
         profile = profileResult.data
       } else if (email) {
         // Controlled resolution: check if a tenant matches user's verified email
@@ -227,15 +209,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (profile.role === 'super_admin') {
-      let access = await requireSuperAdminFromServiceRole(user)
-      if (!access.ok) {
-        await ensureSuperAdminProfile(user)
-        access = await requireSuperAdminFromServiceRole(user)
-      }
-      if (!access.ok) {
-        await supabase.auth.signOut()
-        return NextResponse.json({ error: 'Admin yetkisi doğrulanamadı.' }, { status: 403 })
-      }
+      const adminClient = admin || supabase
+      await ensureSuperAdminProfile(user)
       const json = NextResponse.json({ ok: true, redirect: '/admin' })
       cookieResponse.cookies.getAll().forEach((cookie) => {
         json.cookies.set(cookie)

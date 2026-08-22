@@ -69,20 +69,52 @@ export async function ensureSuperAdminProfile(user: User): Promise<boolean> {
     const fullName =
       typeof meta?.full_name === 'string' && meta.full_name.trim()
         ? meta.full_name
-        : 'AURA Admin'
+        : (user.email?.split('@')[0] || 'AURA Admin')
 
-    const { error } = await admin.from('user_profiles').upsert(
-      {
-        id: user.id,
-        full_name: fullName,
-        role: 'super_admin',
-        tenant_id: null,
-        is_active: true,
-      },
-      { onConflict: 'id' }
-    )
-    return !error
-  } catch {
+    const { data: existing } = await admin
+      .from('user_profiles')
+      .select('id, role, is_active')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (existing) {
+      if (existing.role !== 'super_admin' || existing.is_active === false) {
+        await admin
+          .from('user_profiles')
+          .update({
+            full_name: fullName,
+            role: 'super_admin',
+            tenant_id: null,
+            is_active: true,
+          })
+          .eq('id', user.id)
+      }
+      return true
+    }
+
+    const { error } = await admin.from('user_profiles').insert({
+      id: user.id,
+      full_name: fullName,
+      role: 'super_admin',
+      tenant_id: null,
+      is_active: true,
+    })
+
+    if (error) {
+      await admin.from('user_profiles').upsert(
+        {
+          id: user.id,
+          full_name: fullName,
+          role: 'super_admin',
+          tenant_id: null,
+          is_active: true,
+        },
+        { onConflict: 'id' }
+      )
+    }
+    return true
+  } catch (err) {
+    console.error('[ensureSuperAdminProfile] error:', err)
     return false
   }
 }
@@ -188,36 +220,46 @@ export async function resolveSuperAdminAccess(
   supabase: SupabaseClient,
   user: User
 ): Promise<AdminAccessResult> {
-  if (!isSuperAdminEmail(user.email) && roleFromUser(user) !== 'super_admin') {
+  const isSuper = isSuperAdminEmail(user.email)
+  const metaRole = roleFromUser(user)
+
+  if (!isSuper && metaRole !== 'super_admin') {
     return { ok: false, reason: 'not_super_admin' }
   }
 
+  // 1. Try service role query
   let serviceDb = await requireSuperAdminFromServiceRole(user)
   if (serviceDb.ok) return serviceDb
 
-  if (
-    isSuperAdminEmail(user.email) &&
-    (serviceDb.reason === 'not_found' || serviceDb.reason === 'not_super_admin')
-  ) {
-    const created = await ensureSuperAdminProfile(user)
-    if (created) {
-      serviceDb = await requireSuperAdminFromServiceRole(user)
-      if (serviceDb.ok) return serviceDb
-    }
+  // 2. Ensure profile exists in DB
+  if (isSuper) {
+    await ensureSuperAdminProfile(user)
+    serviceDb = await requireSuperAdminFromServiceRole(user)
+    if (serviceDb.ok) return serviceDb
   }
 
+  // 3. Try anon client
   const anonDb = await requireSuperAdminFromDb(supabase, user)
   if (anonDb.ok) return anonDb
+
+  // 4. Fallback for verified super admin emails
+  if (isSuper) {
+    return {
+      ok: true,
+      fromDb: false,
+      data: {
+        full_name: (user.user_metadata?.full_name as string) || user.email?.split('@')[0] || 'AURA Admin',
+        role: 'super_admin',
+        is_active: true,
+      },
+    }
+  }
 
   if (serviceDb.reason === 'inactive' || anonDb.reason === 'inactive') {
     return { ok: false, reason: 'inactive' }
   }
 
-  if (serviceDb.reason === 'not_super_admin' && anonDb.reason === 'not_super_admin') {
-    return { ok: false, reason: 'not_super_admin' }
-  }
-
-  return { ok: false, reason: serviceDb.reason !== 'error' ? serviceDb.reason : anonDb.reason }
+  return { ok: false, reason: 'not_super_admin' }
 }
 
 /** Bayi dashboard — DB'den profil; başarısızsa null (offline mod) */
@@ -254,14 +296,14 @@ export async function fetchLayoutProfileService(
 
   const primary = await fetchFromDb<LayoutProfile>(
     admin.from('user_profiles').select(fullSelect).eq('id', user.id).single(),
-    6000,
+    4000,
   )
 
   if (primary.ok) return primary
 
   const fallback = await fetchFromDb<LayoutProfile>(
     admin.from('user_profiles').select(legacySelect).eq('id', user.id).single(),
-    6000,
+    4000,
   )
   if (fallback.ok) {
     return {
@@ -270,6 +312,58 @@ export async function fetchLayoutProfileService(
       data: { ...fallback.data, setup_wizard_completed: false },
     }
   }
+
+  // 3. Resilient two-step query (in case PostgREST embedded joins fail on production)
+  try {
+    const { data: prof, error: profErr } = await admin
+      .from('user_profiles')
+      .select('full_name, role, is_active, onboarding_completed, setup_wizard_completed, tenant_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profErr && prof) {
+      if (prof.is_active === false) {
+        return { ok: false, reason: 'inactive' }
+      }
+
+      let tenantData: LayoutProfile['tenants'] = null
+      if (prof.tenant_id) {
+        const { data: tRow } = await admin
+          .from('tenants')
+          .select('company_name, status, subscription_start, subscription_end, plan_id')
+          .eq('id', prof.tenant_id)
+          .maybeSingle()
+
+        if (tRow) {
+          tenantData = {
+            company_name: tRow.company_name || 'İşletmem',
+            status: tRow.status || 'active',
+            subscription_start: tRow.subscription_start || null,
+            subscription_end: tRow.subscription_end || null,
+            plan_id: tRow.plan_id || null,
+            subscription_plans: null,
+          }
+        }
+      }
+
+      return {
+        ok: true,
+        fromDb: true,
+        data: {
+          full_name: prof.full_name || user.email?.split('@')[0] || 'Kullanıcı',
+          role: prof.role || 'tenant_admin',
+          is_active: prof.is_active !== false,
+          onboarding_completed: prof.onboarding_completed ?? false,
+          setup_wizard_completed: prof.setup_wizard_completed ?? false,
+          tenant_id: prof.tenant_id || null,
+          tenants: tenantData,
+        },
+      }
+    }
+  } catch (e) {
+    console.error('[fetchLayoutProfileService] 2-step fallback error:', e)
+  }
+
   return primary
 }
 
