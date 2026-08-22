@@ -1,6 +1,6 @@
 /** Client-side Supabase sync durumu — store-hydrate tarafından güncellenir */
 
-export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'pending' | 'error'
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'pending' | 'error' | 'offline'
 
 type Listener = (state: SyncState) => void
 
@@ -32,11 +32,11 @@ function emit() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    state = { ...state, isOnline: true }
+    state = { ...state, isOnline: true, status: state.status === 'offline' ? 'idle' : state.status }
     emit()
   })
   window.addEventListener('offline', () => {
-    state = { ...state, isOnline: false, status: state.pendingCount > 0 ? 'pending' : state.status }
+    state = { ...state, isOnline: false, status: 'offline', lastError: 'Çevrimdışı — internet bağlantısı yok' }
     emit()
   })
 }
@@ -51,6 +51,11 @@ export function subscribeSyncState(fn: Listener): () => void {
   return () => listeners.delete(fn)
 }
 
+export function setSyncIdle() {
+  state = { ...state, status: 'idle', lastError: null }
+  emit()
+}
+
 export function setSyncSyncing() {
   state = { ...state, status: 'syncing', lastError: null, failedModules: [] }
   emit()
@@ -62,6 +67,16 @@ export function setSyncSynced() {
     status: state.pendingCount > 0 ? 'pending' : 'synced',
     lastSyncAt: new Date().toISOString(),
     lastError: null,
+  }
+  emit()
+}
+
+export function setSyncOffline() {
+  state = {
+    ...state,
+    status: 'offline',
+    isOnline: false,
+    lastError: 'Çevrimdışı — internet bağlantısı yok',
   }
   emit()
 }

@@ -14,6 +14,8 @@ import {
   setSyncSyncing,
   setSyncSynced,
   setSyncError,
+  setSyncOffline,
+  setSyncIdle,
   incrementPending,
   decrementPending,
 } from './sync-status'
@@ -58,6 +60,7 @@ const MODULE_MAP: Record<string, keyof StoreData | 'notificationSettings'> = {
 let pushTimer: ReturnType<typeof setTimeout> | null = null
 let pendingModuleKey: string | null = null
 let syncing = false
+let isHydrating = false
 let autoSyncEnabled = false
 let flushListenersAttached = false
 let syncInitStarted = false
@@ -92,11 +95,20 @@ function setLastSyncAt(iso: string): void {
 
 export async function hydrateFromSupabase(full = false): Promise<boolean> {
   if (typeof window === 'undefined') return false
+  if (isHydrating) return false
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    setSyncOffline()
+    return false
+  }
+
+  isHydrating = true
   setSyncSyncing()
+
   try {
     const since = full ? null : getLastSyncAt()
     const qs = since ? `?since=${encodeURIComponent(since)}` : ''
-    const res = await fetchWithRetry(`/api/tenant/sync${qs}`, { credentials: 'same-origin' })
+    const res = await fetchWithRetry(`/api/tenant/sync${qs}`, { credentials: 'same-origin' }, { timeoutMs: 12000 })
     if (!res.ok) {
       lastHydrateFailed = true
       setSyncError('Senkronizasyon başarısız')
@@ -165,9 +177,17 @@ export async function hydrateFromSupabase(full = false): Promise<boolean> {
     }
     lastHydrateFailed = true
     setSyncError('Senkron yanıtı geçersiz')
-  } catch {
+  } catch (err) {
+    console.error('[hydrateFromSupabase] Error:', err)
     lastHydrateFailed = true
-    setSyncError('Çevrimdışı')
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setSyncOffline()
+    } else {
+      setSyncError('Bağlantı hatası')
+    }
+  } finally {
+    isHydrating = false
+    syncing = false
   }
   return false
 }

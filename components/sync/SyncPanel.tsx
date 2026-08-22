@@ -1,11 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Cloud, CloudOff, Loader2, RefreshCw, X } from 'lucide-react'
+import { Cloud, CloudOff, Loader2, RefreshCw, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { getSyncState, subscribeSyncState, type SyncState } from '@/lib/sync-status'
 import { flushPendingPush, hydrateFromSupabase } from '@/lib/store-hydrate'
 import { flushWebQueue, listWebQueuedJobs, type WebQueuedJob } from '@/lib/offline-queue-web'
+
+function getStatusLabel(status: SyncState['status'], isOnline: boolean): { label: string; color: string; icon: React.ReactNode } {
+  if (!isOnline || status === 'offline') {
+    return { label: 'Çevrimdışı', color: 'text-amber-600 dark:text-amber-400', icon: <CloudOff size={14} className="text-amber-500" /> }
+  }
+  switch (status) {
+    case 'syncing':
+      return { label: 'Senkronize ediliyor...', color: 'text-sky-600 dark:text-sky-400', icon: <Loader2 size={14} className="animate-spin text-sky-500" /> }
+    case 'synced':
+      return { label: 'Senkronize edildi', color: 'text-emerald-600 dark:text-emerald-400', icon: <CheckCircle2 size={14} className="text-emerald-500" /> }
+    case 'pending':
+      return { label: 'Bekleyen işlemler var', color: 'text-amber-600 dark:text-amber-400', icon: <RefreshCw size={14} className="text-amber-500" /> }
+    case 'error':
+      return { label: 'Senkronizasyon hatası', color: 'text-red-600 dark:text-red-400', icon: <AlertCircle size={14} className="text-red-500" /> }
+    case 'idle':
+    default:
+      return { label: 'Hazır', color: 'text-slate-600 dark:text-slate-400', icon: <Cloud size={14} className="text-slate-500" /> }
+  }
+}
 
 export default function SyncPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [state, setState] = useState<SyncState>(getSyncState())
@@ -23,22 +42,31 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
 
   if (!open) return null
 
+  const isSyncing = busy || state.status === 'syncing'
+  const statusInfo = getStatusLabel(state.status, state.isOnline)
+
   async function handleSync() {
+    if (isSyncing) return
     setBusy(true)
     try {
-      await hydrateFromSupabase()
+      const ok = await hydrateFromSupabase(true)
       await flushPendingPush()
       const q = await flushWebQueue()
       if (q.ok > 0 || q.fail > 0) {
         toast.success(`Kuyruk: ${q.ok} gönderildi${q.fail ? `, ${q.fail} bekliyor` : ''}`)
+      } else if (ok) {
+        toast.success('Senkronizasyon tamamlandı')
       }
       setQueue(listWebQueuedJobs())
+    } catch {
+      toast.error('Senkronizasyon sırasında hata oluştu')
     } finally {
       setBusy(false)
     }
   }
 
   async function flushQueueOnly() {
+    if (busy) return
     setBusy(true)
     try {
       const q = await flushWebQueue()
@@ -57,7 +85,7 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
       >
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-sm flex items-center gap-2">
-            {state.status === 'syncing' ? <Loader2 size={16} className="animate-spin text-sky-500" /> : state.isOnline ? <Cloud size={16} className="text-sky-500" /> : <CloudOff size={16} className="text-red-500" />}
+            {isSyncing ? <Loader2 size={16} className="animate-spin text-sky-500" /> : state.isOnline ? <Cloud size={16} className="text-sky-500" /> : <CloudOff size={16} className="text-red-500" />}
             Senkronizasyon
           </h3>
           <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--bg-muted)]">
@@ -72,9 +100,12 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
         )}
 
         <dl className="text-xs space-y-2">
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <dt className="text-[var(--text-muted)]">Durum</dt>
-            <dd className="font-bold capitalize">{state.status}</dd>
+            <dd className={`font-bold flex items-center gap-1.5 ${statusInfo.color}`}>
+              {statusInfo.icon}
+              <span>{statusInfo.label}</span>
+            </dd>
           </div>
           {state.lastSyncAt && (
             <div className="flex justify-between">
@@ -103,7 +134,7 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
             </div>
           )}
           {state.lastError && (
-            <div className="text-red-600 bg-red-500/5 rounded-lg px-3 py-2">{state.lastError}</div>
+            <div className="text-red-600 bg-red-500/5 rounded-lg px-3 py-2 font-medium">{state.lastError}</div>
           )}
         </dl>
 
@@ -130,14 +161,15 @@ export default function SyncPanel({ open, onClose }: { open: boolean; onClose: (
 
         <button
           type="button"
-          disabled={busy || state.status === 'syncing'}
+          disabled={isSyncing}
           onClick={() => void handleSync()}
-          className="btn-primary w-full flex items-center justify-center gap-2"
+          className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          Şimdi senkronize et
+          {isSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          {isSyncing ? 'Senkronize ediliyor...' : 'Şimdi senkronize et'}
         </button>
       </div>
     </div>
   )
 }
+
