@@ -152,11 +152,15 @@ function bodyToCustomer(body: CustomerBody, existing?: StoreCustomer): Partial<S
   }
 }
 
+import { getServiceClient } from '@/lib/supabase/service'
+
 export async function GET() {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
 
-  const { data, error } = await auth.supabase
+  const db = getServiceClient() || auth.supabase
+
+  const { data, error } = await db
     .from('customers')
     .select('*')
     .eq('tenant_id', auth.tenantId)
@@ -168,38 +172,46 @@ export async function GET() {
     return NextResponse.json({ ok: true, items })
   }
 
+  console.error('[API /api/tenant/customers GET]', {
+    code: error.code,
+    message: error.message,
+    hint: error.hint,
+  })
+
   if (isMissingCustomersTable(error)) {
-    const items = await aggregateCustomersFromTransactions(auth.supabase, auth.tenantId)
+    const items = await aggregateCustomersFromTransactions(db, auth.tenantId)
     return NextResponse.json({ ok: true, items, source: 'aggregated' })
   }
 
-  return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ error: 'Müşteri listesi alınamadı.' }, { status: 500 })
 }
 
 export async function POST(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
   if (!canWriteTenantData(auth.role)) {
-    return NextResponse.json({ error: 'Yetkiniz yok' }, { status: 403 })
+    return NextResponse.json({ error: 'Bu işlem için yetkiniz yok.' }, { status: 403 })
   }
 
   let body: CustomerBody
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Geçersiz JSON' }, { status: 400 })
+    return NextResponse.json({ error: 'Geçersiz JSON verisi.' }, { status: 400 })
   }
 
   const fields = bodyToCustomer(body)
-  if (!fields.full_name || !fields.phone) {
+  if (!fields.full_name?.trim() || !fields.phone?.trim()) {
     return NextResponse.json({ error: 'Ad ve telefon zorunlu' }, { status: 400 })
   }
+
+  const db = getServiceClient() || auth.supabase
 
   const now = new Date().toISOString()
   const customer: StoreCustomer = {
     id: crypto.randomUUID(),
-    full_name: fields.full_name,
-    phone: fields.phone,
+    full_name: fields.full_name.trim(),
+    phone: fields.phone.trim(),
     email: fields.email,
     address: fields.address,
     tc_no: fields.tc_no,
@@ -221,8 +233,15 @@ export async function POST(req: NextRequest) {
 
   const row = customerToDb(customer, auth.tenantId)
   row.id = customer.id
-  const { data, error } = await auth.supabase.from('customers').insert(row).select('*').single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const { data, error } = await db.from('customers').insert(row).select('*').single()
+  if (error) {
+    console.error('[API /api/tenant/customers POST]', {
+      code: error.code,
+      message: error.message,
+      hint: error.hint,
+    })
+    return NextResponse.json({ error: 'Müşteri kaydı oluşturulamadı.' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, data: customerToStore(data as Record<string, unknown>) }, { status: 201 })
 }
 
@@ -230,26 +249,34 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
   if (!canWriteTenantData(auth.role)) {
-    return NextResponse.json({ error: 'Yetkiniz yok' }, { status: 403 })
+    return NextResponse.json({ error: 'Bu işlem için yetkiniz yok.' }, { status: 403 })
   }
 
   let body: CustomerBody
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Geçersiz JSON' }, { status: 400 })
+    return NextResponse.json({ error: 'Geçersiz JSON verisi.' }, { status: 400 })
   }
-  if (!body.id) return NextResponse.json({ error: 'id gerekli' }, { status: 400 })
+  if (!body.id) return NextResponse.json({ error: 'Müşteri ID gerekli.' }, { status: 400 })
 
-  const { data: existing, error: fetchErr } = await auth.supabase
+  const db = getServiceClient() || auth.supabase
+
+  const { data: existing, error: fetchErr } = await db
     .from('customers')
     .select('*')
     .eq('id', body.id)
     .eq('tenant_id', auth.tenantId)
     .maybeSingle()
 
-  if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
-  if (!existing) return NextResponse.json({ error: 'Müşteri bulunamadı' }, { status: 404 })
+  if (fetchErr) {
+    console.error('[API /api/tenant/customers PATCH fetch]', {
+      code: fetchErr.code,
+      message: fetchErr.message,
+    })
+    return NextResponse.json({ error: 'Müşteri sorgulanamadı.' }, { status: 500 })
+  }
+  if (!existing) return NextResponse.json({ error: 'Müşteri bulunamadı.' }, { status: 404 })
 
   const current = customerToStore(existing as Record<string, unknown>)
   const fields = bodyToCustomer(body, current)
@@ -262,7 +289,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const row = customerToDb(updated, auth.tenantId)
-  const { data, error } = await auth.supabase
+  const { data, error } = await db
     .from('customers')
     .update(row)
     .eq('id', body.id)
@@ -270,7 +297,13 @@ export async function PATCH(req: NextRequest) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[API /api/tenant/customers PATCH update]', {
+      code: error.code,
+      message: error.message,
+    })
+    return NextResponse.json({ error: 'Müşteri güncellenemedi.' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, data: customerToStore(data as Record<string, unknown>) })
 }
 
@@ -278,18 +311,26 @@ export async function DELETE(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
   if (!canWriteTenantData(auth.role)) {
-    return NextResponse.json({ error: 'Yetkiniz yok' }, { status: 403 })
+    return NextResponse.json({ error: 'Bu işlem için yetkiniz yok.' }, { status: 403 })
   }
 
   const id = req.nextUrl.searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'id gerekli' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'Müşteri ID gerekli.' }, { status: 400 })
 
-  const { error } = await auth.supabase
+  const db = getServiceClient() || auth.supabase
+
+  const { error } = await db
     .from('customers')
     .delete()
     .eq('id', id)
     .eq('tenant_id', auth.tenantId)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[API /api/tenant/customers DELETE]', {
+      code: error.code,
+      message: error.message,
+    })
+    return NextResponse.json({ error: 'Müşteri silinemedi.' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

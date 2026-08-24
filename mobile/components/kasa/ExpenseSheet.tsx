@@ -90,6 +90,7 @@ export function ExpenseSheet({ visible, accounts, preselectedAccount, onClose, o
       })
       invalidateApiCache('/api/tenant/accounts')
       invalidateApiCache('/api/tenant/transactions')
+      invalidateApiCache('/api/tenant/reports')
       showToast(`Gider kaydedildi: ₺${amount.toLocaleString('tr-TR')}`, 'success')
       onSuccess()
       onClose()

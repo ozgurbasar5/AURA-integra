@@ -73,6 +73,7 @@ export function ReconcileSheet({ visible, accounts, preselectedAccount, onClose,
       })
       invalidateApiCache('/api/tenant/accounts')
       invalidateApiCache('/api/tenant/transactions')
+      invalidateApiCache('/api/tenant/reports')
       showToast(
         autoAdjust
           ? `Bakiye düzeltildi (Fark: ₺${difference.toLocaleString('tr-TR')})`

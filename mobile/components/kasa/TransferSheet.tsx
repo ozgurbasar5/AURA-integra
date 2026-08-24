@@ -87,6 +87,7 @@ export function TransferSheet({ visible, accounts, preselectedFrom, onClose, onS
       })
       invalidateApiCache('/api/tenant/accounts')
       invalidateApiCache('/api/tenant/transactions')
+      invalidateApiCache('/api/tenant/reports')
       showToast(`Transfer tamamlandı: ₺${amount.toLocaleString('tr-TR')}`, 'success')
       onSuccess()
       onClose()

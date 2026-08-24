@@ -5,18 +5,22 @@ import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { tenantQuery } from '@/lib/supabase/query-helpers'
 import { withApiHandler } from '@/lib/api-handler'
 
+import { getServiceClient } from '@/lib/supabase/service'
+
 export const GET = withApiHandler(async function GET(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
 
+  const db = getServiceClient() || auth.supabase
+
   const searchParams = req.nextUrl.searchParams
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '100', 10), 500)
   const offset = parseInt(searchParams.get('offset') ?? '0', 10)
   const search = searchParams.get('search')?.trim()
 
-  let query = tenantQuery(auth.supabase.from('parts').select('*', { count: 'exact' }), auth.tenantId)
+  let query = tenantQuery(db.from('parts').select('*', { count: 'exact' }), auth.tenantId)
     .order('name')
     .range(offset, offset + limit - 1)
 
@@ -25,7 +29,10 @@ export const GET = withApiHandler(async function GET(req: NextRequest) {
   }
 
   const { data, error, count } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[API /api/tenant/parts GET]', { code: error.code, message: error.message })
+    return NextResponse.json({ error: 'Parça listesi alınamadı.' }, { status: 500 })
+  }
 
   const total = count ?? 0
   return NextResponse.json({
@@ -52,6 +59,8 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name gerekli' }, { status: 400 })
   }
 
+  const db = getServiceClient() || auth.supabase
+
   const { stockToPart } = await import('@/lib/db-mappers')
   const id = body.id && isUuid(body.id) ? body.id : crypto.randomUUID()
   const row = stockToPart(
@@ -59,13 +68,16 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
     auth.tenantId,
   )
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await db
     .from('parts')
     .upsert(row)
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[API /api/tenant/parts POST]', { code: error.code, message: error.message })
+    return NextResponse.json({ error: 'Parça kaydedilemedi.' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true, item: data })
 }, 'tenant/parts')
 

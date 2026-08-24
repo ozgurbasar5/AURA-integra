@@ -89,6 +89,7 @@ export function IncomeSheet({ visible, accounts, preselectedAccount, onClose, on
       })
       invalidateApiCache('/api/tenant/accounts')
       invalidateApiCache('/api/tenant/transactions')
+      invalidateApiCache('/api/tenant/reports')
       showToast(`Gelir kaydedildi: ₺${amount.toLocaleString('tr-TR')}`, 'success')
       onSuccess()
       onClose()

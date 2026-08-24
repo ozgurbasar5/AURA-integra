@@ -197,7 +197,7 @@ export async function createServiceOrderRemote(
     return {
       order: null,
       synced: false,
-      error: `${lastError}. Kayıt oluşturulamadı — Supabase bağlantısını kontrol edin.`,
+      error: lastError || 'Kayıt oluşturulamadı.',
     }
   }
 

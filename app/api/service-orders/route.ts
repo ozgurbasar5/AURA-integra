@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth } from '@/lib/supabase/tenant-auth'
-import { tenantQuery } from '@/lib/supabase/query-helpers'
+import { getServiceClient } from '@/lib/supabase/service'
 import { withApiHandler } from '@/lib/api-handler'
 import { safeClientMessage } from '@/lib/api-error'
 import { canWriteTenantData, roleGuardResponse } from '@/lib/api-role-guard'
@@ -10,13 +10,13 @@ import { mapStoreStatusToDb } from '@/lib/erp-features'
 import type { ServiceOrderStatus, PaymentMethod } from '@/types/database'
 
 async function resolveCustomerId(
-  supabase: { from: (table: string) => { select: Function; insert: Function } },
+  db: { from: (table: string) => { select: Function; insert: Function } },
   tenantId: string,
   customerName: string,
   customerPhone: string
 ): Promise<string | null> {
   const phone = customerPhone.replace(/\s/g, '')
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from('customers')
     .select('id')
     .eq('tenant_id', tenantId)
@@ -25,7 +25,7 @@ async function resolveCustomerId(
 
   if (existing?.id) return existing.id
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await db
     .from('customers')
     .insert({
       tenant_id: tenantId,
@@ -35,7 +35,10 @@ async function resolveCustomerId(
     .select('id')
     .single()
 
-  if (error || !created) return null
+  if (error || !created) {
+    console.error('[ServiceOrders resolveCustomerId]', { code: error?.code, message: error?.message })
+    return null
+  }
   return created.id
 }
 
@@ -52,7 +55,9 @@ function normalizeStatus(raw?: string): ServiceOrderStatus {
 export const GET = withApiHandler(async function GET(req: NextRequest) {
   const auth = await requireTenantAuth()
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
-  const { supabase, tenantId } = auth
+  const { tenantId } = auth
+
+  const db = getServiceClient() || auth.supabase
 
   const searchParams = req.nextUrl.searchParams
   const statusParam = searchParams.get('status')
@@ -62,8 +67,9 @@ export const GET = withApiHandler(async function GET(req: NextRequest) {
   const offset = parseInt(searchParams.get('offset') ?? '0', 10)
   const cursor = searchParams.get('cursor')
 
-  let query = tenantQuery(
-    supabase.from('service_orders').select(
+  let query = db
+    .from('service_orders')
+    .select(
       `
         *,
         customers (
@@ -78,9 +84,8 @@ export const GET = withApiHandler(async function GET(req: NextRequest) {
         )
       `,
       { count: 'exact' },
-    ),
-    tenantId,
-  )
+    )
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -93,7 +98,10 @@ export const GET = withApiHandler(async function GET(req: NextRequest) {
   }
 
   const { data, error, count } = await query
-  if (error) return NextResponse.json({ error: safeClientMessage(error, 'Sorgu hatası') }, { status: 500 })
+  if (error) {
+    console.error('[API /api/service-orders GET]', { code: error.code, message: error.message })
+    return NextResponse.json({ error: safeClientMessage(error, 'Servis listesi sorgulanamadı.') }, { status: 500 })
+  }
   const total = count ?? 0
   return NextResponse.json({
     data: data ?? [],
@@ -109,7 +117,9 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
       const denied = roleGuardResponse()
       return NextResponse.json({ error: denied.message }, { status: denied.status })
     }
-    const { supabase, tenantId, userId } = auth
+    const { tenantId, userId } = auth
+
+    const db = getServiceClient() || auth.supabase
 
     const body = await req.json() as {
       customer_id?: string
@@ -158,7 +168,7 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
         )
       }
       customer_id = (await resolveCustomerId(
-        supabase,
+        db,
         tenantId,
         customer_name,
         customer_phone,
@@ -170,25 +180,33 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
 
     const faultDesc = fault_description?.trim() || 'Arıza bildirimi'
 
-    const { data: orderNoData, error: orderNoErr } = await supabase.rpc(
+    let orderNo: string | null = null
+    const { data: orderNoData, error: orderNoErr } = await db.rpc(
       'generate_order_no',
       { p_tenant_id: tenantId },
     )
 
-    if (orderNoErr) {
-      return NextResponse.json(
-        { error: safeClientMessage(orderNoErr, 'Sipariş numarası üretilemedi') },
-        { status: 500 },
-      )
+    if (!orderNoErr && orderNoData) {
+      orderNo = String(orderNoData)
+    } else {
+      // Fallback order_no generation
+      const { count } = await db
+        .from('service_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      const yy = new Date().getFullYear().toString().slice(-2)
+      const mm = String(new Date().getMonth() + 1).padStart(2, '0')
+      const num = String((count ?? 0) + 1).padStart(4, '0')
+      orderNo = `SRV-${yy}${mm}-${num}`
     }
 
     const dbStatus = normalizeStatus(rest.status)
 
-    const { data: newOrder, error: insertErr } = await supabase
+    const { data: newOrder, error: insertErr } = await db
       .from('service_orders')
       .insert({
         tenant_id: tenantId,
-        order_no: orderNoData as string,
+        order_no: orderNo,
         customer_id,
         customer_name: customer_name?.trim(),
         customer_phone: customer_phone?.replace(/\s/g, ''),
@@ -219,16 +237,21 @@ export const POST = withApiHandler(async function POST(req: NextRequest) {
       .single()
 
     if (insertErr) {
+      console.error('[API /api/service-orders POST]', { code: insertErr.code, message: insertErr.message })
       return NextResponse.json({ error: safeClientMessage(insertErr, 'Kayıt oluşturulamadı') }, { status: 500 })
     }
 
-    await supabase.from('service_status_history').insert({
-      order_id: newOrder.id,
-      tenant_id: tenantId,
-      status: newOrder.status,
-      note: 'Servis kaydı oluşturuldu.',
-      created_by: userId,
-    })
+    try {
+      await db.from('service_status_history').insert({
+        order_id: newOrder.id,
+        tenant_id: tenantId,
+        status: newOrder.status,
+        note: 'Servis kaydı oluşturuldu.',
+        created_by: userId,
+      })
+    } catch {
+      // Non-blocking status history log
+    }
 
     return NextResponse.json({ data: newOrder }, { status: 201 })
 }, 'service-orders')
