@@ -117,6 +117,21 @@ async function resolveProfile(
   return { ok: false, status: 403, message: 'Bayi profili bulunamadı' }
 }
 
+interface CachedTenantAuth {
+  userId: string
+  tenantId: string
+  role: string
+  expiresAt: number
+}
+
+const authCache = new Map<string, CachedTenantAuth>()
+const AUTH_CACHE_TTL_MS = 30_000 // 30 saniye in-memory cache
+
+export function invalidateTenantAuthCache(key?: string) {
+  if (key) authCache.delete(key)
+  else authCache.clear()
+}
+
 /** Cookie (web) veya Authorization: Bearer (Expo mobil) */
 export async function requireTenantAuth(): Promise<TenantAuth> {
   const h = headers()
@@ -124,12 +139,34 @@ export async function requireTenantAuth(): Promise<TenantAuth> {
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7).trim()
     if (!token) return { ok: false, status: 401, message: 'Oturum bulunamadı' }
+
+    const cached = authCache.get(token)
+    if (cached && cached.expiresAt > Date.now()) {
+      const supabase = createBearerClient(token)
+      return {
+        ok: true,
+        supabase,
+        userId: cached.userId,
+        tenantId: cached.tenantId,
+        role: cached.role,
+      }
+    }
+
     const supabase = createBearerClient(token)
     const { data: { user }, error } = await supabase.auth.getUser(token)
     if (error || !user) {
       return { ok: false, status: 401, message: 'Oturum bulunamadı' }
     }
-    return resolveProfile(supabase, user.id)
+    const authRes = await resolveProfile(supabase, user.id)
+    if (authRes.ok) {
+      authCache.set(token, {
+        userId: authRes.userId,
+        tenantId: authRes.tenantId,
+        role: authRes.role,
+        expiresAt: Date.now() + AUTH_CACHE_TTL_MS,
+      })
+    }
+    return authRes
   }
 
   const supabase = createClient()
@@ -139,7 +176,28 @@ export async function requireTenantAuth(): Promise<TenantAuth> {
     return { ok: false, status: 401, message: 'Oturum bulunamadı' }
   }
 
-  return resolveProfile(supabase, user.id)
+  const userKey = `user_${user.id}`
+  const cached = authCache.get(userKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return {
+      ok: true,
+      supabase,
+      userId: cached.userId,
+      tenantId: cached.tenantId,
+      role: cached.role,
+    }
+  }
+
+  const authRes = await resolveProfile(supabase, user.id)
+  if (authRes.ok) {
+    authCache.set(userKey, {
+      userId: authRes.userId,
+      tenantId: authRes.tenantId,
+      role: authRes.role,
+      expiresAt: Date.now() + AUTH_CACHE_TTL_MS,
+    })
+  }
+  return authRes
 }
 
 export async function requireTenantOwner(): Promise<TenantAuth> {

@@ -28,9 +28,30 @@ const FILTERS = [
 interface OrderRow extends AtolyeTableOrder {}
 
 export default function AtolyePage() {
-  const [orders, setOrders] = useState<OrderRow[]>([])
+  const [orders, setOrders] = useState<OrderRow[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getServiceOrders()
+      if (cached.length > 0) {
+        return cached.map(o => ({
+          id: o.id, job_no: o.job_no, customer_name: o.customer_name,
+          customer_phone: o.customer_phone, device_brand: o.device_brand,
+          device_model: o.device_model, imei: o.imei || '',
+          status: o.status, technician: o.technician,
+          estimated_cost: o.estimated_cost, actual_cost: o.actual_cost,
+          description: o.description, created_at: o.created_at,
+          updated_at: o.updated_at, eta: o.eta,
+        }))
+      }
+    }
+    return []
+  })
   const [configs, setConfigs] = useState<SlaConfig[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return getServiceOrders().length === 0
+    }
+    return true
+  })
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [showModal, setShowModal] = useState(false)

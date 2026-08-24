@@ -105,8 +105,19 @@ function mapApiCustomer(c: StoreCustomer & { tenant_id?: string }, tenantId = 'l
 // ─── Ana Bileşen ────────────────────────────────────────────────────────────
 
 export default function MusterilerPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [loading, setLoading] = useState(true)
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getCustomers()
+      if (cached.length > 0) return mapStoreCustomers()
+    }
+    return []
+  })
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return getCustomers().length === 0
+    }
+    return true
+  })
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [segmentFilter, setSegmentFilter] = useState('')

@@ -179,37 +179,35 @@ export async function getDailyAccountSummary(
   tenantId: string,
   range: DailyReportDateRange,
 ): Promise<{ summaries: AccountDailySummary[]; integrityMismatches: any[] }> {
-  // 1. Tenant'ın aktif hesaplarını getir
-  const { data: accounts, error: accErr } = await client
-    .from('accounts')
-    .select('id, name, type, balance, currency, is_default, is_active')
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .order('created_at', { ascending: true })
+  // 1. Hesaplar, dönem içi hareketler ve geçmiş toplamları paralel sorgula
+  const [accResult, txResult, priorResult] = await Promise.all([
+    client
+      .from('accounts')
+      .select('id, name, type, balance, currency, is_default, is_active')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true }),
+    client
+      .from('financial_transactions')
+      .select('id, type, amount, category, account_id, target_account_id, payment_method, transaction_date, created_at')
+      .eq('tenant_id', tenantId)
+      .gte('transaction_date', range.from)
+      .lte('transaction_date', range.to),
+    client
+      .from('financial_transactions')
+      .select('type, amount, account_id, target_account_id')
+      .eq('tenant_id', tenantId)
+      .lt('transaction_date', range.from)
+      .limit(5000),
+  ])
 
-  if (accErr) throw new Error(`Hesaplar okunamadı: ${accErr.message}`)
-  const activeAccounts = accounts ?? []
+  if (accResult.error) throw new Error(`Hesaplar okunamadı: ${accResult.error.message}`)
+  if (txResult.error) throw new Error(`Finansal hareketler okunamadı: ${txResult.error.message}`)
+  if (priorResult.error) throw new Error(`Geçmiş işlemler okunamadı: ${priorResult.error.message}`)
 
-  // 2. Bu hesaplara ait tüm finansal işlemleri getir
-  const { data: periodTxs, error: txErr } = await client
-    .from('financial_transactions')
-    .select('id, type, amount, category, account_id, target_account_id, payment_method, transaction_date, created_at')
-    .eq('tenant_id', tenantId)
-    .gte('transaction_date', range.from)
-    .lte('transaction_date', range.to)
-
-  if (txErr) throw new Error(`Finansal hareketler okunamadı: ${txErr.message}`)
-  const txList = periodTxs ?? []
-
-  // 3. Geçmiş dönem toplamları (Opening Balance hesabı için)
-  const { data: priorTxs, error: priorErr } = await client
-    .from('financial_transactions')
-    .select('type, amount, account_id, target_account_id')
-    .eq('tenant_id', tenantId)
-    .lt('transaction_date', range.from)
-
-  if (priorErr) throw new Error(`Geçmiş işlemler okunamadı: ${priorErr.message}`)
-  const priorList = priorTxs ?? []
+  const activeAccounts = accResult.data ?? []
+  const txList = txResult.data ?? []
+  const priorList = priorResult.data ?? []
 
   // Hesap bazında geçmiş net hareketleri hesapla
   const priorNetByAccount = new Map<string, number>()

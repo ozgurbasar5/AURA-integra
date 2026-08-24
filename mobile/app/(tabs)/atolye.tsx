@@ -59,8 +59,7 @@ export default function AtolyeScreen() {
   useFocusEffect(
     useCallback(() => {
       void (async () => {
-        if (!hasData.current) await load(false)
-        else await load(true)
+        await load(false)
       })()
     }, [load]),
   )
