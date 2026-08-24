@@ -158,9 +158,10 @@ export async function createServiceOrderRemote(
   input: CreateServiceOrderInput,
   options?: { allowLocalFallback?: boolean; maxRetries?: number },
 ): Promise<{ order: StoreServiceOrder | null; synced: boolean; error?: string }> {
-  const maxRetries = options?.maxRetries ?? 2
   const allowLocalFallback = options?.allowLocalFallback ?? false
-  let lastError = 'Supabase bağlantısı kurulamadı'
+  // 4xx errors should NEVER retry; 5xx/network errors max 1 quick retry
+  const maxRetries = options?.maxRetries !== undefined ? Math.min(options.maxRetries, 1) : 1
+  let lastError = 'Kayıt oluşturulamadı.'
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -184,12 +185,34 @@ export async function createServiceOrderRemote(
         upsertServiceOrder(order)
         return { order, synced: true }
       }
-      lastError = json.error || `Sunucu hatası (${res.status})`
+
+      // Explicit 4xx Business Errors — NEVER RETRY
+      if (res.status === 401) {
+        return { order: null, synced: false, error: 'Oturum süresi doldu. Lütfen tekrar giriş yapın.' }
+      }
+      if (res.status === 403) {
+        return { order: null, synced: false, error: 'Bu işlem için yetkiniz bulunmamaktadır.' }
+      }
+      if (res.status === 400) {
+        return { order: null, synced: false, error: json.error || 'Geçersiz veri girişi yapıldı.' }
+      }
+      if (res.status === 409) {
+        return { order: null, synced: false, error: json.error || 'Kayıt zaten mevcut.' }
+      }
+      if (res.status >= 400 && res.status < 500) {
+        return { order: null, synced: false, error: json.error || 'İşlem gerçekleştirilemedi.' }
+      }
+
+      // 5xx Server Error — allow max 1 retry
+      lastError = json.error || 'Sunucu geçici olarak kullanılamıyor.'
     } catch (e) {
-      lastError = e instanceof Error ? e.message : 'Ağ hatası'
+      lastError = e instanceof Error && /network|fetch|bağlantı|timeout/i.test(e.message)
+        ? 'Ağ bağlantısı kurulamadı.'
+        : (e instanceof Error ? e.message : 'Ağ hatası')
     }
+
     if (attempt < maxRetries) {
-      await new Promise(r => setTimeout(r, 400 * (attempt + 1)))
+      await new Promise(r => setTimeout(r, 400))
     }
   }
 
@@ -197,7 +220,7 @@ export async function createServiceOrderRemote(
     return {
       order: null,
       synced: false,
-      error: lastError || 'Kayıt oluşturulamadı.',
+      error: lastError,
     }
   }
 

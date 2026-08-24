@@ -1087,9 +1087,14 @@ export function replaceServiceOrders(
 /** Tek kayıt ekle veya güncelle */
 export function upsertServiceOrder(order: StoreServiceOrder): void {
   const store = loadStore()
-  const idx = store.serviceOrders.findIndex(o => o.id === order.id)
-  if (idx >= 0) store.serviceOrders[idx] = { ...store.serviceOrders[idx], ...order }
-  else store.serviceOrders.push(order)
+  const idx = store.serviceOrders.findIndex(
+    o => o.id === order.id || (order.job_no && o.job_no === order.job_no)
+  )
+  if (idx >= 0) {
+    store.serviceOrders[idx] = { ...store.serviceOrders[idx], ...order }
+  } else {
+    store.serviceOrders.push(order)
+  }
   saveStore(store)
   emitChange('service')
 }

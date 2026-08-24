@@ -42,23 +42,12 @@ export default function AtolyeScreen() {
       if (!hasData.current && !isRefresh) setLoading(true)
       if (isRefresh) setRefreshing(true)
       try {
-        try {
-          const json = (await apiFetch('/api/service-orders?limit=80', { fresh })) as { data?: ServiceOrderSummary[] }
-          setItems(json.data ?? [])
-        } catch {
-          const { data, error: qErr } = await supabase
-            .from('service_orders')
-            .select('id, order_no, customer_name, customer_phone, status, device_brand, device_model, fault_description, updated_at, estimated_cost, actual_cost')
-            .eq('tenant_id', profile.tenant_id)
-            .order('updated_at', { ascending: false })
-            .limit(80)
-          if (qErr) throw qErr
-          setItems((data as ServiceOrderSummary[]) ?? [])
-        }
+        const json = (await apiFetch('/api/service-orders?limit=80', { fresh })) as { data?: ServiceOrderSummary[] }
+        setItems(json.data ?? [])
         hasData.current = true
         setError('')
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Yüklenemedi')
+        setError(e instanceof Error ? e.message : 'Servis kayıtları yüklenemedi')
       } finally {
         setLoading(false)
         setRefreshing(false)

@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics'
 import FontAwesome from '@expo/vector-icons/FontAwesome'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-import { apiFetch, apiUpload } from '@/lib/api'
+import { apiFetch, apiUpload, invalidateApiCache } from '@/lib/api'
 import { enqueueJob, listQueuedJobs } from '@/lib/offline-queue'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { useAppTheme } from '@/lib/ThemeContext'
@@ -202,6 +202,7 @@ export default function KabulScreen() {
       const tracking = created.data?.tracking_code ? String(created.data.tracking_code) : orderNo
       setForm(empty)
       setShowForm(false)
+      invalidateApiCache('/api/service-orders')
       await load()
       if (id) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
