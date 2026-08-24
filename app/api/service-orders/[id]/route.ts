@@ -91,7 +91,13 @@ export const PATCH = withApiHandler(async function PATCH(req: NextRequest, ctx: 
   if (body.fault_description != null) patch.fault_description = body.fault_description
 
   if (body.technician_id !== undefined) {
-    patch.technician_id = body.technician_id || null
+    if (body.technician_id === null || body.technician_id === '') {
+      patch.technician_id = null
+    } else if (isUuid(body.technician_id)) {
+      patch.technician_id = body.technician_id
+    } else {
+      return NextResponse.json({ error: 'Geçersiz technician_id UUID formatı.' }, { status: 400 })
+    }
   } else if (body.technician_name !== undefined) {
     const name = (body.technician_name || '').trim()
     if (!name) {
