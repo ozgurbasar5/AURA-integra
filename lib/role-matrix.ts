@@ -4,7 +4,7 @@
 
 import { normalizeTenantRole } from './tenant-roles'
 
-export const OWNER_ROLES = ['tenant_admin', 'admin', 'mudur', 'owner'] as const
+export const OWNER_ROLES = ['super_admin', 'tenant_admin', 'admin', 'mudur', 'owner'] as const
 export const OWNER_SET = new Set<string>(OWNER_ROLES)
 
 export type AppModule =

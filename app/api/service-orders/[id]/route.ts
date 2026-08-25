@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenantAuth, isUuid } from '@/lib/supabase/tenant-auth'
 import { getServiceClient } from '@/lib/supabase/service'
-import { mapStoreStatusToDb } from '@/lib/erp-features'
+import { mapStoreStatusToDb, isQcComplete } from '@/lib/erp-features'
 import { buildStatusSmsMessage, sendSms, sendWhatsApp, logNotification } from '@/lib/notification-service'
 import { notifyTenantPushOnStatus, shouldNotifyPush } from '@/lib/expo-push'
 import { getTenantSmsCredentials, logSmsToDb } from '@/lib/tenant-sms'
@@ -17,7 +17,7 @@ type RouteContext = { params?: Record<string, string> }
 function normalizeStatus(raw: string): ServiceOrderStatus {
   const mapped = mapStoreStatusToDb(raw) as ServiceOrderStatus
   const allowed: ServiceOrderStatus[] = [
-    'alindi', 'teshis', 'onay_bekleniyor', 'tamir', 'kalite_kontrol', 'teslime_hazir', 'teslim', 'iptal',
+    'alindi', 'teshis', 'onay_bekleniyor', 'tamir', 'kalite_kontrol', 'teslim', 'iptal',
   ]
   return allowed.includes(mapped) ? mapped : 'alindi'
 }
@@ -80,6 +80,8 @@ export const PATCH = withApiHandler(async function PATCH(req: NextRequest, ctx: 
     technician_name?: string | null
     private_note?: string | null
     final_checks?: string[]
+    qc_passed?: boolean
+    qc_fail_reason?: string | null
     expenses?: Array<{ description: string; amount: number }>
   }
 
@@ -129,23 +131,48 @@ export const PATCH = withApiHandler(async function PATCH(req: NextRequest, ctx: 
   const needsMeta =
     (body.used_parts != null && Array.isArray(body.used_parts)) ||
     body.final_checks != null ||
+    body.qc_passed !== undefined ||
+    body.qc_fail_reason !== undefined ||
     body.expenses != null
+
+  let existingStatus: string | undefined
 
   if (needsMeta) {
     const { data: existing } = await supabase
       .from('service_orders')
-      .select('metadata')
+      .select('status, metadata')
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .maybeSingle()
 
+    existingStatus = existing?.status
     const meta = (existing?.metadata as Record<string, unknown>) ?? {}
     const nextMeta = { ...meta }
+
     if (body.used_parts != null && Array.isArray(body.used_parts)) {
       nextMeta.used_parts = body.used_parts
     }
     if (body.final_checks != null && Array.isArray(body.final_checks)) {
       nextMeta.final_checks = body.final_checks.map(String)
+      if (isQcComplete(nextMeta.final_checks)) {
+        nextMeta.qc_passed = true
+        nextMeta.qc_completed_at = new Date().toISOString()
+        nextMeta.qc_fail_reason = null
+        if (!body.status && (existingStatus === 'tamir' || existingStatus === 'kalite_kontrol')) {
+          patch.status = 'kalite_kontrol'
+        }
+      }
+    }
+    if (body.qc_passed === true) {
+      nextMeta.qc_passed = true
+      nextMeta.qc_completed_at = new Date().toISOString()
+      nextMeta.qc_fail_reason = null
+      if (!patch.status) patch.status = 'kalite_kontrol'
+    } else if (body.qc_passed === false) {
+      nextMeta.qc_passed = false
+      nextMeta.qc_fail_reason = body.qc_fail_reason || 'Kalite kontrol testi başarısız'
+      // QC FAIL reverts device back to repair ('tamir')
+      patch.status = 'tamir'
     }
     if (body.expenses != null && Array.isArray(body.expenses)) {
       nextMeta.expenses = body.expenses
@@ -174,12 +201,19 @@ export const PATCH = withApiHandler(async function PATCH(req: NextRequest, ctx: 
     )
   }
 
-  if (body.status != null) {
+  if (patch.status != null || body.status != null || body.qc_passed !== undefined) {
+    let historyNote = 'Durum güncellendi.'
+    if (body.qc_passed === false) {
+      historyNote = `Kalite kontrol başarısız: ${body.qc_fail_reason || 'Onarıma geri döndü'}`
+    } else if (body.qc_passed === true || (body.final_checks && isQcComplete(body.final_checks))) {
+      historyNote = 'Kalite kontrol tamamlandı (QC PASS) — Cihaz teslime hazır.'
+    }
+
     await supabase.from('service_status_history').insert({
       order_id: id,
       tenant_id: tenantId,
       status: data.status,
-      note: 'Durum güncellendi.',
+      note: historyNote,
       created_by: userId,
     })
 

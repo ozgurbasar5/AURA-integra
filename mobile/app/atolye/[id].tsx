@@ -26,7 +26,7 @@ import { TextField } from '@/components/ui/TextField'
 import { ErrorBanner, LoadingBlock } from '@/components/ui/States'
 import { statusLabel } from '@/lib/status-labels'
 import { buildServiceReceiptText, buildWaMeUrl } from '@/lib/wa'
-import { QC_CHECKLIST, qcProgress } from '@/lib/qc'
+import { QC_CHECKLIST, qcProgress, isQcComplete } from '@/lib/qc'
 import { enqueueJob } from '@/lib/offline-queue'
 import { ServiceStickyBar } from '@/components/service/ServiceStickyBar'
 import { StatusActionSheet } from '@/components/service/StatusActionSheet'
@@ -356,9 +356,49 @@ export default function AtolyeDetailScreen() {
     ])
   }
 
-  function toggleQc(item: string) {
+  async function toggleQc(item: string) {
+    if (isDone) return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    setFinalChecks(prev => (prev.includes(item) ? prev.filter(x => x !== item) : [...prev, item]))
+    const next = finalChecks.includes(item) ? finalChecks.filter(x => x !== item) : [...finalChecks, item]
+    setFinalChecks(next)
+
+    if (isQcComplete(next)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+      setOrder(prev => prev ? { ...prev, status: 'kalite_kontrol' } : prev)
+      await patchOrder({
+        final_checks: next,
+        status: 'kalite_kontrol',
+        qc_passed: true,
+      })
+      setMsg('Kalite kontrol tamamlandı (QC PASS) — Cihaz teslime hazır!')
+    } else {
+      await patchOrder({ final_checks: next })
+    }
+  }
+
+  async function handleQcPassAll() {
+    if (isDone) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+    setFinalChecks(QC_CHECKLIST)
+    setOrder(prev => prev ? { ...prev, status: 'kalite_kontrol' } : prev)
+    await patchOrder({
+      final_checks: QC_CHECKLIST,
+      status: 'kalite_kontrol',
+      qc_passed: true,
+    })
+    setMsg('Tüm testler onaylandı (QC PASS) — Cihaz teslime hazır!')
+  }
+
+  async function handleQcFail(reason = 'Kalite kontrol aşamasında problem tespit edildi') {
+    if (isDone) return
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+    setOrder(prev => prev ? { ...prev, status: 'tamir' } : prev)
+    await patchOrder({
+      status: 'tamir',
+      qc_passed: false,
+      qc_fail_reason: reason,
+    })
+    setMsg(`QC Başarısız — Cihaz onarıma döndü (${reason})`)
   }
 
   if (loading) {
@@ -523,6 +563,23 @@ export default function AtolyeDetailScreen() {
                 )
               })}
             </View>
+
+            {!isDone && (
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Pressable
+                  onPress={handleQcPassAll}
+                  style={{ flex: 1, backgroundColor: colors.success, paddingVertical: 9, borderRadius: colors.radius, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>✓ QC PASS (Hazırla)</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleQcFail()}
+                  style={{ paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: colors.danger, borderRadius: colors.radius, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: colors.danger, fontSize: 12, fontWeight: '700' }}>✕ QC Fail</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
 
           {/* Section 4: Used Parts */}

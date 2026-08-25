@@ -48,7 +48,7 @@ function dbToStore(row: DbRow): StoreServiceOrder {
     device_brand: String(row.device_brand ?? ''),
     device_model: String(row.device_model ?? ''),
     imei: String(row.imei ?? ''),
-    status: mapDbStatusToStore(String(row.status ?? 'alindi')),
+    status: mapDbStatusToStore(String(row.status ?? 'alindi'), meta),
     technician: technician?.full_name ?? null,
     estimated_cost: Number(row.estimated_cost) || 0,
     actual_cost: row.actual_cost != null ? Number(row.actual_cost) : undefined,
@@ -61,6 +61,9 @@ function dbToStore(row: DbRow): StoreServiceOrder {
     used_parts: used_parts.length ? used_parts : undefined,
     private_note: row.private_note != null ? String(row.private_note) : (meta.private_note != null ? String(meta.private_note) : undefined),
     final_checks,
+    qc_passed: meta.qc_passed === true,
+    qc_fail_reason: meta.qc_fail_reason != null ? String(meta.qc_fail_reason) : undefined,
+    qc_completed_at: meta.qc_completed_at != null ? String(meta.qc_completed_at) : undefined,
     financial_posted: meta.financial_posted === true,
     delivered_at: meta.delivered_at ? String(meta.delivered_at) : (row.closed_at ? String(row.closed_at) : undefined),
     net_profit: meta.net_profit != null ? Number(meta.net_profit) : undefined,
@@ -261,6 +264,8 @@ export interface UpdateServiceOrderPatch {
   used_parts?: unknown[]
   approval_status?: string
   delivered_at?: string | null
+  qc_passed?: boolean
+  qc_fail_reason?: string
 }
 
 export async function updateServiceOrderRemote(
@@ -278,6 +283,8 @@ export async function updateServiceOrderRemote(
   if (patch.used_parts != null) dbPatch.used_parts = patch.used_parts
   if (patch.private_note !== undefined) dbPatch.private_note = patch.private_note
   if (patch.final_checks != null) dbPatch.final_checks = patch.final_checks
+  if (patch.qc_passed !== undefined) dbPatch.qc_passed = patch.qc_passed
+  if (patch.qc_fail_reason !== undefined) dbPatch.qc_fail_reason = patch.qc_fail_reason
   if (patch.approval_status != null) dbPatch.approval_status = patch.approval_status
   if (patch.delivered_at !== undefined) dbPatch.delivered_at = patch.delivered_at
 

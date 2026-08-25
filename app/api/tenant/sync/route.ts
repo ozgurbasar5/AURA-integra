@@ -63,12 +63,13 @@ async function handleSync(req: NextRequest) {
     db.from('financial_transactions').select('*'), tid,
   ).order('transaction_date', { ascending: false })
   const txFiltered = since
-    ? txQ.or(`updated_at.gte.${since},created_at.gte.${since}`)
+    ? txQ.gte('created_at', since)
     : txQ.limit(500)
   const salesQ = sinceQuery(
     tenantQuery(db.from('sales').select('*'), tid)
       .order('created_at', { ascending: false }),
     since,
+    'created_at',
   )
 
   const [

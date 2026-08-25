@@ -136,4 +136,119 @@ describe('Sync Engine API', () => {
       expect.arrayContaining([expect.objectContaining({ table: 'parts' })])
     )
   })
+
+  it('5. Incremental sync applies created_at filter to financial_transactions and sales', async () => {
+    vi.mocked(requireTenantAuth).mockResolvedValue({
+      ok: true,
+      tenantId: mockTenantId,
+      userId: mockUserId,
+      role: 'tenant_admin',
+      supabase: {} as never,
+    } as never)
+
+    const tableQueries: Record<string, { gteCalls: [string, unknown][]; limitCalls: number[]; orCalls: string[] }> = {}
+
+    const mockAdmin = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const queryState = {
+          gteCalls: [] as [string, unknown][],
+          limitCalls: [] as number[],
+          orCalls: [] as string[],
+        }
+        tableQueries[table] = queryState
+
+        const builder: Record<string, unknown> = {}
+        builder.select = vi.fn().mockReturnValue(builder)
+        builder.eq = vi.fn().mockReturnValue(builder)
+        builder.order = vi.fn().mockReturnValue(builder)
+        builder.gte = vi.fn().mockImplementation((col: string, val: unknown) => {
+          queryState.gteCalls.push([col, val])
+          return builder
+        })
+        builder.or = vi.fn().mockImplementation((cond: string) => {
+          queryState.orCalls.push(cond)
+          return builder
+        })
+        builder.limit = vi.fn().mockImplementation((lim: number) => {
+          queryState.limitCalls.push(lim)
+          return Promise.resolve({ data: [], error: null })
+        })
+        builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+        builder.in = vi.fn().mockReturnValue(builder)
+        builder.then = (resolve: (val: unknown) => unknown) =>
+          Promise.resolve({ data: [], error: null }).then(resolve)
+
+        return builder
+      }),
+    }
+    vi.mocked(getServiceClient).mockReturnValue(mockAdmin as never)
+
+    const sinceTimestamp = '2026-08-25T00:00:00.000Z'
+    const req = new NextRequest(`http://localhost:3000/api/tenant/sync?since=${encodeURIComponent(sinceTimestamp)}`)
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    // financial_transactions should filter on created_at (NOT updated_at, NOT .or())
+    expect(tableQueries['financial_transactions']?.gteCalls).toEqual([['created_at', sinceTimestamp]])
+    expect(tableQueries['financial_transactions']?.orCalls).toEqual([])
+
+    // sales should filter on created_at (NOT updated_at)
+    expect(tableQueries['sales']?.gteCalls).toEqual([['created_at', sinceTimestamp]])
+
+    // parts, customers, service_orders have updated_at in schema and should filter on updated_at
+    expect(tableQueries['parts']?.gteCalls).toEqual([['updated_at', sinceTimestamp]])
+    expect(tableQueries['customers']?.gteCalls).toEqual([['updated_at', sinceTimestamp]])
+    expect(tableQueries['service_orders']?.gteCalls).toEqual([['updated_at', sinceTimestamp]])
+  })
+
+  it('6. Full sync without since preserves limit(500) on financial_transactions', async () => {
+    vi.mocked(requireTenantAuth).mockResolvedValue({
+      ok: true,
+      tenantId: mockTenantId,
+      userId: mockUserId,
+      role: 'tenant_admin',
+      supabase: {} as never,
+    } as never)
+
+    const tableQueries: Record<string, { gteCalls: [string, unknown][]; limitCalls: number[] }> = {}
+
+    const mockAdmin = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const queryState = {
+          gteCalls: [] as [string, unknown][],
+          limitCalls: [] as number[],
+        }
+        tableQueries[table] = queryState
+
+        const builder: Record<string, unknown> = {}
+        builder.select = vi.fn().mockReturnValue(builder)
+        builder.eq = vi.fn().mockReturnValue(builder)
+        builder.order = vi.fn().mockReturnValue(builder)
+        builder.gte = vi.fn().mockImplementation((col: string, val: unknown) => {
+          queryState.gteCalls.push([col, val])
+          return builder
+        })
+        builder.limit = vi.fn().mockImplementation((lim: number) => {
+          queryState.limitCalls.push(lim)
+          return Promise.resolve({ data: [], error: null })
+        })
+        builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+        builder.in = vi.fn().mockReturnValue(builder)
+        builder.then = (resolve: (val: unknown) => unknown) =>
+          Promise.resolve({ data: [], error: null }).then(resolve)
+
+        return builder
+      }),
+    }
+    vi.mocked(getServiceClient).mockReturnValue(mockAdmin as never)
+
+    const req = new NextRequest('http://localhost:3000/api/tenant/sync')
+    const res = await GET(req)
+    expect(res.status).toBe(200)
+
+    // financial_transactions without since should limit to 500 and not have gte
+    expect(tableQueries['financial_transactions']?.limitCalls).toContain(500)
+    expect(tableQueries['financial_transactions']?.gteCalls).toEqual([])
+  })
 })
+

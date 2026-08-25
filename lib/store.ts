@@ -190,6 +190,9 @@ export interface StoreServiceOrder {
   category?: string
   pre_checks?: string[]
   final_checks?: string[]
+  qc_passed?: boolean
+  qc_fail_reason?: string
+  qc_completed_at?: string
   visual_faults?: string[]
   payment_status?: 'unpaid' | 'paid'
   images?: string[]
@@ -898,7 +901,7 @@ function ensureStoreShape(parsed: Partial<StoreData>): StoreData {
 
 // ─── Store Access ──────────────────────────────────────────────────────────────
 
-function loadStore(): StoreData {
+export function loadStore(): StoreData {
   if (typeof window === 'undefined') return EMPTY_STORE
   try {
     const raw = localStorage.getItem(getStoreStorageKey())
@@ -940,7 +943,7 @@ function migrateSale(s: Sale): Sale {
   }
 }
 
-function saveStore(data: StoreData) {
+export function saveStore(data: StoreData) {
   if (typeof window === 'undefined') return
   localStorage.setItem(getStoreStorageKey(), JSON.stringify(data))
 }
@@ -1736,7 +1739,9 @@ export function deliverService(
   const store = loadStore()
   const order = store.serviceOrders.find(o => o.id === serviceId)
 
-  if (store.notificationSettings.require_qc_on_delivery && order && !isQcComplete(order.final_checks)) {
+  const checks = order?.final_checks
+  const qcPassed = order?.qc_passed === true || isQcComplete(checks)
+  if (store.notificationSettings.require_qc_on_delivery && order && !qcPassed) {
     console.warn(`[Store] deliverService: QC checklist tamamlanmamış (${serviceId})`)
     return null
   }
@@ -2578,11 +2583,16 @@ export function processServiceApproval(token: string, approved: boolean): StoreS
   return store.serviceOrders[idx]
 }
 
-export function canDeliverService(serviceId: string): { ok: boolean; reason?: string } {
+export function canDeliverService(serviceId: string, currentChecks?: string[]): { ok: boolean; reason?: string } {
   const store = loadStore()
   const order = store.serviceOrders.find(o => o.id === serviceId)
   if (!order) return { ok: false, reason: 'Kayıt bulunamadı' }
-  if (store.notificationSettings.require_qc_on_delivery && !isQcComplete(order.final_checks)) {
+  if (order.status === 'delivered' || order.status === 'teslim') {
+    return { ok: false, reason: 'Cihaz zaten teslim edilmiş' }
+  }
+  const checks = currentChecks ?? order.final_checks
+  const qcPassed = order.qc_passed === true || isQcComplete(checks)
+  if (store.notificationSettings.require_qc_on_delivery && !qcPassed) {
     return { ok: false, reason: 'Kalite kontrol listesi tamamlanmalı' }
   }
   return { ok: true }

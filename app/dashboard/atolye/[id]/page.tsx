@@ -38,6 +38,7 @@ const STATUSES: Record<string, { label: string; cls: string }> = {
   parts_waiting: { label: 'Parça Bekliyor', cls: 'bg-orange-500/15 text-orange-800 dark:text-orange-300' },
   in_repair: { label: 'Tamirde', cls: 'bg-sky-500/15 text-sky-800 dark:text-sky-300' },
   customer_approval_pending: { label: 'Onay Bekliyor', cls: 'bg-amber-500/15 text-amber-800 dark:text-amber-300' },
+  kalite_kontrol: { label: 'Kalite Kontrol', cls: 'bg-purple-500/15 text-purple-800 dark:text-purple-300' },
   ready_for_pickup: { label: 'Teslime Hazır', cls: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' },
   delivered: { label: 'Teslim Edildi', cls: 'bg-emerald-500/20 text-emerald-900 dark:text-emerald-200' },
   cancelled: { label: 'İptal', cls: 'bg-red-500/15 text-red-700 dark:text-red-300' },
@@ -273,14 +274,53 @@ export default function AtolyeDetailPage() {
     }
   }
 
-  function toggleQc(item: string) {
+  async function toggleQc(item: string) {
     if (isDone) return
-    setFinalChecks(prev => prev.includes(item) ? prev.filter(x => x !== item) : [...prev, item])
+    const next = finalChecks.includes(item) ? finalChecks.filter(x => x !== item) : [...finalChecks, item]
+    setFinalChecks(next)
+    updateServiceOrder(id, { final_checks: next })
+
+    if (isQcComplete(next)) {
+      setStatus('ready_for_pickup')
+      updateServiceOrder(id, { final_checks: next, status: 'ready_for_pickup', qc_passed: true })
+      updateServiceStatus(id, 'ready_for_pickup')
+      await updateServiceOrderRemote(id, { final_checks: next, status: 'ready_for_pickup', qc_passed: true })
+      toast.success('Kalite kontrol tamamlandı (QC PASS) — Cihaz teslime hazır!')
+    } else {
+      await updateServiceOrderRemote(id, { final_checks: next })
+    }
+  }
+
+  async function handleQcPassAll() {
+    if (isDone) return
+    setFinalChecks(QC_CHECKLIST)
+    setStatus('ready_for_pickup')
+    updateServiceOrder(id, { final_checks: QC_CHECKLIST, status: 'ready_for_pickup', qc_passed: true })
+    updateServiceStatus(id, 'ready_for_pickup')
+    await updateServiceOrderRemote(id, {
+      final_checks: QC_CHECKLIST,
+      status: 'ready_for_pickup',
+      qc_passed: true,
+    })
+    toast.success('Tüm testler onaylandı (QC PASS) — Cihaz teslime hazır!')
+  }
+
+  async function handleQcFail(reason = 'Kalite kontrol aşamasında problem tespit edildi') {
+    if (isDone) return
+    setStatus('in_repair')
+    updateServiceOrder(id, { status: 'in_repair', qc_passed: false, qc_fail_reason: reason })
+    updateServiceStatus(id, 'in_repair')
+    await updateServiceOrderRemote(id, {
+      status: 'in_repair',
+      qc_passed: false,
+      qc_fail_reason: reason,
+    })
+    toast.error(`Kalite kontrol başarısız — Cihaz onarıma geri döndü: ${reason}`)
   }
 
   async function handleDeliver() {
     if (!order || price <= 0) { toast.warning('Ücret girin'); return }
-    const check = canDeliverService(id)
+    const check = canDeliverService(id, finalChecks)
     if (!check.ok) { toast.error(check.reason || 'Teslim edilemez'); return }
     updateServiceOrder(id, { final_checks: finalChecks })
     const warrantyMonths = getNotificationSettings().service_warranty_months
@@ -569,17 +609,40 @@ export default function AtolyeDetailPage() {
 
           <div className="surface p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-slate-900">Kalite Kontrol</h2>
-              <span className="text-xs font-bold text-slate-500">{qc.done}/{qc.total}</span>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Kalite Kontrol (QC)</h2>
+                <p className="text-[11px] text-slate-500">Teslim öncesi son kontrol</p>
+              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${qc.done === qc.total ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                {qc.done}/{qc.total} {qc.done === qc.total ? '✓ Hazır' : ''}
+              </span>
             </div>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+            <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3">
               {QC_CHECKLIST.map(item => (
-                <label key={item} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                  <input type="checkbox" checked={finalChecks.includes(item)} onChange={() => toggleQc(item)} disabled={isDone} className="rounded border-slate-300" />
-                  {item}
+                <label key={item} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 p-1 rounded">
+                  <input type="checkbox" checked={finalChecks.includes(item)} onChange={() => toggleQc(item)} disabled={isDone} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                  <span>{item}</span>
                 </label>
               ))}
             </div>
+            {!isDone && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleQcPassAll}
+                  className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                >
+                  ✓ Tümünü Onayla (QC PASS)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQcFail()}
+                  className="py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-colors"
+                >
+                  ✕ QC Başarısız
+                </button>
+              </div>
+            )}
           </div>
 
           {statusTimeline.length > 0 && (

@@ -10,7 +10,8 @@ export const STORE_TO_PUBLIC_STATUS: Record<string, string> = {
   waiting_diagnosis: 'alindi',
   in_repair: 'tamir',
   customer_approval_pending: 'onay_bekleniyor',
-  ready_for_pickup: 'teslime_hazir',
+  kalite_kontrol: 'kalite_kontrol',
+  ready_for_pickup: 'hazir',
   delivered: 'teslim',
   cancelled: 'iptal',
   parts_waiting: 'teshis',
@@ -23,6 +24,7 @@ export const PUBLIC_STATUS_LABELS: Record<string, string> = {
   onay_bekleniyor: 'Müşteri Onayı Bekleniyor',
   tamir: 'Onarım Yapılıyor',
   kalite_kontrol: 'Kalite Kontrol',
+  hazir: 'Teslime Hazır',
   teslime_hazir: 'Teslime Hazır',
   teslim: 'Teslim Edildi',
   iptal: 'İptal Edildi',
@@ -34,7 +36,9 @@ export const DB_TO_PUBLIC_STATUS: Record<string, string> = {
   teshis: 'teshis',
   onay_bekleniyor: 'onay_bekleniyor',
   tamir: 'tamir',
-  kalite_kontrol: 'teslime_hazir',
+  kalite_kontrol: 'kalite_kontrol',
+  hazir: 'hazir',
+  teslime_hazir: 'hazir',
   teslim: 'teslim',
   iptal: 'iptal',
 }
@@ -49,25 +53,56 @@ export function mapStoreStatusToPublic(status: string): string {
   return STORE_TO_PUBLIC_STATUS[status] || status
 }
 
-/** DB (Türkçe) → store (İngilizce) */
+/** DB (Türkçe) → store (İngilizce/UI) */
 const PUBLIC_TO_STORE_STATUS: Record<string, string> = {
   alindi: 'waiting_diagnosis',
   teshis: 'parts_waiting',
   onay_bekleniyor: 'customer_approval_pending',
   tamir: 'in_repair',
-  kalite_kontrol: 'ready_for_pickup',
+  onarimda: 'in_repair',
+  kalite_kontrol: 'kalite_kontrol',
+  hazir: 'ready_for_pickup',
+  teslime_hazir: 'ready_for_pickup',
   teslim: 'delivered',
+  teslim_edildi: 'delivered',
   iptal: 'cancelled',
 }
 
-export function mapDbStatusToStore(status: string): string {
+export function mapDbStatusToStore(status: string, metadata?: Record<string, unknown> | null): string {
+  if (status === 'kalite_kontrol') {
+    if (metadata?.qc_passed === true || isQcComplete((metadata?.final_checks as string[]) ?? [])) {
+      return 'ready_for_pickup'
+    }
+    return 'kalite_kontrol'
+  }
   if (PUBLIC_TO_STORE_STATUS[status]) return PUBLIC_TO_STORE_STATUS[status]
   if (STORE_TO_PUBLIC_STATUS[status]) return status
   return status
 }
 
 export function mapStoreStatusToDb(status: string): string {
-  return STORE_TO_PUBLIC_STATUS[status] || status
+  if (status === 'ready_for_pickup' || status === 'hazir' || status === 'teslime_hazir') {
+    return 'kalite_kontrol'
+  }
+  if (status === 'onarimda' || status === 'in_repair') {
+    return 'tamir'
+  }
+  if (status === 'delivered' || status === 'teslim_edildi') {
+    return 'teslim'
+  }
+  if (status === 'customer_approval_pending' || status === 'teklif_bekliyor') {
+    return 'onay_bekleniyor'
+  }
+  if (status === 'waiting_diagnosis') {
+    return 'alindi'
+  }
+  if (status === 'parts_waiting' || status === 'parts_ordered') {
+    return 'teshis'
+  }
+  if (status === 'cancelled' || status === 'iptal' || status === 'iade') {
+    return 'iptal'
+  }
+  return STORE_TO_PUBLIC_STATUS[status] || PUBLIC_TO_STORE_STATUS[status] || status
 }
 
 // ─── QC checklist ───────────────────────────────────────────────────────────
@@ -88,9 +123,27 @@ export function isQcComplete(finalChecks?: string[]): boolean {
   return QC_CHECKLIST.every(item => finalChecks.includes(item))
 }
 
-export function qcProgress(finalChecks?: string[]): { done: number; total: number } {
+export function qcProgress(finalChecks?: string[]): { done: number; total: number; passed: boolean } {
   const done = QC_CHECKLIST.filter(c => finalChecks?.includes(c)).length
-  return { done, total: QC_CHECKLIST.length }
+  const total = QC_CHECKLIST.length
+  return { done, total, passed: done === total }
+}
+
+export function evaluateQc(finalChecks?: string[]): {
+  passed: boolean
+  done: number
+  total: number
+  missing: string[]
+} {
+  const missing = QC_CHECKLIST.filter(c => !finalChecks?.includes(c))
+  const done = QC_CHECKLIST.length - missing.length
+  const total = QC_CHECKLIST.length
+  return {
+    passed: missing.length === 0,
+    done,
+    total,
+    missing,
+  }
 }
 
 // ─── Şablon render ──────────────────────────────────────────────────────────

@@ -245,6 +245,7 @@ export const POST = withApiHandler(async function POST(req: NextRequest, ctx: Ro
           ...meta,
           used_parts: usedParts,
           final_checks: body.final_checks ?? meta.final_checks,
+          qc_passed: true,
           financial_posted: true,
           net_profit: netProfit,
           delivered_at: deliveredAt,
@@ -253,6 +254,17 @@ export const POST = withApiHandler(async function POST(req: NextRequest, ctx: Ro
       }),
       auth.tenantId,
     ).eq('id', id)
+
+    // Insert service_status_history for delivery
+    try {
+      await admin.from('service_status_history').insert({
+        order_id: id,
+        tenant_id: auth.tenantId,
+        status: 'teslim',
+        note: `Cihaz teslim edildi. Tahsilat: ${serviceFee} ₺ (${paymentMethod})`,
+        created_by: auth.userId,
+      })
+    } catch {}
 
     // Warranties
     let warrantyId: string | null = null

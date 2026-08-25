@@ -142,6 +142,24 @@ export const PORTAL_STATUS_STEPS = [
 ] as const
 
 export function portalStatusStepIndex(publicStatus: string): number {
+  if (publicStatus === 'kalite_kontrol' || publicStatus === 'hazir' || publicStatus === 'teslime_hazir') {
+    return 4
+  }
+  if (publicStatus === 'delivered' || publicStatus === 'teslim' || publicStatus === 'teslim_edildi') {
+    return 5
+  }
+  if (publicStatus === 'in_repair' || publicStatus === 'onarimda' || publicStatus === 'tamir') {
+    return 3
+  }
+  if (publicStatus === 'onay_bekleniyor' || publicStatus === 'customer_approval_pending' || publicStatus === 'teklif_bekliyor') {
+    return 2
+  }
+  if (publicStatus === 'parts_waiting' || publicStatus === 'teshis') {
+    return 1
+  }
+  if (publicStatus === 'alindi' || publicStatus === 'waiting_diagnosis') {
+    return 0
+  }
   const idx = PORTAL_STATUS_STEPS.findIndex(s => s.key === publicStatus)
   return idx >= 0 ? idx : 0
 }
