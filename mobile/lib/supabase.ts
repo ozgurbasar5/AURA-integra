@@ -21,14 +21,39 @@ export const API_BASE_URL =
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
 
+const isServer = typeof window === 'undefined'
+
+const customStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (isServer) return null
+    try {
+      return await AsyncStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (isServer) return
+    try {
+      await AsyncStorage.setItem(key, value)
+    } catch {}
+  },
+  removeItem: async (key: string): Promise<void> => {
+    if (isServer) return
+    try {
+      await AsyncStorage.removeItem(key)
+    } catch {}
+  },
+}
+
 export const supabase = createClient(
   SUPABASE_URL || 'https://placeholder.supabase.co',
   SUPABASE_ANON_KEY || 'placeholder',
   {
     auth: {
-      storage: AsyncStorage,
-      autoRefreshToken: true,
-      persistSession: true,
+      storage: customStorage,
+      autoRefreshToken: !isServer,
+      persistSession: !isServer,
       detectSessionInUrl: false,
     },
   },
