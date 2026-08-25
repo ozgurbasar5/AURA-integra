@@ -24,7 +24,7 @@ import {
 } from '@/lib/store'
 import ExpertiseModal from '@/components/atolye/ExpertiseModal'
 import DevicePhotoGallery from '@/components/atolye/DevicePhotoGallery'
-import { QC_CHECKLIST, qcProgress, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
+import { QC_CHECKLIST, qcProgress, isQcComplete, getCompatibleParts, buildApprovalUrl } from '@/lib/erp-features'
 import {
   fetchServiceOrderById,
   updateServiceOrderRemote,

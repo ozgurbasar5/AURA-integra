@@ -153,8 +153,9 @@ export const PATCH = withApiHandler(async function PATCH(req: NextRequest, ctx: 
       nextMeta.used_parts = body.used_parts
     }
     if (body.final_checks != null && Array.isArray(body.final_checks)) {
-      nextMeta.final_checks = body.final_checks.map(String)
-      if (isQcComplete(nextMeta.final_checks)) {
+      const checks = body.final_checks.map(String)
+      nextMeta.final_checks = checks
+      if (isQcComplete(checks)) {
         nextMeta.qc_passed = true
         nextMeta.qc_completed_at = new Date().toISOString()
         nextMeta.qc_fail_reason = null

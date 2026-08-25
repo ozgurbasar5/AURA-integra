@@ -1727,8 +1727,8 @@ export function getServiceProfitPreview(serviceId: string, serviceFee: number): 
 export function deliverService(
   serviceId: string,
   serviceFee: number,
-  jobNo: string,
-  customerName: string,
+  jobNo?: string,
+  customerName?: string,
   paymentMethod: string = 'nakit'
 ): ServiceDelivery | null {
   if (serviceFee <= 0) {
@@ -1738,6 +1738,8 @@ export function deliverService(
 
   const store = loadStore()
   const order = store.serviceOrders.find(o => o.id === serviceId)
+  const jNo = jobNo || order?.job_no || serviceId
+  const cName = customerName || order?.customer_name || 'Müşteri'
 
   const checks = order?.final_checks
   const qcPassed = order?.qc_passed === true || isQcComplete(checks)
@@ -1764,13 +1766,13 @@ export function deliverService(
   store.transactions.push({
     id: financeTxId,
     type: 'gelir',
-    description: `Servis teslim — ${jobNo}`,
+    description: `Servis teslim — ${jNo}`,
     category: 'Servis Teslim',
     amount: serviceFee,
     payment_method: paymentMethod,
     date: new Date().toISOString(),
-    customer_name: customerName,
-    order_no: jobNo,
+    customer_name: cName,
+    order_no: jNo,
     service_id: serviceId,
   })
 
@@ -1831,8 +1833,8 @@ export function deliverService(
       covered_parts: ['İşçilik', 'Değiştirilen Parçalar'],
       terms: 'Servis sonrası garanti',
       status: 'aktif',
-      customer_name: customerName,
-      order_no: jobNo,
+      customer_name: cName,
+      order_no: jNo,
       created_at: new Date().toISOString(),
     })
   }

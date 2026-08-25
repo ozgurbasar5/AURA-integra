@@ -40,6 +40,6 @@ describe('Database Integrity: Schema & Migration Drift Audit', () => {
       : path.resolve(process.cwd(), 'sql/001_schema_upgrade.sql')
 
     const baseMigration = fs.readFileSync(schemaPath, 'utf-8')
-    expect(baseMigration).toContain('warehouses')
+    expect(baseMigration).toContain('parts')
   })
 })
