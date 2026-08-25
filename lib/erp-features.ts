@@ -84,7 +84,7 @@ export function mapStoreStatusToDb(status: string): string {
   if (status === 'ready_for_pickup' || status === 'hazir' || status === 'teslime_hazir') {
     return 'kalite_kontrol'
   }
-  if (status === 'onarimda' || status === 'in_repair') {
+  if (status === 'onarimda' || status === 'in_repair' || status === 'onaylandi' || status === 'approved') {
     return 'tamir'
   }
   if (status === 'delivered' || status === 'teslim_edildi') {
