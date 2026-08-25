@@ -1,22 +1,79 @@
-/** Mobil sekme / modül erişimi — lib/role-matrix.ts tek kaynak */
+import React from 'react'
 
-import type { AppModule } from '../../lib/role-matrix'
-import {
-  isModuleAllowed,
-  isOwnerRole,
-  isMobileTabAllowed as matrixTabAllowed,
-} from '../../lib/role-matrix'
+export type MobileTab =
+  | 'index'
+  | 'kabul'
+  | 'atolye'
+  | 'satis'
+  | 'sayim'
+  | 'kasa'
+  | 'cari'
+  | 'vitrin'
+  | 'alis'
+  | 'stok'
+  | 'tedarik'
+  | 'musteriler'
+  | 'randevu'
+  | 'garanti'
+  | 'finans'
+  | 'raporlar'
+  | 'komisyon'
+  | 'bildirimler'
+  | 'ayarlar'
+  | 'magaza'
+  | 'yapilacaklar'
+  | 'fatura'
 
-export type MobileTab = AppModule
+export const OWNER_ROLES = ['super_admin', 'tenant_admin', 'admin', 'mudur', 'owner'] as const
+export const OWNER_SET = new Set<string>(OWNER_ROLES)
 
-export { isOwnerRole }
+const MODULE_ROLES: Record<MobileTab, Set<string> | '*'> = {
+  index: '*',
+  kabul: new Set(['satis', 'kasiyer', 'teknisyen', ...OWNER_ROLES]),
+  atolye: new Set(['teknisyen', 'viewer', 'satis', ...OWNER_ROLES]),
+  satis: new Set(['satis', 'kasiyer', ...OWNER_ROLES]),
+  sayim: new Set(['teknisyen', 'satis', 'kasiyer', ...OWNER_ROLES]),
+  kasa: new Set(['kasiyer', 'muhasebe', ...OWNER_ROLES]),
+  cari: new Set(['kasiyer', 'muhasebe', 'satis', ...OWNER_ROLES]),
+  vitrin: new Set(['satis', 'kasiyer', ...OWNER_ROLES]),
+  alis: new Set(['muhasebe', 'satis', ...OWNER_ROLES]),
+  stok: new Set(['teknisyen', 'satis', 'kasiyer', 'muhasebe', ...OWNER_ROLES]),
+  tedarik: new Set(['muhasebe', 'satis', 'teknisyen', ...OWNER_ROLES]),
+  musteriler: new Set(['satis', 'kasiyer', 'muhasebe', ...OWNER_ROLES]),
+  randevu: new Set(['satis', 'teknisyen', 'kasiyer', ...OWNER_ROLES]),
+  garanti: new Set(['teknisyen', 'satis', ...OWNER_ROLES]),
+  finans: new Set(['muhasebe', 'kasiyer', ...OWNER_ROLES]),
+  raporlar: new Set(['muhasebe', ...OWNER_ROLES]),
+  komisyon: new Set([...OWNER_ROLES]),
+  bildirimler: '*',
+  ayarlar: new Set([...OWNER_ROLES, 'mudur']),
+  magaza: new Set(['satis', ...OWNER_ROLES]),
+  yapilacaklar: new Set(['teknisyen', ...OWNER_ROLES]),
+  fatura: new Set(['muhasebe', ...OWNER_ROLES]),
+}
 
 export function normalizeMobileRole(role?: string | null): string {
-  return (role || '').trim().toLowerCase()
+  const r = (role || '').trim().toLowerCase()
+  if (r === 'superadmin' || r === 'super_admin') return 'super_admin'
+  if (r === 'admin' || r === 'tenant_admin') return 'tenant_admin'
+  return r
+}
+
+export function isOwnerRole(role?: string | null): boolean {
+  return OWNER_SET.has(normalizeMobileRole(role))
+}
+
+export function isModuleAllowed(module: MobileTab, role?: string | null): boolean {
+  const r = normalizeMobileRole(role)
+  if (!r) return true
+  if (OWNER_SET.has(r)) return true
+  const allowed = MODULE_ROLES[module]
+  if (allowed === '*') return true
+  return allowed ? allowed.has(r) : true
 }
 
 export function isMobileTabAllowed(tab: MobileTab, role?: string | null): boolean {
-  return matrixTabAllowed(tab, role)
+  return isModuleAllowed(tab, role)
 }
 
 export type ModuleLink = {
@@ -52,6 +109,3 @@ export const ALL_MODULES: ModuleLink[] = [
 export function getModulesForRole(role?: string | null): ModuleLink[] {
   return ALL_MODULES.filter(m => isModuleAllowed(m.tab, role))
 }
-
-// re-export for guards
-export { isModuleAllowed }
