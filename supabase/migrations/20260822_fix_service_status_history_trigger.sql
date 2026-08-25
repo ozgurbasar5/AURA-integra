@@ -11,7 +11,7 @@ AS $$
 BEGIN
   IF OLD.status IS DISTINCT FROM NEW.status THEN
     INSERT INTO service_status_history (order_id, tenant_id, status, note, created_by)
-    VALUES (NEW.id, NEW.tenant_id, NEW.status, 'Otomatik durum değişikliği', COALESCE(auth.uid(), NEW.created_by));
+    VALUES (NEW.id, NEW.tenant_id, NEW.status, 'Otomatik durum değişikliği', COALESCE(auth.uid(), NEW.technician_id));
   END IF;
   RETURN NEW;
 END;
