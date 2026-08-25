@@ -281,6 +281,7 @@ export const POST = withApiHandler(async function POST(req: NextRequest, ctx: Ro
           id: warrantyId,
           tenant_id: auth.tenantId,
           order_id: id,
+          customer_id: order.customer_id || null,
           imei: order.imei,
           device_brand: order.device_brand,
           device_model: order.device_model,

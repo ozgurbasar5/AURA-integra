@@ -460,11 +460,11 @@ BEGIN
     v_end := (v_start + (p_warranty_months || ' months')::INTERVAL)::DATE;
 
     INSERT INTO warranties (
-      id, tenant_id, order_id, imei,
+      id, tenant_id, order_id, customer_id, imei,
       device_brand, device_model, warranty_months, start_date, end_date,
       covered_parts, terms, status, claim_status, created_by, created_at
     ) VALUES (
-      v_warranty_id, p_tenant_id, p_order_id, v_order.imei,
+      v_warranty_id, p_tenant_id, p_order_id, v_order.customer_id, v_order.imei,
       v_order.device_brand, v_order.device_model, p_warranty_months,
       v_start, v_end,
       ARRAY['İşçilik', 'Değiştirilen Parçalar'],
