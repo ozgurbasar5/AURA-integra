@@ -1,4 +1,4 @@
-﻿# dependencies
+# dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -12,6 +12,7 @@
 /coverage
 
 # next.js
+.next/
 /.next/
 /out/
 
@@ -22,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+*.key
 
 # debug
 npm-debug.log*
