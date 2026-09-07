@@ -30,15 +30,25 @@ async function generateWithGemini(
   lastUserContent: string,
 ) {
   const genAI = new GoogleGenerativeAI(apiKey)
-  const systemPrompt = `Sen AURA İntegra ERP asistanısın. Türkçe yanıt ver.
-Teknik servis, stok, satış ve kasa konularında kısa, pratik öneriler sun.
-Telefon/tablet/bilgisayar tamir atölyeleri için uzman gibi davran.`
+  const systemInstruction = `Sen AURA İntegra ERP teknik servis asistanısın. Türkçe yanıt ver.
+Teknik servis, akıllı telefon, tablet ve bilgisayar tamiri, arıza teşhisi, yedek parça, stok ve atölye yönetimi konularında kısa, net, pratik ve uzman öneriler sun.`
 
   const trimmed = trimAiHistory(messages)
-  const history = trimmed.slice(0, -1).map(m => ({
-    role: m.role === 'assistant' ? 'model' as const : 'user' as const,
-    parts: [{ text: m.content }],
-  }))
+  const prior = trimmed.slice(0, -1)
+
+  const history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = []
+  for (const m of prior) {
+    const role = m.role === 'assistant' ? 'model' : 'user'
+    if (history.length === 0 && role === 'model') {
+      continue
+    }
+    const last = history[history.length - 1]
+    if (last && last.role === role) {
+      last.parts[0].text += '\n' + m.content
+    } else {
+      history.push({ role, parts: [{ text: m.content }] })
+    }
+  }
 
   let lastError = 'Model yanıt vermedi'
 
@@ -46,19 +56,20 @@ Telefon/tablet/bilgisayar tamir atölyeleri için uzman gibi davran.`
     try {
       const model = genAI.getGenerativeModel({
         model: modelName,
-        generationConfig: { maxOutputTokens: AI_MAX_OUTPUT_TOKENS },
+        systemInstruction,
+        generationConfig: { maxOutputTokens: AI_MAX_OUTPUT_TOKENS, temperature: 0.7 },
       })
       const chat = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: systemPrompt }] },
-          { role: 'model', parts: [{ text: 'Anladım, AURA İntegra asistanı olarak yardımcı olacağım.' }] },
-          ...history,
-        ],
+        history,
       })
       const result = await chat.sendMessage(lastUserContent)
-      return { text: result.response.text(), model: modelName }
+      const text = result.response.text()
+      if (text) {
+        return { text, model: modelName }
+      }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)
+      console.error(`Gemini model ${modelName} error:`, lastError)
     }
   }
 
