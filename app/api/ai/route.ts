@@ -16,10 +16,12 @@ import {
   estimateAiCostUsd,
 } from '@/lib/ai-quota'
 
-const GEMINI_MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'] as const
+const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'] as const
 
 function isLikelyInvalidGeminiKey(key: string): boolean {
-  return key.startsWith('AQ.') || (!key.startsWith('AIza') && key.length < 30)
+  if (!key || typeof key !== 'string') return true
+  const trimmed = key.trim()
+  return trimmed.length < 20
 }
 
 async function generateWithGemini(

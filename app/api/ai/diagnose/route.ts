@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' })
 
     const prompt = `Sen uzman bir elektronik ve cep telefonu/bilgisayar tamir teknisyenisin.
 Cihaz Marka: ${device_brand || 'Belirtilmedi'}
@@ -100,7 +100,7 @@ Aşağıdaki JSON formatında yanıt ver (JSON dışında hiçbir metin veya mar
         await admin.from('ai_usage_logs').insert({
           tenant_id: auth.tenantId,
           user_id: auth.userId,
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.6-flash',
           input_tokens: inputTokens,
           output_tokens: outputTokens,
         })
